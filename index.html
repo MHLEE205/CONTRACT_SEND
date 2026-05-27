@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LEENAI 契約書自動発行ツール v1.0</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {
+  --bg: #0f1117; --surface: #1a1d27; --surface2: #22263a;
+  --surface3: #2a2f46; --border: #2e3350;
+  --text: #e2e8f0; --text2: #8892a4; --text3: #4a5568;
+  --accent: #4f8ef7; --ok: #22c55e; --warn: #f59e0b;
+  --danger: #ef4444; --info: #38bdf8; --radius: 10px;
+}
+[data-theme="light"] {
+  --bg: #f4f6fb; --surface: #ffffff; --surface2: #f0f4ff;
+  --surface3: #e8edf7; --border: #d1d5db;
+  --text: #111827; --text2: #6b7280; --text3: #9ca3af;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Meiryo', 'Noto Sans JP', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; }
+
+.header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 24px; height: 54px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+.header-left { display: flex; align-items: center; gap: 10px; }
+.logo { width: 30px; height: 30px; background: linear-gradient(135deg, var(--accent), #6ee7b7); border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 900; color: #fff; }
+.header-title { font-size: 14px; font-weight: 700; }
+.header-sub { font-size: 11px; color: var(--text3); margin-top: 1px; }
+.header-right { display: flex; gap: 8px; align-items: center; }
+.conn-badge { font-size: 10px; font-weight: 700; padding: 3px 10px; border-radius: 20px; white-space: nowrap; }
+.conn-badge.offline { background: var(--surface2); color: var(--text3); }
+.conn-badge.connecting { background: rgba(245,158,11,0.15); color: var(--warn); }
+.conn-badge.online { background: rgba(34,197,94,0.15); color: var(--ok); }
+.user-chip { font-size: 11px; color: var(--accent); background: rgba(79,142,247,0.12); padding: 3px 10px; border-radius: 20px; font-weight: 600; display: none; }
+.theme-btn { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; width: 28px; height: 28px; cursor: pointer; color: var(--text2); font-size: 14px; display: flex; align-items: center; justify-content: center; }
+
+.loading-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 1000; display: none; align-items: center; justify-content: center; flex-direction: column; gap: 16px; }
+.loading-overlay.show { display: flex; }
+.spinner { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { font-size: 13px; color: var(--text2); }
+
+.login-card { max-width: 480px; margin: 60px auto; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 36px; text-align: center; }
+.login-icon { font-size: 40px; margin-bottom: 12px; }
+.login-title { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+.login-sub { font-size: 13px; color: var(--text2); margin-bottom: 24px; line-height: 1.7; }
+.btn-primary { background: var(--accent); color: #fff; border: none; padding: 14px 32px; border-radius: var(--radius); font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.2s; font-family: inherit; }
+.btn-primary:hover { opacity: 0.88; transform: translateY(-1px); }
+.btn-primary:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+
+.tabs { background: var(--surface); border-bottom: 1px solid var(--border); display: none; padding: 0 24px; gap: 2px; }
+.tab { padding: 12px 18px; font-size: 13px; font-weight: 600; color: var(--text2); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; background: none; border-left: none; border-right: none; border-top: none; font-family: inherit; }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+.main { max-width: 880px; margin: 0 auto; padding: 28px 20px; }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+.steps-bar { display: flex; align-items: center; margin-bottom: 28px; }
+.step-node { display: flex; flex-direction: column; align-items: center; }
+.step-circle { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border); background: var(--surface2); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: var(--text3); transition: all 0.3s; }
+.step-circle.active { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: 0 0 0 4px rgba(79,142,247,0.2); }
+.step-circle.done { background: var(--ok); border-color: var(--ok); color: #fff; }
+.step-label-text { font-size: 10px; color: var(--text3); margin-top: 4px; white-space: nowrap; }
+.step-line { flex: 1; height: 2px; background: var(--border); margin: 0 6px 14px; transition: background 0.3s; }
+.step-line.done { background: var(--ok); }
+
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 16px; animation: fadeUp 0.2s ease; }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.card-title { font-size: 12px; font-weight: 700; color: var(--text2); margin-bottom: 16px; letter-spacing: 0.5px; text-transform: uppercase; }
+
+.input-lg { width: 100%; background: var(--surface2); border: 2px solid var(--border); border-radius: var(--radius); padding: 14px 18px; font-size: 20px; font-weight: 700; color: var(--text); letter-spacing: 2px; transition: border 0.2s; font-family: 'Courier New', monospace; text-transform: uppercase; }
+.input-lg:focus { outline: none; border-color: var(--accent); }
+.input-lg::placeholder { font-size: 14px; letter-spacing: 0; font-weight: 400; font-family: 'Meiryo', sans-serif; color: var(--text3); }
+
+.input-row { display: flex; gap: 10px; margin-top: 12px; }
+.btn-query { background: var(--accent); color: #fff; border: none; border-radius: var(--radius); padding: 12px 28px; font-size: 14px; font-weight: 700; cursor: pointer; white-space: nowrap; font-family: inherit; transition: all 0.2s; }
+.btn-query:hover { opacity: 0.88; }
+.btn-secondary { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 18px; font-size: 13px; font-weight: 600; color: var(--text2); cursor: pointer; font-family: inherit; transition: all 0.2s; }
+.btn-secondary:hover { border-color: var(--text2); color: var(--text); }
+.btn-back { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 11px 20px; font-size: 13px; font-weight: 600; color: var(--text2); cursor: pointer; font-family: inherit; transition: all 0.2s; }
+.btn-back:hover { border-color: var(--text2); }
+.btn-send { flex: 1; background: var(--ok); border: none; border-radius: var(--radius); padding: 14px 24px; font-size: 15px; font-weight: 700; color: #fff; cursor: pointer; font-family: inherit; transition: all 0.2s; }
+.btn-send:hover { opacity: 0.88; }
+.btn-send:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.info-box { background: rgba(79,142,247,0.08); border: 1px solid rgba(79,142,247,0.25); border-radius: 8px; padding: 10px 14px; font-size: 12px; color: var(--info); margin-bottom: 12px; }
+.ok-box { background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.25); border-radius: 8px; padding: 10px 14px; font-size: 12px; color: var(--ok); margin-bottom: 12px; }
+.warn-box { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.25); border-radius: 8px; padding: 10px 14px; font-size: 12px; color: var(--warn); margin-bottom: 12px; }
+.err-box { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.25); border-radius: 8px; padding: 10px 14px; font-size: 12px; color: var(--danger); margin-bottom: 12px; }
+
+.master-chip { display: inline-flex; align-items: center; gap: 6px; background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.3); color: var(--ok); border-radius: 20px; padding: 4px 12px; font-size: 12px; font-weight: 600; }
+.no-master-btn { display: inline-flex; align-items: center; gap: 6px; background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.3); color: var(--warn); border-radius: 20px; padding: 4px 14px; font-size: 12px; font-weight: 600; cursor: pointer; background-color: transparent; font-family: inherit; }
+.no-master-btn:hover { background: rgba(245,158,11,0.15); }
+
+.chips-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.chip { background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 4px 12px; font-size: 12px; font-weight: 600; color: var(--text2); cursor: pointer; transition: all 0.2s; }
+.chip:hover { border-color: var(--accent); color: var(--accent); }
+
+.send-info-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; margin-bottom: 14px; }
+.send-info-row { display: flex; gap: 10px; margin-bottom: 5px; font-size: 13px; }
+.send-info-row:last-child { margin-bottom: 0; }
+.send-info-label { color: var(--text2); font-weight: 700; min-width: 45px; }
+
+.preview-outer { background: #6b7280; border-radius: 8px; padding: 16px; overflow-x: auto; margin-bottom: 8px; }
+
+/* A4 Contract (white paper) */
+.contract-a4 {
+  width: 794px;
+  min-height: 1100px;
+  background: #fff;
+  color: #000;
+  font-family: 'Meiryo', 'MS PGothic', 'Hiragino Sans', sans-serif;
+  font-size: 11.5px;
+  line-height: 1.5;
+  padding: 32px 38px;
+  box-shadow: 0 4px 32px rgba(0,0,0,0.4);
+  margin: 0 auto;
+}
+.c-hdr { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+.c-title-bar { background: #000; color: #fff; text-align: center; font-size: 17px; font-weight: 700; padding: 6px 0; margin-bottom: 10px; letter-spacing: 6px; }
+.c-parties { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+.c-party { border: 1px solid #000; padding: 7px 9px; font-size: 11px; }
+.c-party-label { font-size: 10px; color: #555; margin-bottom: 3px; font-weight: 700; }
+.c-party-name { font-size: 13px; font-weight: 700; margin-bottom: 3px; }
+.c-party-sub { font-size: 10px; line-height: 1.6; }
+.c-table { width: 100%; border-collapse: collapse; margin-bottom: 0; }
+.c-table th, .c-table td { border: 1px solid #000; padding: 4px 6px; vertical-align: middle; }
+.c-table thead tr { background: #000; color: #fff; }
+.c-table th { text-align: center; font-size: 11px; font-weight: 700; }
+.c-table td { font-size: 11px; }
+.c-table tbody tr:nth-child(even) { background: #f9f9f9; }
+.c-totals { width: 100%; border-collapse: collapse; margin-top: 0; }
+.c-totals td { border: 1px solid #000; padding: 4px 8px; font-size: 11px; }
+.c-conditions { display: grid; grid-template-columns: 3fr 2fr; border: 1px solid #000; margin-top: 8px; }
+.c-cond-left { padding: 7px 9px; border-right: 1px solid #000; font-size: 11px; line-height: 1.8; }
+.c-cond-right { padding: 7px 9px; font-size: 11px; line-height: 1.8; }
+.c-remarks { border: 1px solid #000; border-top: none; padding: 7px 9px; font-size: 10.5px; line-height: 1.9; }
+.c-signs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+.c-sign-box { border: 1px solid #000; padding: 10px; min-height: 90px; font-size: 11px; }
+.c-sign-title { font-size: 10px; color: #333; font-weight: 700; margin-bottom: 5px; }
+.c-sign-stamp { text-align: right; font-size: 10px; color: #bbb; margin-top: 14px; }
+.c-footer { font-size: 9px; color: #aaa; text-align: right; margin-top: 8px; }
+
+.nav-row { display: flex; gap: 10px; margin-top: 20px; }
+
+.complete-wrap { text-align: center; padding: 40px 16px; }
+.complete-icon { font-size: 60px; margin-bottom: 16px; }
+.complete-title { font-size: 24px; font-weight: 700; margin-bottom: 8px; color: var(--ok); }
+.complete-sub { font-size: 13px; color: var(--text2); margin-bottom: 24px; }
+.complete-info { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 16px; text-align: left; margin-bottom: 24px; }
+.ci-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.ci-row:last-child { border-bottom: none; }
+.ci-label { color: var(--text2); }
+
+.section-title { font-size: 13px; font-weight: 700; color: var(--text2); margin-bottom: 14px; }
+.history-list { display: flex; flex-direction: column; gap: 10px; }
+.history-item { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.history-no { font-size: 14px; font-weight: 700; color: var(--accent); }
+.history-meta { font-size: 12px; color: var(--text2); margin-top: 3px; }
+.status-badge { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px; white-space: nowrap; flex-shrink: 0; }
+.status-sent { background: rgba(34,197,94,0.15); color: var(--ok); }
+.status-failed { background: rgba(239,68,68,0.15); color: var(--danger); }
+
+.powered { text-align: center; font-size: 11px; color: var(--text3); margin-top: 40px; padding: 20px; }
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loadingText">処理中...</div>
+</div>
+
+<div class="header">
+  <div class="header-left">
+    <div class="logo">LN</div>
+    <div>
+      <div class="header-title">LEENAI 契約書自動発行ツール</div>
+      <div class="header-sub">v1.0 (2026-05-26)&nbsp;|&nbsp;SYS-A-02&nbsp;|&nbsp;Dataverse連携&nbsp;|&nbsp;PDF自動発送</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <span class="user-chip" id="userChip"></span>
+    <span class="conn-badge offline" id="connBadge">● オフライン</span>
+    <button class="theme-btn" onclick="toggleTheme()" title="テーマ切替">🌓</button>
+  </div>
+</div>
+
+<div id="loginSection">
+  <div class="login-card">
+    <div class="login-icon">📤</div>
+    <div class="login-title">契約書自動発行ツール</div>
+    <div class="login-sub">
+      COMPASSに登録された購買契約を照会し、<br>
+      PDF契約書を自動生成してPackerへ発送します。<br><br>
+      Microsoft アカウントでログインしてください。
+    </div>
+    <button class="btn-primary" onclick="startLogin()">🚀 ログインして開始</button>
+  </div>
+</div>
+
+<div class="tabs" id="tabsBar">
+  <button class="tab active" onclick="showTab('hassin', this)">📤 発行</button>
+  <button class="tab" onclick="showTab('history', this)">📋 履歴</button>
+</div>
+
+<div id="tab-hassin" class="tab-content">
+  <div class="main">
+    <div class="steps-bar" id="stepsBar"></div>
+    <div id="stepContent"></div>
+  </div>
+</div>
+
+<div id="tab-history" class="tab-content">
+  <div class="main">
+    <div class="section-title">発送履歴</div>
+    <div id="historyList" class="history-list"></div>
+    <div class="powered">✦ Powered by LEENAI Automation System</div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════
+// 定数
+// ═══════════════════════════════════════
+const CLIENT_ID    = 'f071a165-5e9b-44bf-b6a1-baba654524db';
+const TENANT_ID    = 'a56988ff-c2b8-4df8-9727-889ad4205198';
+const DV_URL       = 'https://orgde512c6f.crm7.dynamics.com';
+const DV_API       = `${DV_URL}/api/data/v9.2`;
+const REDIRECT_URI = location.origin + location.pathname;
+const DV_SCOPE     = `${DV_URL}/user_impersonation openid profile`;
+const GRAPH_SCOPE  = 'https://graph.microsoft.com/Mail.Send openid profile';
+const DB_NAME      = 'leenai_contract_send_v1';
+const DB_STORE     = 'send_history';
+
+// ═══════════════════════════════════════
+// 状態
+// ═══════════════════════════════════════
+const S = {
+  dvToken: '', dvExpiry: 0,
+  graphToken: '', graphExpiry: 0,
+  userEmail: '', userName: '',
+  contractMaster: [], masterFileName: '',
+  step: 0,
+  contractNo: '',
+  contractData: null,
+  lastSent: null,
+};
+
+// ═══════════════════════════════════════
+// IndexedDB
+// ═══════════════════════════════════════
+let db = null;
+function openDB() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = e => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains(DB_STORE)) {
+        d.createObjectStore(DB_STORE, { keyPath: 'id', autoIncrement: true });
+      }
+    };
+    req.onsuccess = e => { db = e.target.result; res(db); };
+    req.onerror = e => rej(e.target.error);
+  });
+}
+function dbAdd(record) {
+  return new Promise((res, rej) => {
+    const tx = db.transaction(DB_STORE, 'readwrite');
+    const req = tx.objectStore(DB_STORE).add(record);
+    req.onsuccess = () => res(req.result);
+    req.onerror = e => rej(e.target.error);
+  });
+}
+function dbGetAll() {
+  return new Promise((res, rej) => {
+    const tx = db.transaction(DB_STORE, 'readonly');
+    const req = tx.objectStore(DB_STORE).getAll();
+    req.onsuccess = () => res([...req.result].reverse());
+    req.onerror = e => rej(e.target.error);
+  });
+}
+
+// ═══════════════════════════════════════
+// PKCE OAuth
+// ═══════════════════════════════════════
+function b64url(buf) {
+  return btoa(String.fromCharCode(...new Uint8Array(buf)))
+    .replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+}
+async function sha256(str) {
+  return crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+}
+function randomStr(len) {
+  const a = new Uint8Array(len || 64);
+  crypto.getRandomValues(a);
+  return b64url(a).slice(0, len || 64);
+}
+
+async function startLogin(scope) {
+  setConn('connecting', '● 接続中...');
+  const useScope = scope || DV_SCOPE;
+  const verifier = randomStr(64);
+  const challenge = b64url(await sha256(verifier));
+  const state = 'cs_' + randomStr(16);
+  sessionStorage.setItem('pkce_verifier', verifier);
+  sessionStorage.setItem('pkce_state', state);
+  sessionStorage.setItem('pkce_scope_type', scope === GRAPH_SCOPE ? 'graph' : 'dv');
+  const params = new URLSearchParams({
+    client_id: CLIENT_ID, response_type: 'code', redirect_uri: REDIRECT_URI,
+    scope: useScope, state, code_challenge: challenge, code_challenge_method: 'S256',
+    prompt: 'select_account'
+  });
+  location.href = `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/authorize?${params}`;
+}
+
+async function handleCallback() {
+  const params = new URLSearchParams(location.search);
+  const code = params.get('code');
+  if (!code) return false;
+  history.replaceState({}, '', location.pathname);
+
+  const verifier = sessionStorage.getItem('pkce_verifier');
+  const scopeType = sessionStorage.getItem('pkce_scope_type') || 'dv';
+  const useScope = scopeType === 'graph' ? GRAPH_SCOPE : DV_SCOPE;
+  sessionStorage.removeItem('pkce_verifier');
+  sessionStorage.removeItem('pkce_state');
+  sessionStorage.removeItem('pkce_scope_type');
+
+  showLoading('認証処理中...');
+  try {
+    const res = await fetch(`https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: CLIENT_ID, grant_type: 'authorization_code',
+        code, redirect_uri: REDIRECT_URI, code_verifier: verifier, scope: useScope
+      })
+    });
+    const data = await res.json();
+    if (!data.access_token) throw new Error(data.error_description || 'トークン取得失敗');
+
+    if (scopeType === 'graph') {
+      S.graphToken = data.access_token;
+      S.graphExpiry = Date.now() + (data.expires_in - 60) * 1000;
+      // 保存済み契約データ復元
+      const pending = sessionStorage.getItem('pending_contract');
+      const pendingNo = sessionStorage.getItem('pending_contract_no');
+      sessionStorage.removeItem('pending_contract');
+      sessionStorage.removeItem('pending_contract_no');
+      hideLoading();
+      await initMainUI();
+      if (pending) {
+        S.contractData = JSON.parse(pending);
+        S.contractNo = pendingNo || '';
+        setStep(1);
+        showMsg('info-box', '✅ 認証完了。発送ボタンをもう一度押してください。', 'stepContent', true);
+      } else {
+        setStep(0);
+      }
+    } else {
+      S.dvToken = data.access_token;
+      S.dvExpiry = Date.now() + (data.expires_in - 60) * 1000;
+      try {
+        const me = await fetch('https://graph.microsoft.com/v1.0/me', {
+          headers: { Authorization: `Bearer ${S.dvToken}` }
+        }).then(r => r.json());
+        S.userName = me.displayName || '';
+        S.userEmail = me.mail || me.userPrincipalName || '';
+        const uc = document.getElementById('userChip');
+        uc.textContent = S.userName;
+        uc.style.display = 'inline-block';
+      } catch(e) {}
+      setConn('online', '● Dataverse接続');
+      hideLoading();
+      await initMainUI();
+      setStep(0);
+    }
+  } catch(e) {
+    hideLoading();
+    setConn('offline', '● オフライン');
+    alert('認証エラー: ' + e.message);
+  }
+  return true;
+}
+
+async function dvGet(path) {
+  if (Date.now() > S.dvExpiry) throw new Error('セッション切れです。再ログインしてください。');
+  const res = await fetch(`${DV_API}/${path}`, {
+    headers: {
+      'Authorization': `Bearer ${S.dvToken}`,
+      'OData-MaxVersion': '4.0', 'OData-Version': '4.0',
+      'Accept': 'application/json',
+      'Prefer': 'odata.include-annotations="OData.Community.Display.V1.FormattedValue"'
+    }
+  });
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    throw new Error(`DV API ${res.status}: ${e?.error?.message || res.statusText}`);
+  }
+  return res.json();
+}
+
+// ═══════════════════════════════════════
+// UI ヘルパー
+// ═══════════════════════════════════════
+function setConn(cls, text) {
+  const b = document.getElementById('connBadge');
+  b.className = 'conn-badge ' + cls;
+  b.textContent = text;
+}
+function showLoading(text) {
+  document.getElementById('loadingText').textContent = text || '処理中...';
+  document.getElementById('loadingOverlay').classList.add('show');
+}
+function hideLoading() {
+  document.getElementById('loadingOverlay').classList.remove('show');
+}
+function toggleTheme() {
+  const h = document.documentElement;
+  h.setAttribute('data-theme', h.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+}
+function showTab(id, btn) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  btn.classList.add('active');
+  if (id === 'history') renderHistory();
+}
+function showMsg(cls, msg, containerId, prepend) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  const div = document.createElement('div');
+  div.className = cls;
+  div.textContent = msg;
+  if (prepend) el.prepend(div); else el.appendChild(div);
+  setTimeout(() => div.remove(), 5000);
+}
+
+async function initMainUI() {
+  document.getElementById('loginSection').style.display = 'none';
+  document.getElementById('tabsBar').style.display = 'flex';
+  document.getElementById('tab-hassin').classList.add('active');
+  await openDB();
+}
+
+// ═══════════════════════════════════════
+// STEP BAR
+// ═══════════════════════════════════════
+function renderStepsBar() {
+  const labels = ['① 契約番号', '② 内容確認', '③ 発送完了'];
+  let html = '';
+  labels.forEach((label, i) => {
+    if (i > 0) html += `<div class="step-line ${i <= S.step ? 'done' : ''}"></div>`;
+    const cls = i < S.step ? 'done' : i === S.step ? 'active' : '';
+    html += `<div class="step-node">
+      <div class="step-circle ${cls}">${i < S.step ? '✓' : i + 1}</div>
+      <div class="step-label-text">${label}</div>
+    </div>`;
+  });
+  document.getElementById('stepsBar').innerHTML = html;
+}
+
+function setStep(n) {
+  S.step = n;
+  renderStepsBar();
+  const renders = [renderStep0, renderStep1, renderStep2];
+  document.getElementById('stepContent').innerHTML = renders[n]();
+}
+
+// ═══════════════════════════════════════
+// STEP 0: 契約番号入力
+// ═══════════════════════════════════════
+function renderStep0() {
+  const masterEl = S.masterFileName
+    ? `<span class="master-chip">📋 ${S.masterFileName}</span>`
+    : `<button class="no-master-btn" onclick="loadMasterFile()">⚠️ CONTRACT_MASTER.xlsx 未選択 — クリックして選択</button>`;
+
+  const recent = JSON.parse(sessionStorage.getItem('recent_cn') || '[]');
+  const recentHtml = recent.length
+    ? `<div style="margin-top:14px;">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:6px;">最近の照会</div>
+        <div class="chips-row">${recent.map(c =>
+          `<span class="chip" onclick="S.contractNo='${c}';document.getElementById('cnInput').value='${c}';">${c}</span>`
+        ).join('')}</div>
+      </div>`
+    : '';
+
+  return `<div class="card">
+    <div class="card-title">STEP 1 — 契約番号を入力</div>
+    <input class="input-lg" id="cnInput" placeholder="例: LR-2604KN4"
+      value="${S.contractNo}"
+      oninput="S.contractNo=this.value.toUpperCase();this.value=S.contractNo;"
+      onkeydown="if(event.key==='Enter')queryContract()">
+    <div class="input-row">
+      <button class="btn-query" onclick="queryContract()">🔍 照会</button>
+    </div>
+    <div style="margin-top:16px;">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:7px;">収信先マスター (CONTRACT_MASTER.xlsx)</div>
+      ${masterEl}
+      ${!S.masterFileName ? `<div style="margin-top:6px;font-size:11px;color:var(--text3);">未選択の場合、発送先メールアドレスが取得できません</div>` : ''}
+    </div>
+    ${recentHtml}
+    <div id="step0err" style="margin-top:12px;"></div>
+  </div>`;
+}
+
+function loadMasterFile() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.xlsx';
+  input.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      S.contractMaster = XLSX.utils.sheet_to_json(ws);
+      S.masterFileName = file.name;
+      setStep(0);
+    } catch(err) {
+      alert('ファイル読み込みエラー: ' + err.message);
+    }
+  };
+  input.click();
+}
+
+async function queryContract() {
+  const no = S.contractNo.trim();
+  if (!no) { alert('契約番号を入力してください。'); return; }
+  if (!S.dvToken || Date.now() > S.dvExpiry) { alert('Dataverseセッション切れです。再ログインしてください。'); return; }
+
+  const errEl = document.getElementById('step0err');
+  if (errEl) errEl.innerHTML = '';
+
+  showLoading('COMPASS照会中...');
+  try {
+    // 1. 契約ヘッダー
+    const hdrRes = await dvGet(
+      `cr49f_purchase_contracts?$filter=cr49f_purchase_contract_no eq '${no}'&$top=1` +
+      `&$select=cr49f_purchase_contractid,cr49f_purchase_contract_no,` +
+      `cr49f_contract_date,cr49f_latest_vanning,cr49f_payment_term,` +
+      `cr49f_exchange_rate,_cr49f_packer_id_value`
+    );
+    if (!hdrRes.value?.length) throw new Error(`「${no}」がCOMPASSに見つかりません`);
+    const h = hdrRes.value[0];
+    const contractId = h.cr49f_purchase_contractid;
+    const packerGuid = h['_cr49f_packer_id_value'];
+    if (!packerGuid) throw new Error('Packer情報が取得できません');
+
+    // 2. 明細
+    const detRes = await dvGet(
+      `cr49f_purchase_details?$filter=_cr49f_purchase_contract_id_value eq ${contractId}` +
+      `&$expand=cr49f_item_id($select=cr49f_item,crcf9_item_japan)` +
+      `&$select=cr49f_count,cr49f_incoterms,cr49f_loading_port,cr49f_price,cr49f_quantity,cr49f_remark`
+    );
+
+    // 3. Packer
+    const pkRes = await dvGet(
+      `cr49f_packers(${packerGuid})` +
+      `?$select=cr49f_packer_name,cr49f_packer_address,cr49f_packer_person,` +
+      `cr49f_packer_tel,cr49f_parker_fax,cr49f_packer,cr49f_packer_code`
+    );
+
+    // 4. メールアドレス (MASTER)
+    const packerCode = pkRes.cr49f_packer || '';
+    let toAddr = '', ccAddrs = [];
+    if (S.contractMaster.length && packerCode) {
+      const row = S.contractMaster.find(r => r.PACKER_CODE === packerCode);
+      if (row) {
+        toAddr = row.MAIL1 || '';
+        ccAddrs = ['MAIL2','MAIL3','MAIL4','MAIL5','MAIL6','MAIL7','MAIL8']
+          .map(k => row[k]).filter(Boolean);
+      }
+    }
+    if (!ccAddrs.includes('rcp@leenearcorp.com')) {
+      ccAddrs.push('rcp@leenearcorp.com');
+    }
+
+    const details = (detRes.value || []).map(d => {
+      const qty = (d.cr49f_quantity || 0) * 1000;
+      return {
+        itemCode: d.cr49f_item_id?.cr49f_item || '',
+        itemName: d.cr49f_item_id?.crcf9_item_japan || '',
+        qty,
+        count: d.cr49f_count || 0,
+        price: d.cr49f_price || 0,
+        pol: d.cr49f_loading_port || '',
+        incoterms: d.cr49f_incoterms || '',
+        remark: d.cr49f_remark || '',
+        amount: Math.floor(qty * (d.cr49f_price || 0)),
+      };
+    });
+
+    S.contractData = { header: h, details, packer: pkRes, toAddr, ccAddrs };
+
+    const recent = JSON.parse(sessionStorage.getItem('recent_cn') || '[]');
+    if (!recent.includes(no)) { recent.unshift(no); if (recent.length > 5) recent.pop(); }
+    sessionStorage.setItem('recent_cn', JSON.stringify(recent));
+
+    hideLoading();
+    setStep(1);
+  } catch(e) {
+    hideLoading();
+    const errEl = document.getElementById('step0err');
+    if (errEl) errEl.innerHTML = `<div class="err-box">❌ ${e.message}</div>`;
+  }
+}
+
+// ═══════════════════════════════════════
+// STEP 1: プレビュー
+// ═══════════════════════════════════════
+function renderStep1() {
+  const { header: h, details, packer: pk, toAddr, ccAddrs } = S.contractData;
+  const contractNo = h.cr49f_purchase_contract_no || '';
+  const packerCode = pk.cr49f_packer_code || pk.cr49f_packer || '';
+  const pdfName = `${contractNo}_${packerCode}_購買契約書.pdf`;
+
+  const contractDate = fmtDate(h.cr49f_contract_date);
+  const deadline = (h.cr49f_latest_vanning || '').split('T')[0] || '';
+  const paymentTerm = h.cr49f_payment_term || '';
+  const exchangeRate = h.cr49f_exchange_rate || '';
+
+  const noMailWarn = !toAddr
+    ? `<div class="warn-box">⚠️ CONTRACT_MASTER.xlsx に「${packerCode}」の発送先が見つかりません。発送ボタンは無効です。</div>`
+    : '';
+
+  return `
+    <div class="ok-box">✅ COMPASS照会完了 — ${contractNo}</div>
+    ${noMailWarn}
+    <div class="send-info-card">
+      <div class="send-info-row"><span class="send-info-label">To:</span><span>${toAddr || '(未設定)'}</span></div>
+      <div class="send-info-row"><span class="send-info-label">CC:</span><span>${ccAddrs.join(', ') || '—'}</span></div>
+      <div class="send-info-row"><span class="send-info-label">PDF:</span><span>${pdfName}</span></div>
+    </div>
+    <div class="preview-outer">
+      ${buildContractA4(h, details, pk, deadline, paymentTerm, exchangeRate, contractDate)}
+    </div>
+    <div class="nav-row">
+      <button class="btn-back" onclick="setStep(0)">← 戻る</button>
+      <button class="btn-send" onclick="doSend()" ${!toAddr ? 'disabled title="収信先未設定"' : ''}>
+        📤 メールで発送する
+      </button>
+    </div>`;
+}
+
+function fmtDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
+}
+
+function fmtNum(n) {
+  return Number(n || 0).toLocaleString('ja-JP');
+}
+
+function buildContractA4(h, details, pk, deadline, paymentTerm, exchangeRate, contractDate) {
+  const contractNo = h.cr49f_purchase_contract_no || '';
+  const subtotal = details.reduce((s, d) => s + d.amount, 0);
+  const tax = Math.floor(subtotal * 0.10);
+  const total = subtotal + tax;
+
+  let rows = '';
+  details.slice(0, 6).forEach((d, i) => {
+    const cond = d.pol ? `${d.pol} ${d.incoterms}渡し` : (d.incoterms || '');
+    rows += `<tr>
+      <td style="text-align:center;">${i + 1}</td>
+      <td>${d.itemCode}<br><span style="font-size:10px;color:#555;">${d.itemName}</span></td>
+      <td style="text-align:right;">${fmtNum(d.qty)} KG<br><span style="font-size:10px;">(${fmtNum(d.count)}本)</span></td>
+      <td style="text-align:right;">¥${d.price}</td>
+      <td style="text-align:center;font-size:10px;">${cond}</td>
+      <td style="text-align:right;">¥${fmtNum(d.amount)}</td>
+    </tr>`;
+  });
+  for (let i = details.length; i < 6; i++) {
+    rows += '<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td></tr>';
+  }
+
+  return `<div class="contract-a4" id="contractPreview">
+    <div class="c-hdr">
+      <div style="font-size:13px;font-weight:700;">購買契約書</div>
+      <div style="text-align:right;font-size:11px;line-height:1.8;">
+        日付: ${contractDate}<br>
+        契約番号: <strong style="font-size:13px;">${contractNo}</strong>
+      </div>
+    </div>
+    <div class="c-title-bar">売 買 契 約 書</div>
+    <div class="c-parties">
+      <div class="c-party">
+        <div class="c-party-label">甲 (売主)</div>
+        <div class="c-party-name">${pk.cr49f_packer_name || ''}</div>
+        <div class="c-party-sub">
+          ${pk.cr49f_packer_address || ''}<br>
+          TEL: ${pk.cr49f_packer_tel || ''} / FAX: ${pk.cr49f_parker_fax || ''}<br>
+          担当: ${pk.cr49f_packer_person || ''}
+        </div>
+      </div>
+      <div class="c-party">
+        <div class="c-party-label">乙 (買主)</div>
+        <div class="c-party-name">株式会社リニア</div>
+        <div class="c-party-sub">
+          〒101-0064　東京都千代田区神田猿楽町2-8-11<br>
+          VORT水道橋Ⅲ 5階<br>
+          TEL: 03-3528-9850 / FAX: 03-3528-9851<br>
+          代表取締役　李明鎬
+        </div>
+      </div>
+    </div>
+    <table class="c-table">
+      <thead>
+        <tr>
+          <th style="width:28px;">No</th>
+          <th>品名</th>
+          <th style="width:115px;">数量</th>
+          <th style="width:72px;">B.unit</th>
+          <th style="width:125px;">条件</th>
+          <th style="width:92px;">金額</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <table class="c-totals">
+      <tr>
+        <td style="border:none;width:calc(100% - 217px);"></td>
+        <td style="text-align:right;font-weight:700;width:92px;">税抜き</td>
+        <td style="text-align:right;font-weight:700;width:92px;">¥${fmtNum(subtotal)}</td>
+        <td style="width:1px;border:none;"></td>
+      </tr>
+      <tr>
+        <td style="border:none;"></td>
+        <td style="text-align:right;font-size:10px;background:#f5f5f5;">消費税(10%)</td>
+        <td style="text-align:right;font-size:10px;background:#f5f5f5;">¥${fmtNum(tax)}</td>
+        <td style="border:none;"></td>
+      </tr>
+      <tr>
+        <td style="border:none;"></td>
+        <td style="text-align:right;font-weight:700;background:#000;color:#fff;">税込み</td>
+        <td style="text-align:right;font-weight:700;background:#000;color:#fff;">¥${fmtNum(total)}</td>
+        <td style="border:none;"></td>
+      </tr>
+    </table>
+    <div class="c-conditions">
+      <div class="c-cond-left">
+        <strong>納入条件</strong>: 湿度12%以下、鼠害なきもの<br>
+        <strong>梱包</strong>: 輸出用ベール<br>
+        <strong>出荷期限</strong>: ${deadline}<br>
+        <strong>支払条件</strong>: ${paymentTerm}<br>
+        <strong>為替</strong>: 1$ = ¥${exchangeRate}<br>
+        <strong>向け先</strong>: インドネシア、韓国、ベトナム、マレーシア、タイ向け
+      </div>
+      <div class="c-cond-right">
+        韓国向け: 放射能写真 必要<br>
+        <span style="font-size:10px;color:#666;">photo_rcp@leenearcorp.com</span>
+      </div>
+    </div>
+    <div class="c-remarks">
+      <strong>備考</strong><br>
+      １．分納可能<br>
+      ２．契約量の±10%は、変動可能<br>
+      ３．インドネシア向けの場合、全量コテクナ検査が必要です。<br>
+      ４．コンテナの平均重量を次のように合わせてくださるようお願いいたします。　　＊全ての品種：25,000kgまで<br>
+      ５．当社は反社会的勢力とは一切関わりがないことを保証します。<br>
+      ６．各向け地別、必要書類は異なります。
+    </div>
+    <div class="c-signs">
+      <div class="c-sign-box">
+        <div class="c-sign-title">甲 (売主)</div>
+        <div>${pk.cr49f_packer_name || ''}</div>
+        <div style="font-size:10px;margin-top:3px;">担当: ${pk.cr49f_packer_person || ''}</div>
+        <div class="c-sign-stamp">印</div>
+      </div>
+      <div class="c-sign-box">
+        <div class="c-sign-title">乙 (買主)</div>
+        <div>株式会社リニア</div>
+        <div style="font-size:10px;margin-top:3px;">代表取締役　李明鎬</div>
+        <div class="c-sign-stamp">印</div>
+      </div>
+    </div>
+    <div class="c-footer">✦ Powered by LEENAI Automation System</div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════
+// 発送
+// ═══════════════════════════════════════
+async function doSend() {
+  if (!S.contractData) return;
+  const { header: h, details, packer: pk, toAddr, ccAddrs } = S.contractData;
+  const contractNo = h.cr49f_purchase_contract_no || '';
+  const packerCode = pk.cr49f_packer_code || pk.cr49f_packer || '';
+
+  if (!S.graphToken || Date.now() > S.graphExpiry) {
+    const go = confirm('メール発送にはMicrosoft認証が必要です。\nログイン画面に移動しますか？');
+    if (!go) return;
+    sessionStorage.setItem('pending_contract', JSON.stringify(S.contractData));
+    sessionStorage.setItem('pending_contract_no', contractNo);
+    await startLogin(GRAPH_SCOPE);
+    return;
+  }
+
+  showLoading('PDF生成中...');
+  try {
+    const previewEl = document.getElementById('contractPreview');
+    const canvas = await html2canvas(previewEl, {
+      scale: 2, useCORS: true, backgroundColor: '#ffffff',
+      width: previewEl.offsetWidth, height: previewEl.scrollHeight
+    });
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const imgData = canvas.toDataURL('image/jpeg', 0.95);
+    const pdfW = pdf.internal.pageSize.getWidth();
+    const pdfH = (canvas.height * pdfW) / canvas.width;
+    pdf.addImage(imgData, 'JPEG', 0, 0, pdfW, pdfH);
+    const pdfBlob = pdf.output('blob');
+    const pdfB64 = await blobToBase64(pdfBlob);
+    const pdfFilename = `${contractNo}_${packerCode}_購買契約書.pdf`;
+
+    showLoading('メール送信中...');
+
+    const packerName = pk.cr49f_packer_name || '';
+    const personName = pk.cr49f_packer_person || '';
+    const mailBody = [
+      `<p>${packerName}<br>${personName} 様</p>`,
+      `<p>いつも大変お世話になっております。</p>`,
+      `<p>添付の通り、御契約書をお送りさせて頂きますので、<br>ご確認後サインバックをお願い致します。</p>`,
+      `<p>どうぞよろしくお願い致します。</p>`,
+      `<p>株式会社リニア<br>${S.userName || ''}</p>`,
+      `<p style="color:#999;font-size:12px;">このメールはLEENAI自動化システムより送信されました。</p>`
+    ].join('\n');
+
+    const gRes = await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${S.graphToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        message: {
+          subject: `[${contractNo}] 御契約書のご送付　[リニア発信専用]`,
+          body: { contentType: 'html', content: mailBody },
+          toRecipients: [{ emailAddress: { address: toAddr } }],
+          ccRecipients: ccAddrs.map(a => ({ emailAddress: { address: a } })),
+          attachments: [{
+            '@odata.type': '#microsoft.graph.fileAttachment',
+            name: pdfFilename,
+            contentType: 'application/pdf',
+            contentBytes: pdfB64
+          }]
+        },
+        saveToSentItems: true
+      })
+    });
+
+    if (!gRes.ok) {
+      const gErr = await gRes.json().catch(() => ({}));
+      throw new Error(`Graph API ${gRes.status}: ${gErr?.error?.message || gRes.statusText}`);
+    }
+
+    const record = {
+      contract_no: contractNo,
+      packer_name: packerName,
+      packer_code: packerCode,
+      sent_at: new Date().toISOString(),
+      sent_by: S.userEmail,
+      to_addr: toAddr,
+      pdf_filename: pdfFilename,
+      status: 'sent'
+    };
+    await dbAdd(record);
+    S.lastSent = record;
+    hideLoading();
+    setStep(2);
+  } catch(e) {
+    hideLoading();
+    alert('発送エラー: ' + e.message);
+  }
+}
+
+function blobToBase64(blob) {
+  return new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result.split(',')[1]);
+    reader.readAsDataURL(blob);
+  });
+}
+
+// ═══════════════════════════════════════
+// STEP 2: 完了
+// ═══════════════════════════════════════
+function renderStep2() {
+  const r = S.lastSent || {};
+  const sentTime = r.sent_at ? new Date(r.sent_at).toLocaleString('ja-JP') : '—';
+  return `<div class="card">
+    <div class="complete-wrap">
+      <div class="complete-icon">✅</div>
+      <div class="complete-title">発送完了</div>
+      <div class="complete-sub">契約書PDFをPackerへ送信しました。</div>
+      <div class="complete-info">
+        <div class="ci-row"><span class="ci-label">契約番号</span><strong>${r.contract_no || ''}</strong></div>
+        <div class="ci-row"><span class="ci-label">Packer</span><strong>${r.packer_name || ''}</strong></div>
+        <div class="ci-row"><span class="ci-label">送信先 (To)</span><strong>${r.to_addr || ''}</strong></div>
+        <div class="ci-row"><span class="ci-label">PDFファイル</span><strong>${r.pdf_filename || ''}</strong></div>
+        <div class="ci-row"><span class="ci-label">発送日時</span><strong>${sentTime}</strong></div>
+        <div class="ci-row"><span class="ci-label">発信者</span><strong>${r.sent_by || ''}</strong></div>
+      </div>
+      <button class="btn-primary" onclick="resetSend()">別の契約書を発行する</button>
+    </div>
+  </div>`;
+}
+
+function resetSend() {
+  S.step = 0;
+  S.contractNo = '';
+  S.contractData = null;
+  S.lastSent = null;
+  setStep(0);
+}
+
+// ═══════════════════════════════════════
+// 履歴
+// ═══════════════════════════════════════
+async function renderHistory() {
+  if (!db) return;
+  const records = await dbGetAll();
+  const el = document.getElementById('historyList');
+  if (!records.length) {
+    el.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:20px 0;">発送履歴がありません</div>';
+    return;
+  }
+  el.innerHTML = records.map(r => {
+    const time = r.sent_at ? new Date(r.sent_at).toLocaleString('ja-JP') : '—';
+    const cls = r.status === 'sent' ? 'status-sent' : 'status-failed';
+    const label = r.status === 'sent' ? '✅ 送信済' : '❌ 失敗';
+    return `<div class="history-item">
+      <div>
+        <div class="history-no">${r.contract_no}</div>
+        <div class="history-meta">${r.packer_name} · To: ${r.to_addr}</div>
+        <div class="history-meta">${r.pdf_filename}</div>
+        <div class="history-meta">${time} · ${r.sent_by}</div>
+      </div>
+      <span class="status-badge ${cls}">${label}</span>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════
+// 起動
+// ═══════════════════════════════════════
+(async function init() {
+  const handled = await handleCallback();
+  if (!handled) {
+    // show login (already visible by default)
+  }
+})();
+</script>
+</body>
+</html>
