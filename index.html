@@ -531,6 +531,10 @@ function setStep(n) {
   renderStepsBar();
   const renders = [renderStep0, renderStep1, renderStep2];
   document.getElementById('stepContent').innerHTML = renders[n]();
+  if (n === 0) {
+    if (S.recentContracts.length > 0) renderRecentTable();
+    else setTimeout(() => { if (S.recentContracts.length > 0) renderRecentTable(); }, 1500);
+  }
 }
 
 // ═══════════════════════════════════════
@@ -541,8 +545,7 @@ function renderStep0() {
     ? `<span class="master-chip">📋 ${S.masterFileName}</span>`
     : `<button class="no-master-btn" onclick="loadMasterFile()">⚠️ CONTRACT_MASTER.xlsx 未選択 — クリックして選択</button>`;
 
-  return
- `<div class="card">
+  return `<div class="card">  
     <div class="card-title">STEP 1 — 契約番号を入力</div>
     <input class="input-lg" id="cnInput" placeholder="例: LR-2604KN4"
       value="${S.contractNo}"
@@ -559,8 +562,6 @@ function renderStep0() {
     <div id="recentWrap" class="recent-wrap"></div>
     <div id="step0err" style="margin-top:12px;"></div>
   </div>`;
-  if (S.recentContracts.length > 0) renderRecentTable();
-  else setTimeout(() => { if (S.recentContracts.length > 0) renderRecentTable(); }, 1500);
 }
 
 function loadMasterFile() {
