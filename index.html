@@ -478,10 +478,6 @@ async function handleCallback() {
   }
   return true;
 }
-  return true;
-}
-  return true;
-}
 
 async function dvGet(path) {
   if (Date.now() > S.dvExpiry) throw new Error('セッション切れです。再ログインしてください。');
