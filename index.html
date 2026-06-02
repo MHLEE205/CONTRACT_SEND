@@ -1121,14 +1121,16 @@ async function doSend() {
 
     const packerName = pk.cr49f_packer_name || '';
     const personName = pk.cr49f_packer_person || '';
-    const mailBody = [
-      `<p>${packerName}<br>${personName} 様</p>`,
-      `<p>いつも大変お世話になっております。</p>`,
-      `<p>添付の通り、御契約書をお送りさせて頂きますので、<br>ご確認後サインバックをお願い致します。</p>`,
-      `<p>どうぞよろしくお願い致します。</p>`,
-      `<p>株式会社リニア<br>${S.userName || ''}</p>`,
-      `<p style="color:#999;font-size:12px;">このメールはLEENAI自動化システムより送信されました。</p>`
-    ].join('\n');
+    const F = `font-family:'Meiryo UI',Meiryo,sans-serif;font-size:10.5pt;`;
+    const mailBody = `<div style="${F}line-height:1.8;color:#000;">
+<p style="margin:0 0 0;">${packerName}</p>
+<p style="margin:0 0 1.2em;">${personName} 様</p>
+<p style="margin:0 0 1.2em;">いつも大変お世話になっております。<br>添付の通り、御契約書をお送りさせて頂きますので、ご確認後サインバックをお願い致します。</p>
+<p style="margin:0 0 1.2em;">どうぞよろしくお願い致します。</p>
+<p style="margin:0 0 0;">株式会社リニア</p>
+<p style="margin:0 0 1.2em;">担当者：${S.userName || ''} (${S.userEmail || ''})</p>
+<p style="margin:0;color:#999;font-size:9pt;">このメールはLEENAI自動化システムより送信されました。</p>
+</div>`;
 
     const gRes = await fetch('https://graph.microsoft.com/v1.0/me/messages', {
       method: 'POST',
