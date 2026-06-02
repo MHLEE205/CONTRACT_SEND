@@ -422,10 +422,44 @@ async function startLogin(scope) {
     client_id: CLIENT_ID, response_type: 'code', redirect_uri: REDIRECT_URI,
     scope: useScope, state, code_challenge: challenge, code_challenge_method: 'S256',
   };
-  // Graph ログイン時: login_hint でアカウント選択画面をスキップ
   if (scope === GRAPH_SCOPE && S.userEmail) p.login_hint = S.userEmail;
   else p.prompt = 'select_account';
   location.href = `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/authorize?${new URLSearchParams(p)}`;
+}
+
+// Graph認証をポップアップウィンドウで行う (ページリダイレクトなし)
+async function startGraphLoginPopup() {
+  const verifier = randomStr(64);
+  const challenge = b64url(await sha256(verifier));
+  const state = 'popup_' + randomStr(16);
+  // localStorage はタブ間で共有されるのでポップアップからも読める
+  localStorage.setItem('popup_pkce_verifier', verifier);
+  localStorage.setItem('popup_pkce_state', state);
+
+  const p = {
+    client_id: CLIENT_ID, response_type: 'code', redirect_uri: REDIRECT_URI,
+    scope: GRAPH_SCOPE, state, code_challenge: challenge, code_challenge_method: 'S256',
+    prompt: 'select_account',
+  };
+  if (S.userEmail) { delete p.prompt; p.login_hint = S.userEmail; }
+
+  const authUrl = `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/authorize?${new URLSearchParams(p)}`;
+  const popup = window.open(authUrl, 'graph_auth', 'width=520,height=640,popup=yes');
+  if (!popup) throw new Error('ポップアップがブロックされました。ブラウザのポップアップ許可を確認してください。');
+
+  return new Promise((resolve, reject) => {
+    let done = false;
+    const onMsg = (e) => {
+      if (e.origin !== location.origin) return;
+      if (e.data?.type === 'graph_token') { done = true; cleanup(); resolve(e.data); }
+      if (e.data?.type === 'graph_error') { done = true; cleanup(); reject(new Error(e.data.error)); }
+    };
+    const timer = setInterval(() => {
+      if (popup.closed && !done) { cleanup(); reject(new Error('認証がキャンセルされました')); }
+    }, 600);
+    const cleanup = () => { clearInterval(timer); window.removeEventListener('message', onMsg); };
+    window.addEventListener('message', onMsg);
+  });
 }
 
 async function handleCallback() {
@@ -434,12 +468,22 @@ async function handleCallback() {
   if (!code) return false;
   history.replaceState({}, '', location.pathname);
 
-  const verifier = sessionStorage.getItem('pkce_verifier');
-  const scopeType = sessionStorage.getItem('pkce_scope_type') || 'dv';
+  // ポップアップモード検出
+  const isPopup = !!(window.opener && !window.opener.closed);
+  let verifier, scopeType;
+  if (isPopup) {
+    verifier  = localStorage.getItem('popup_pkce_verifier');
+    scopeType = 'graph';
+    localStorage.removeItem('popup_pkce_verifier');
+    localStorage.removeItem('popup_pkce_state');
+  } else {
+    verifier  = sessionStorage.getItem('pkce_verifier');
+    scopeType = sessionStorage.getItem('pkce_scope_type') || 'dv';
+    sessionStorage.removeItem('pkce_verifier');
+    sessionStorage.removeItem('pkce_state');
+    sessionStorage.removeItem('pkce_scope_type');
+  }
   const useScope = scopeType === 'graph' ? GRAPH_SCOPE : DV_SCOPE;
-  sessionStorage.removeItem('pkce_verifier');
-  sessionStorage.removeItem('pkce_state');
-  sessionStorage.removeItem('pkce_scope_type');
 
   showLoading('認証処理中...');
   try {
@@ -453,6 +497,16 @@ async function handleCallback() {
     });
     const data = await res.json();
     if (!data.access_token) throw new Error(data.error_description || 'トークン取得失敗');
+
+    // ポップアップ完了: トークンを親ウィンドウに送って閉じる
+    if (isPopup) {
+      window.opener.postMessage(
+        { type: 'graph_token', access_token: data.access_token, expires_in: data.expires_in },
+        location.origin
+      );
+      window.close();
+      return true;
+    }
 
     if (scopeType === 'graph') {
       S.graphToken = data.access_token;
@@ -491,6 +545,11 @@ async function handleCallback() {
       setStep(0);
     }
   } catch(e) {
+    if (isPopup) {
+      window.opener?.postMessage({ type: 'graph_error', error: e.message }, location.origin);
+      window.close();
+      return true;
+    }
     hideLoading();
     setConn('offline', '● オフライン');
     alert('認証エラー: ' + e.message);
@@ -1117,13 +1176,17 @@ async function doSend() {
   const packerCode = pk.cr49f_packer_code || pk.cr49f_packer || '';
 
   if (!S.graphToken || Date.now() > S.graphExpiry) {
-    const go = confirm('メール発送にはMicrosoft認証が必要です。\nログイン画面に移動しますか？');
-    if (!go) return;
-    saveDvSession();
-    sessionStorage.setItem('pending_contract', JSON.stringify(S.contractData));
-    sessionStorage.setItem('pending_contract_no', contractNo);
-    await startLogin(GRAPH_SCOPE);
-    return;
+    showLoading('Microsoft認証中... (ポップアップを許可してください)');
+    try {
+      const tokenData = await startGraphLoginPopup();
+      S.graphToken = tokenData.access_token;
+      S.graphExpiry = Date.now() + (tokenData.expires_in - 60) * 1000;
+      hideLoading();
+    } catch(e) {
+      hideLoading();
+      alert('認証エラー: ' + e.message);
+      return;
+    }
   }
 
   showLoading('PDF生成中...');
