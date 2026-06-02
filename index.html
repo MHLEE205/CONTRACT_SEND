@@ -1000,26 +1000,29 @@ function buildContractDoc(S, details, packer) {
       ep(4)],cRW,{bg:'F9F9F9',va:VerticalAlign.TOP}),
   ]})],{...NOB,top:bd(BORDER,6),bottom:bd(BORDER,4),left:bd(BORDER,4),right:bd(BORDER,4),insideV:bd(BORDER,4)}));
 
-  // 7. 備考
-  const bW=Math.round(CW/2);
-  const bikoLines=[
-    ['１．分納可能','２．契約量の±10％は変動可能'],
-    ['３．インドネシア向けは全量コテクナ検査が必要','４．コンテナ平均重量：全品種 25,000kgまで'],
-    ['５．当社は反社会的勢力と一切関わりがない','６．各向け地別、必要書類は異なります'],
+  // 7. 備考 (왼쪽: 1-6 세로, 오른쪽: 特記事項)
+  const bikoLW=Math.round(CW*0.58), bikoRW=CW-bikoLW;
+  const bikoItems=[
+    '１．分納可能',
+    '２．契約量の±10％は変動可能',
+    '３．インドネシア向けは全量コテクナ検査が必要',
+    '４．コンテナ平均重量：全品種 25,000kgまで',
+    '５．当社は反社会的勢力と一切関わりがない',
+    '６．各向け地別、必要書類は異なります',
   ];
-  children.push(tbl([bW,CW-bW],[
+  children.push(tbl([bikoLW,bikoRW],[
     new TableRow({children:[
-      mkC([pr([tx('＜備考＞',{size:15,bold:true})],{spacing:{before:50,after:30}})],
-        CW,{borders:NOB,span:2}),
+      mkC([
+        pr([tx('＜備考＞',{size:14,bold:true})],{spacing:{before:50,after:20}}),
+        ...bikoItems.map(item=>pr([tx(item,{size:13,color:DGRAY})],{spacing:{before:0,after:12}})),
+        ep(4),
+      ],bikoLW,{borders:NOB,va:VerticalAlign.TOP}),
+      mkC([
+        pr([tx('＜特記事項＞',{size:14,bold:true})],{spacing:{before:50,after:20}}),
+        pr([tx(S.tokki||'',{size:13,color:DGRAY})],{spacing:{before:0,after:10}}),
+        ep(4),
+      ],bikoRW,{borders:{top:nob(),bottom:nob(),left:bd(BORDER,4),right:nob()},va:VerticalAlign.TOP}),
     ]}),
-    ...bikoLines.map(([l,r])=>new TableRow({children:[
-      mkC([pr([tx(l,{size:13,color:DGRAY})],{spacing:{before:0,after:15}})],bW,{borders:NOB,mt:50,mb:30,va:VerticalAlign.TOP}),
-      mkC([pr([tx(r,{size:13,color:DGRAY})],{spacing:{before:0,after:15}})],CW-bW,{borders:NOB,mt:50,mb:30,va:VerticalAlign.TOP}),
-    ]})),
-    ...(S.tokki?[new TableRow({children:[
-      mkC([pr([tx(S.tokki,{size:13,color:DGRAY})],{spacing:{before:10,after:10}})],CW,{
-        borders:{top:{style:BorderStyle.DASHED,size:2,color:BORDER},bottom:nob(),left:nob(),right:nob()},span:2}),
-    ]})]:[]),
   ],{...NOB,bottom:bd(BORDER,4),left:bd(BORDER,4),right:bd(BORDER,4)}));
 
   // 8. 서명란
@@ -1140,7 +1143,7 @@ async function doSend() {
 <p style="margin:0 0 1.2em;">いつも大変お世話になっております。<br>添付の通り、御契約書をお送りさせて頂きますので、ご確認後サインバックをお願い致します。</p>
 <p style="margin:0 0 1.2em;">どうぞよろしくお願い致します。</p>
 <p style="margin:0 0 0;">株式会社リニア</p>
-<p style="margin:0 0 1.2em;">担当者：${S.userName || ''} (${S.userEmail || ''})</p>
+<p style="margin:0 0 1.2em;">担当者：林成元(sw_lim@leenearcorp.com)</p>
 <p style="margin:0;color:#999;font-size:9pt;">このメールはLEENAI自動化システムより送信されました。</p>
 </div>`;
 
