@@ -923,17 +923,17 @@ function buildContractDoc(S, details, packer) {
   });
 
   const itemRows = details.slice(0,6).map((d,i)=>{
-    const qty=(d.cr49f_quantity||0)*1000;
-    const price=d.cr49f_price||0;
-    const amt=Math.floor(qty*price);
+    const qty=d.qty||0;
+    const price=d.price||0;
+    const amt=d.amount||0;
     const bg=i%2?XLGRAY:WHITE;
     return new TableRow({children:[
       dC(String(i+1),cNo,AlignmentType.CENTER,bg,MGRAY),
-      dC(`${d.cr49f_item_id?.cr49f_item||''} / ${d.cr49f_item_id?.crcf9_item_japan||''}`,cNm,AlignmentType.LEFT,bg),
+      dC(`${d.itemCode||''} / ${d.itemName||''}`,cNm,AlignmentType.LEFT,bg),
       dC(`${qty.toLocaleString()} KG`,cQty,AlignmentType.RIGHT,bg),
-      dC(`${d.cr49f_count||0}本`,cCnt,AlignmentType.CENTER,bg),
+      dC(`${d.count||0}本`,cCnt,AlignmentType.CENTER,bg),
       dC(`¥${price}`,cPrc,AlignmentType.RIGHT,bg),
-      dC(`${d.cr49f_loading_port||''} ${d.cr49f_incoterms||'港'}渡し`,cCnd,AlignmentType.CENTER,bg),
+      dC(`${d.pol||''} ${d.incoterms||'港'}渡し`,cCnd,AlignmentType.CENTER,bg),
       dC(`¥${amt.toLocaleString()}`,cAmt,AlignmentType.RIGHT,bg,DGRAY),
     ]});
   });
@@ -948,7 +948,7 @@ function buildContractDoc(S, details, packer) {
   ],NOB));
 
   // 5. 합계
-  const subtotal=details.reduce((s,d)=>s+Math.floor((d.cr49f_quantity||0)*1000*(d.cr49f_price||0)),0);
+  const subtotal=details.reduce((s,d)=>s+(d.amount||0),0);
   const tax=Math.floor(subtotal*0.1);
   const total=subtotal+tax;
   const totW=Math.round(CW*0.28),tLW=Math.round(totW*0.55),tRW=totW-tLW;
