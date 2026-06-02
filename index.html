@@ -910,8 +910,8 @@ function buildContractDoc(S, details, packer) {
       [packerAddr,`TEL: ${packerTel}　FAX: ${packerFax}`].filter(Boolean),BLACK),
     mkC([ep()],160),
     party('乙','買主','株式会社リニア',
-      ['〒101-0064 東京都千代田区神田猿楽町2-8-11',
-       'VORT水道橋Ⅲ 5階　TEL: 03-3528-9850　FAX: 03-3528-9851'],DGRAY),
+      ['〒101-0064 東京都千代田区神田猿楽町2-8-11 VORT水道橋Ⅲ 5階',
+       'TEL: 03-3528-9850　FAX: 03-3528-9851'],DGRAY),
   ]})],NOB));
   children.push(pr([tx('甲乙は次の通り売買契約を締結する。',{size:15,color:MGRAY})],
     {spacing:{before:80,after:60}}));
@@ -971,14 +971,17 @@ function buildContractDoc(S, details, packer) {
       width:{size:tRW,type:WidthType.DXA},shading:{fill:dark?BLACK:'FAFAFA',type:ShadingType.CLEAR},
       borders:{top:nob(),bottom:bd(BORDER,2),left:nob(),right:nob()},margins:{top:60,bottom:60,left:100,right:100}}),
   ]});
-  children.push(tbl([CW-totW,totW],[new TableRow({children:[
-    mkC([ep()],CW-totW),
-    mkC([new Table({width:{size:totW,type:WidthType.DXA},columnWidths:[tLW,tRW],borders:NOB,rows:[
+  children.push(new Table({
+    width:{size:totW,type:WidthType.DXA},
+    columnWidths:[tLW,tRW],
+    borders:NOB,
+    indent:{size:CW-totW,type:WidthType.DXA},
+    rows:[
       tRow('税抜き',`¥${subtotal.toLocaleString()}`,false,false),
       tRow('消費税(10%)',`¥${tax.toLocaleString()}`,false,false),
       tRow('税込み',`¥${total.toLocaleString()}`,true,true),
-    ]})],totW),
-  ]})],NOB));
+    ]
+  }));
 
   // 6. 条件
   const cLW=Math.round(CW*0.62),cRW=CW-cLW;
