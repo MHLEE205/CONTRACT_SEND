@@ -971,21 +971,18 @@ function buildContractDoc(S, details, packer) {
       width:{size:tRW,type:WidthType.DXA},shading:{fill:dark?BLACK:'FAFAFA',type:ShadingType.CLEAR},
       borders:{top:nob(),bottom:bd(BORDER,2),left:nob(),right:nob()},margins:{top:60,bottom:60,left:100,right:100}}),
   ]});
-  children.push(new Table({
-    alignment:AlignmentType.RIGHT,
-    width:{size:totW,type:WidthType.DXA},
-    columnWidths:[tLW,tRW],
-    borders:NOB,
-    rows:[
+  children.push(tbl([CW-totW,totW],[new TableRow({children:[
+    mkC([ep()],CW-totW),
+    mkC([new Table({width:{size:totW,type:WidthType.DXA},columnWidths:[tLW,tRW],borders:NOB,rows:[
       tRow('税抜き',`¥${subtotal.toLocaleString()}`,false,false),
       tRow('消費税(10%)',`¥${tax.toLocaleString()}`,false,false),
       tRow('税込み',`¥${total.toLocaleString()}`,true,true),
-    ]
-  }));
+    ]})],totW),
+  ]})],NOB));
 
   // 6. 条件
   const cLW=Math.round(CW*0.62),cRW=CW-cLW;
-  const cLine=(k,v)=>pr([tx(k,{size:14,bold:true}),tx(v,{size:14,color:DGRAY})],{spacing:{before:0,after:28}});
+  const cLine=(k,v)=>pr([tx(k,{size:15,bold:true}),tx(v,{size:15,color:DGRAY})],{spacing:{before:0,after:28}});
   children.push(tbl([cLW,cRW],[new TableRow({children:[
     mkC([ep(4),
       cLine('納入条件：','湿度12%以下、禁忌品の紙５%以下、禁忌品の紙以外は１%以下'),
@@ -995,10 +992,10 @@ function buildContractDoc(S, details, packer) {
       cLine('向け先　：','インドネシア、韓国、ベトナム、マレーシア、タイ向け'),
       ep(4)],cLW,{bg:'FAFAFA',va:VerticalAlign.TOP}),
     mkC([ep(4),
-      pr([tx('＊ 韓国向けの場合',{size:14,bold:true})],{spacing:{before:0,after:18}}),
-      pr([tx('　放射能写真対応お願いします。',{size:14,color:DGRAY})],{spacing:{before:0,after:28}}),
-      pr([tx('＊ 写真お送り先',{size:14,bold:true})],{spacing:{before:0,after:18}}),
-      pr([tx('　photo_rcp@leenearcorp.com',{size:13,color:DGRAY})],{spacing:{before:0,after:0}}),
+      pr([tx('＊ 韓国向けの場合',{size:15,bold:true})],{spacing:{before:0,after:18}}),
+      pr([tx('　放射能写真対応お願いします。',{size:15,color:DGRAY})],{spacing:{before:0,after:28}}),
+      pr([tx('＊ 写真お送り先',{size:15,bold:true})],{spacing:{before:0,after:18}}),
+      pr([tx('　photo_rcp@leenearcorp.com',{size:14,color:DGRAY})],{spacing:{before:0,after:0}}),
       ep(4)],cRW,{bg:'F9F9F9',va:VerticalAlign.TOP}),
   ]})],{...NOB,top:bd(BORDER,6),bottom:bd(BORDER,4),left:bd(BORDER,4),right:bd(BORDER,4),insideV:bd(BORDER,4)}));
 
@@ -1015,13 +1012,13 @@ function buildContractDoc(S, details, packer) {
   children.push(tbl([bikoLW,bikoRW],[
     new TableRow({children:[
       mkC([
-        pr([tx('＜備考＞',{size:14,bold:true})],{spacing:{before:50,after:20}}),
-        ...bikoItems.map(item=>pr([tx(item,{size:13,color:DGRAY})],{spacing:{before:0,after:12}})),
+        pr([tx('＜備考＞',{size:15,bold:true})],{spacing:{before:50,after:20}}),
+        ...bikoItems.map(item=>pr([tx(item,{size:14,color:DGRAY})],{spacing:{before:0,after:12}})),
         ep(4),
       ],bikoLW,{borders:NOB,va:VerticalAlign.TOP}),
       mkC([
-        pr([tx('＜特記事項＞',{size:14,bold:true})],{spacing:{before:50,after:20}}),
-        pr([tx(S.tokki||'',{size:13,color:DGRAY})],{spacing:{before:0,after:10}}),
+        pr([tx('＜特記事項＞',{size:15,bold:true})],{spacing:{before:50,after:20}}),
+        pr([tx(S.tokki||'',{size:14,color:DGRAY})],{spacing:{before:0,after:10}}),
         ep(4),
       ],bikoRW,{borders:{top:nob(),bottom:nob(),left:bd(BORDER,4),right:nob()},va:VerticalAlign.TOP}),
     ]}),
