@@ -379,9 +379,20 @@ function saveDvSession() {
   sessionStorage.setItem('dv_expiry', S.dvExpiry);
   sessionStorage.setItem('dv_user',   S.userName);
   sessionStorage.setItem('dv_email',  S.userEmail);
+  if (S.contractMaster.length) {
+    sessionStorage.setItem('dv_master',      JSON.stringify(S.contractMaster));
+    sessionStorage.setItem('dv_master_name', S.masterFileName);
+  }
 }
 async function restoreDvSession() {
   const t = sessionStorage.getItem('dv_token');
+  const master = sessionStorage.getItem('dv_master');
+  if (master) {
+    try { S.contractMaster = JSON.parse(master); } catch(e) {}
+    S.masterFileName = sessionStorage.getItem('dv_master_name') || '';
+    sessionStorage.removeItem('dv_master');
+    sessionStorage.removeItem('dv_master_name');
+  }
   if (!t) return;
   S.dvToken   = t;
   S.dvExpiry  = Number(sessionStorage.getItem('dv_expiry') || 0);
@@ -1103,6 +1114,7 @@ async function doSend() {
   if (!S.graphToken || Date.now() > S.graphExpiry) {
     const go = confirm('メール発送にはMicrosoft認証が必要です。\nログイン画面に移動しますか？');
     if (!go) return;
+    saveDvSession();
     sessionStorage.setItem('pending_contract', JSON.stringify(S.contractData));
     sessionStorage.setItem('pending_contract_no', contractNo);
     await startLogin(GRAPH_SCOPE);
