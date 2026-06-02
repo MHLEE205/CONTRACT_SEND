@@ -962,24 +962,26 @@ function buildContractDoc(S, details, packer) {
   const subtotal=details.reduce((s,d)=>s+(d.amount||0),0);
   const tax=Math.floor(subtotal*0.1);
   const total=subtotal+tax;
-  const totW=Math.round(CW*0.28),tLW=Math.round(totW*0.55),tRW=totW-tLW;
+  const totW=Math.round(CW*0.35),tLW=Math.round(totW*0.52),tRW=totW-tLW;
   const tRow=(lbl,val,bold,dark)=>new TableRow({children:[
-    new TableCell({children:[pr([tx(lbl,{size:14,color:dark?WHITE:MGRAY,bold})])],
+    new TableCell({children:[pr([tx(lbl,{size:14,color:dark?WHITE:MGRAY,bold})],{alignment:AlignmentType.RIGHT})],
       width:{size:tLW,type:WidthType.DXA},shading:{fill:dark?BLACK:'FAFAFA',type:ShadingType.CLEAR},
       borders:{top:nob(),bottom:bd(BORDER,2),left:nob(),right:nob()},margins:{top:60,bottom:60,left:100,right:100}}),
-    new TableCell({children:[pr([tx(val,{size:dark?16:14,color:dark?WHITE:BLACK,bold})],
-      {alignment:AlignmentType.RIGHT})],
+    new TableCell({children:[pr([tx(val,{size:dark?16:14,color:dark?WHITE:BLACK,bold})],{alignment:AlignmentType.RIGHT})],
       width:{size:tRW,type:WidthType.DXA},shading:{fill:dark?BLACK:'FAFAFA',type:ShadingType.CLEAR},
       borders:{top:nob(),bottom:bd(BORDER,2),left:nob(),right:nob()},margins:{top:60,bottom:60,left:100,right:100}}),
   ]});
-  children.push(tbl([CW-totW,totW],[new TableRow({children:[
-    mkC([ep()],CW-totW),
-    mkC([new Table({width:{size:totW,type:WidthType.DXA},columnWidths:[tLW,tRW],borders:NOB,rows:[
+  children.push(new Table({
+    alignment:AlignmentType.RIGHT,
+    width:{size:totW,type:WidthType.DXA},
+    columnWidths:[tLW,tRW],
+    borders:NOB,
+    rows:[
       tRow('税抜き',`¥${subtotal.toLocaleString()}`,false,false),
       tRow('消費税(10%)',`¥${tax.toLocaleString()}`,false,false),
       tRow('税込み',`¥${total.toLocaleString()}`,true,true),
-    ]})],totW),
-  ]})],NOB));
+    ]
+  }));
 
   // 6. 条件
   const cLW=Math.round(CW*0.62),cRW=CW-cLW;
@@ -1026,13 +1028,13 @@ function buildContractDoc(S, details, packer) {
   ],{...NOB,bottom:bd(BORDER,4),left:bd(BORDER,4),right:bd(BORDER,4)}));
 
   // 8. 서명란
-  const sW=Math.round((CW-160)/2);
+  const sW=pW;
   const signBlock=(badge,role,name,hasSign)=>mkC([
     pr([tx(`${badge}（${role}）`,{size:14,bold:true,color:WHITE})],{
       spacing:{before:40,after:40},
       shading:{fill:badge==='甲'?BLACK:DGRAY,type:ShadingType.CLEAR}
     }),
-    pr([tx(name,{size:16,bold:true})],{spacing:{before:40,after:16}}),
+    pr([tx(name,{size:19,bold:true})],{spacing:{before:40,after:16}}),
     ...(hasSign?[
       pr([tx('代表取締役　李明鎬',{size:14,color:DGRAY})],{spacing:{before:0,after:20}}),
       pr([
