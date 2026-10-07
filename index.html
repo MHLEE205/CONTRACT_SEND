@@ -42,9 +42,9 @@
       <div class="stat" id="gr-result">-</div>
     </div>
     <div class="card">
-      <h3>&#12488;&#12540;&#12463;&#12531;&#26356;&#26032;&#12486;&#12473;&#12488;</h3>
-      <button class="ln-btn-ghost" id="btn-refresh">token('dataverse') &#12434;&#20877;&#21462;&#24471;</button>
-      <div class="stat" id="refresh-result" style="margin-top:8px">-</div>
+      <h3>&#12488;&#12540;&#12463;&#12531;&#26356;&#26032;&#12486;&#12473;&#12488; (?debug=1 &#24517;&#35201;)</h3>
+      <button class="ln-btn-ghost" id="btn-refresh">&#26399;&#38480;&#24378;&#21046; → token('dataverse') &#20877;&#21462;&#24471;</button>
+      <div class="stat" id="refresh-result" style="margin-top:8px">URL&#12395; ?debug=1 &#12434;&#20184;&#12369;&#12390;&#12363;&#12425;&#12486;&#12473;&#12488;</div>
     </div>
     <div class="card">
       <h3>&#25991;&#23383;&#33394;&#12481;&#12455;&#12483;&#12463; (&#20840;&#12486;&#12540;&#12510;&#12391;&#35501;&#12417;&#12427;&#12371;&#12392;)</h3>
@@ -91,8 +91,15 @@ async function startTool(){
   }catch(e){document.getElementById('gr-result').innerHTML='<span class="danger">✖ '+e.message+'</span>';}
   document.getElementById('btn-refresh').addEventListener('click',async function(){
     var el=document.getElementById('refresh-result');
-    try{var t2=await LEENAI.auth.token('dataverse');el.innerHTML='<span class="ok">✔ token取得成功 ('+t2.slice(0,20)+'…)</span>';}
-    catch(e){el.innerHTML='<span class="danger">✖ '+e.message+'</span>';}
+    try{
+      var before=await LEENAI.auth.token('dataverse');
+      var b10=before?before.slice(0,10):'(none)';
+      LEENAI.auth._expireForTest();
+      var after=await LEENAI.auth.token('dataverse');
+      var a10=after?after.slice(0,10):'(none)';
+      var changed=b10!==a10;
+      el.innerHTML='<span class="'+(changed?'ok':'warn')+'">'+(changed?'✔ 更新成功':'⚠ トークン変化なし')+' | '+b10+'… → '+a10+'…</span>';
+    }catch(e){el.innerHTML='<span class="danger">✖ '+e.message+'</span>';}
   });
   var bgs=[['★ read','--read'],['frame','--frame'],['surface2','--surface2'],['surface3','--surface3']];
   var fgs=[['text','--text'],['text2','--text2'],['text3','--text3'],['accent','--accent'],['ok','--ok'],['warn','--warn'],['danger','--danger'],['info','--info']];
