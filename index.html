@@ -51,6 +51,16 @@
       <div id="cgrid"></div>
     </div>
     <div class="card">
+      <h3>SharePoint &#30758;&#36890;</h3>
+      <div class="stat" id="sp-files-result">-</div>
+      <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <input class="fi" id="sp-contract-input" placeholder="&#22özm;&#32004;&#30058;&#21495; (&#20363;: NSG-2607-03)" style="max-width:220px;">
+        <button class="ln-btn-ghost" id="sp-search-btn">LC JSON &#26908;&#32034;</button>
+      </div>
+      <div class="stat" id="sp-lc-result" style="margin-top:8px">-</div>
+      <div id="sp-files-error" style="color:var(--danger);font-size:12px;margin-top:6px;"></div>
+    </div>
+    <div class="card">
       <h3>&#20849;&#36890;&#37096;&#21697;&#12486;&#12473;&#12488;</h3>
       <button class="ln-btn-ghost" onclick="LEENAI.loading.show('&#12525;&#12540;&#12487;&#12451;&#12531;&#12464;&#12486;&#12473;&#12488;&#20013;&#8230;');setTimeout(function(){LEENAI.loading.hide();},2000)" style="margin:4px">Loading 2&#31186;</button>
       <button class="ln-btn-ghost" onclick="LEENAI.toast('ok &#12486;&#12473;&#12488;','ok')" style="margin:4px">toast ok</button>
@@ -117,9 +127,45 @@ async function startTool(){
   var fgs=[['text','--text'],['text2','--text2'],['text3','--text3'],['accent','--accent'],['ok','--ok'],['warn','--warn'],['danger','--danger'],['info','--info']];
   var g=document.getElementById('cgrid'); g.className='cg';
   g.innerHTML=bgs.map(function(b){return '<div style="background:var('+b[1]+')"><b>'+b[0]+'</b>'+fgs.map(function(f){return '<div style="color:var('+f[1]+')">'+f[0]+'</div>';}).join('')+'</div>';}).join('');
+  /* SharePoint 疎通 */
+  var spStatus=LEENAI.auth.status;
+  if(spStatus.graphError&&spStatus.graphError.startsWith('files:')){
+    document.getElementById('sp-files-error').textContent='SharePoint 権限なし: '+spStatus.graphError;
+  }
+  LEENAI.sp.list(LEENAI.SP.PATH.LC_JSON[0]).then(function(files){
+    document.getElementById('sp-files-result').innerHTML=
+      '<span class="ok">✔ '+files.length+'件</span> | 最近5件: '+
+      files.slice(-5).map(function(f){return f.name;}).join(', ');
+  }).catch(function(e){
+    document.getElementById('sp-files-result').innerHTML='<span class="danger">✖ '+e.message+'</span>';
+  });
+  document.getElementById('sp-search-btn').addEventListener('click',async function(){
+    var contractNo=document.getElementById('sp-contract-input').value.trim();
+    var el=document.getElementById('sp-lc-result');
+    if(!contractNo){el.textContent='契約番号を入力してください';return;}
+    el.textContent='検索中…';
+    try{
+      var found=null,foundName='';
+      for(var pi=0;pi<LEENAI.SP.PATH.LC_JSON.length;pi++){
+        var files=await LEENAI.sp.list(LEENAI.SP.PATH.LC_JSON[pi]);
+        var match=files.filter(function(f){
+          return f.name.startsWith(contractNo)&&f.name.endsWith('.json')&&!f.name.includes('_TT_BASE');
+        });
+        if(match.length>0){
+          var fpath=LEENAI.SP.PATH.LC_JSON[pi]+'/'+match[0].name;
+          found=await LEENAI.sp.getJson(fpath);
+          foundName=match[0].name;
+          break;
+        }
+      }
+      if(!found){el.innerHTML='<span class="warn">⚠ 見つかりませんでした</span>';return;}
+      var lc=Array.isArray(found)?found[0]:found;
+      el.innerHTML='<span class="ok">✔ '+foundName+'</span> | lcNo: '+(lc.lcNo||lc.lc_no||'-')+' / lcDate: '+(lc.lcDate||lc.lc_date||'-');
+    }catch(e){el.innerHTML='<span class="danger">✖ '+e.message+'</span>';}
+  });
 }
 LEENAI.init({
-  sys:'Z-05', name:'COMMON TEST', version:'1.5', date:'2026-10-08',
+  sys:'Z-05', name:'COMMON TEST', version:'1.6', date:'2026-10-08',
   desc:'LEENAI_COMMON v1 動作確認ページ',
   onReady: startTool
 });
