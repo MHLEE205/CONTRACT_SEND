@@ -89,16 +89,28 @@ async function startTool(){
       document.getElementById('gr-result').innerHTML='<span class="ok">✔ '+j2.displayName+' / '+j2.mail+'</span>';
     } else {document.getElementById('gr-result').textContent='skip';}
   }catch(e){document.getElementById('gr-result').innerHTML='<span class="danger">✖ '+e.message+'</span>';}
+  function tokTail(t){return t?t.slice(-10):'(none)';}
+  function tokExp(t){
+    try{
+      var raw=t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
+      var bytes=Uint8Array.from(atob(raw),function(c){return c.charCodeAt(0);});
+      var p=JSON.parse(new TextDecoder().decode(bytes));
+      return p.exp?new Date(p.exp*1000).toLocaleTimeString('ja-JP'):'?';
+    }catch(e){return '?';}
+  }
   document.getElementById('btn-refresh').addEventListener('click',async function(){
     var el=document.getElementById('refresh-result');
     try{
       var before=await LEENAI.auth.token('dataverse');
-      var b10=before?before.slice(0,10):'(none)';
+      var bTail=tokTail(before), bExp=tokExp(before);
       LEENAI.auth._expireForTest();
       var after=await LEENAI.auth.token('dataverse');
-      var a10=after?after.slice(0,10):'(none)';
-      var changed=b10!==a10;
-      el.innerHTML='<span class="'+(changed?'ok':'warn')+'">'+(changed?'✔ 更新成功':'⚠ トークン変化なし')+' | '+b10+'… → '+a10+'…</span>';
+      var aTail=tokTail(after), aExp=tokExp(after);
+      var changed=bTail!==aTail;
+      el.innerHTML='<span class="'+(changed?'ok':'warn')+'">'
+        +(changed?'✔ 更新成功':'⚠ 変化なし')
+        +' | 末尾: …'+bTail+' → …'+aTail
+        +' | exp: '+bExp+' → '+aExp+'</span>';
     }catch(e){el.innerHTML='<span class="danger">✖ '+e.message+'</span>';}
   });
   var bgs=[['★ read','--read'],['frame','--frame'],['surface2','--surface2'],['surface3','--surface3']];
