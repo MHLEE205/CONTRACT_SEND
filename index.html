@@ -69,6 +69,12 @@
       <button class="ln-btn-ghost" onclick="LEENAI.toast('info &#12486;&#12473;&#12488;','info')" style="margin:4px">toast info</button>
       <button class="ln-btn-ghost" onclick="LEENAI.addHeaderButton({label:'&#12486;&#12473;&#12488;Btn',onClick:function(){alert('&#12إder&#12540;Btn!');}})" style="margin:4px">addHeaderButton</button>
     </div>
+    <div class="card">
+      <h3>COMPASS メタデータ確認</h3>
+      <button class="ln-btn-ghost" id="meta-run-btn">メタデータ確認を実行</button>
+      <div id="meta-result" style="margin-top:12px;font-size:12px;"></div>
+      <button class="ln-btn-ghost" id="meta-copy-btn" style="margin-top:8px;display:none;">結果をコピー</button>
+    </div>
   </main>
 </div>
 <script>
@@ -163,9 +169,80 @@ async function startTool(){
       el.innerHTML='<span class="ok">✔ '+foundName+'</span> | lcNo: '+(lc.lcNo||lc.lc_no||'-')+' / lcDate: '+(lc.lcDate||lc.lc_date||'-');
     }catch(e){el.innerHTML='<span class="danger">✖ '+e.message+'</span>';}
   });
+  /* COMPASS メタデータ確認 */
+  var metaRunBtn=document.getElementById('meta-run-btn');
+  if(metaRunBtn) metaRunBtn.addEventListener('click',async function(){
+    var el=document.getElementById('meta-result');
+    var copyBtn=document.getElementById('meta-copy-btn');
+    el.textContent='実行中…'; copyBtn.style.display='none';
+    var DV_API='https://orgde512c6f.crm7.dynamics.com/api/data/v9.2';
+    var resultText='';
+    async function dvMeta(path){
+      var tok=await LEENAI.auth.token('dataverse');
+      var res=await fetch(DV_API+'/'+path,{headers:{Authorization:'Bearer '+tok,Accept:'application/json','OData-MaxVersion':'4.0','OData-Version':'4.0'}});
+      if(!res.ok) throw new Error(res.status+' '+(await res.text()).slice(0,100));
+      return res.json();
+    }
+    function pad(s,n){s=String(s||'');return s.length>=n?s:s+' '.repeat(n-s.length);}
+    function mkTable(hdrs,rows){
+      var w=hdrs.map(function(h,i){return Math.max(h.length,Math.max.apply(null,rows.map(function(r){return String(r[i]||'').length;})));});
+      var sep='+'+w.map(function(n){return '-'.repeat(n+2);}).join('+')+'+';
+      var hdr='|'+hdrs.map(function(h,i){return ' '+pad(h,w[i])+' ';}).join('|')+'|';
+      var body=rows.map(function(r){return '|'+r.map(function(c,i){return ' '+pad(c,w[i])+' ';}).join('|')+'|';}).join('\n');
+      return sep+'\n'+hdr+'\n'+sep+'\n'+body+'\n'+sep;
+    }
+    var html='',buyerNameExists=false,rows1=[],rows2=[],rows3=[];
+    /* ① フィールド確認 */
+    var tgts=[
+      {t:'cr49f_buyer',         fs:['cr49f_buyer','cr49f_buyer_name','cr49f_buyer_code']},
+      {t:'cr49f_booking',       fs:['crcf9_carrier_code','crcf9_bl_pol_text']},
+      {t:'cr49f_sale_contract', fs:['cr49f_terms_conditions_full','cr49f_sale_contract_id']},
+      {t:'cr49f_sale_detail',   fs:['cr49f_price_yen','cr49f_item_id']},
+      {t:'crcf9_s_i_detail',    fs:['crcf9_price_yen','crcf9_sale_detail_id']},
+    ];
+    for(var ti=0;ti<tgts.length;ti++){
+      var tgt=tgts[ti];
+      try{
+        var d=await dvMeta("EntityDefinitions(LogicalName='"+tgt.t+"')/Attributes?$select=LogicalName,AttributeType,SourceType");
+        var am={};(d.value||[]).forEach(function(a){am[a.LogicalName]=a;});
+        tgt.fs.forEach(function(f){
+          var a=am[f];
+          rows1.push([tgt.t,f,a?'✅':'❌',a?(a.AttributeType||'-'):'-',a&&a.SourceType!=null?String(a.SourceType):'-']);
+          if(f==='cr49f_buyer_name'&&a) buyerNameExists=true;
+        });
+      }catch(e){tgt.fs.forEach(function(f){rows1.push([tgt.t,f,'⚠ERR',e.message.slice(0,40),'-']);});}
+    }
+    var t1=mkTable(['テーブル','フィールド','存在','AttributeType','SourceType'],rows1);
+    html+='<b>① フィールド確認</b><pre style="font-size:11px;overflow-x:auto;background:var(--surface2);padding:8px;border-radius:6px;margin:6px 0">'+t1+'</pre>';
+    /* ② テーブル名確認 */
+    try{
+      var d2=await dvMeta("EntityDefinitions?$select=LogicalName,EntitySetName&$filter=startswith(LogicalName,'crcf9_custom') or startswith(LogicalName,'crcf9_dray')");
+      (d2.value||[]).forEach(function(e){rows2.push([e.LogicalName,e.EntitySetName||'-']);});
+      if(!rows2.length) rows2.push(['(該当なし)','-']);
+    }catch(e){rows2.push(['⚠ERR',e.message.slice(0,60)]);}
+    var t2=mkTable(['LogicalName','EntitySetName'],rows2);
+    html+='<b>② テーブル名確認</b><pre style="font-size:11px;overflow-x:auto;background:var(--surface2);padding:8px;border-radius:6px;margin:6px 0">'+t2+'</pre>';
+    /* ③ cr49f_buyer 実値 */
+    if(buyerNameExists){
+      try{
+        var d3=await dvMeta("cr49f_buyers?$select=cr49f_buyer,cr49f_buyer_name,cr49f_buyer_code&$top=3");
+        (d3.value||[]).forEach(function(r){rows3.push([r.cr49f_buyer||'-',r.cr49f_buyer_name||'-',r.cr49f_buyer_code||'-']);});
+        if(!rows3.length) rows3.push(['(レコードなし)','-','-']);
+      }catch(e){rows3.push(['⚠ERR',e.message.slice(0,60),'-']);}
+      var t3=mkTable(['buyer','buyer_name','buyer_code'],rows3);
+      html+='<b>③ cr49f_buyer 実値 (top 3)</b><pre style="font-size:11px;overflow-x:auto;background:var(--surface2);padding:8px;border-radius:6px;margin:6px 0">'+t3+'</pre>';
+      resultText='① フィールド確認\n'+t1+'\n\n② テーブル名確認\n'+t2+'\n\n③ cr49f_buyer 実値\n'+t3;
+    }else{
+      html+='<b>③ cr49f_buyer_name</b> <span class="warn">❌ 存在しないためスキップ</span>';
+      resultText='① フィールド確認\n'+t1+'\n\n② テーブル名確認\n'+t2+'\n\n③ cr49f_buyer_name ❌ スキップ';
+    }
+    el.innerHTML=html;
+    copyBtn.style.display='';
+    copyBtn.onclick=function(){navigator.clipboard.writeText(resultText).then(function(){copyBtn.textContent='✅ コピー済';setTimeout(function(){copyBtn.textContent='結果をコピー';},2000);});};
+  });
 }
 LEENAI.init({
-  sys:'Z-05', name:'COMMON TEST', version:'1.6', date:'2026-10-08',
+  sys:'Z-05', name:'COMMON TEST', version:'1.7', date:'2026-10-08',
   desc:'LEENAI_COMMON v1 動作確認ページ',
   onReady: startTool
 });
