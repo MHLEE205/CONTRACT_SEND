@@ -33,8 +33,8 @@ html[data-theme="dark"] .mp{--mp-page:#14181F;--mp-surface:#1E242E;--mp-text:#E6
 .mp-filters{display:flex;flex-wrap:wrap;gap:6px}
 .mp-chip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--mp-ctl);background:var(--mp-surface);color:var(--mp-text);padding:3px 10px;border-radius:999px;font-size:12px;cursor:pointer;min-height:28px}
 .mp-chip.on{border-color:#1B2A41;background:#1B2A41;color:#FFF}
-.mk{display:inline-block;width:8px;height:8px;flex:none}
-.mk.R{background:#C50F1F;border-radius:50%}.mk.Y{background:#D99A00;border-radius:1px}.mk.G{background:#107C10;border-radius:0;transform:rotate(45deg)}.mk.ALL{background:#8A8886;border-radius:50%}
+.mp-mk{display:inline-block;width:8px;height:8px;flex:none}
+.mp-mk.R{background:#C50F1F;border-radius:50%}.mp-mk.Y{background:#D99A00;border-radius:1px}.mp-mk.G{background:#107C10;border-radius:0;transform:rotate(45deg)}.mp-mk.ALL{background:#8A8886;border-radius:50%}
 .mp-selbar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 12px;border-bottom:1px solid var(--mp-line2);background:var(--mp-subtle)}
 .mp-selbar label{display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer}
 .mp-selbar .r{display:flex;align-items:center;gap:10px}
@@ -120,7 +120,7 @@ html[data-theme="dark"] .mp{--mp-page:#14181F;--mp-surface:#1E242E;--mp-text:#E6
 <script>
 /* ══════════════════════════════════════════════════════════════
    MailPortal — 今日のメール (版は下の LEENAI.init だけ)
-   - グローバル名は MailPortal 1 つだけ。画面は mount(ルート要素) で描く — CLEARANCE_COMPASS などに
+   - グローバル名は MailPortal 1 つだけ。画面は mount(ルート要素[, {embedded:true}]) で描く — CLEARANCE_COMPASS などに
      タブとして結合するときは、mpRoot の中身と <style> を移して MailPortal.mount(タブの要素) を呼ぶ。
      その TOOL の LEENAI.init に graphScopes:['Mail.ReadWrite','Sites.ReadWrite.All'] を足すこと
    - イベントはルート要素の中だけで受ける (結合先の document のクリック処理と干渉しない)
@@ -346,7 +346,7 @@ function renderPanel(){
     +'<button class="mp-tab und'+(S.tab==='und'?' on':'')+'" data-act="tab" data-v="und">未判定 (全員) '+S.und.length+'</button></div>';
   if(S.tab==='open'){
     h+='<div class="mp-filters">'+[['ALL','すべて'],['R','処理'],['Y','情報'],['G','要約']].map(function(o){
-      return '<button class="mp-chip'+(S.filter===o[0]?' on':'')+'" data-act="filter" data-v="'+o[0]+'"><span class="mk '+o[0]+'"></span>'+o[1]+' '+(n[o[0]]||0)+'</button>';}).join('')+'</div>';
+      return '<button class="mp-chip'+(S.filter===o[0]?' on':'')+'" data-act="filter" data-v="'+o[0]+'"><span class="mp-mk '+o[0]+'"></span>'+o[1]+' '+(n[o[0]]||0)+'</button>';}).join('')+'</div>';
   }
   h+='</div>';
   if(S.tab==='open') h+=renderOpen();
@@ -373,7 +373,7 @@ function renderOpen(){
       +'<button class="mp-btn" data-act="canceldone">キャンセル</button><button class="mp-btn pri" data-act="dodone">完了にする</button></div></div>';
   }
   grouped(vis).forEach(function(g){
-    h+='<div class="mp-ghead"><span class="mk '+g.c+'"></span>'+COL[g.c].label+' '+g.rows.length+'<span class="o"> — '+COL[g.c].order+'</span></div>';
+    h+='<div class="mp-ghead"><span class="mp-mk '+g.c+'"></span>'+COL[g.c].label+' '+g.rows.length+'<span class="o"> — '+COL[g.c].order+'</span></div>';
     g.rows.forEach(function(x){h+=rowHtml(x,act);});
   });
   if(!vis.length) h+='<div class="mp-empty">表示するメールはありません。</div>';
@@ -575,10 +575,11 @@ function onChange(e){
   else if(a==='target'){S.target=el.value;}
 }
 
-async function mount(root){
-  ROOT=root;
-  var mv=(document.title.match(/v([\d.]+)\s*$/)||[])[1];   // 版は LEENAI.init の 1 か所だけ (共通ファイルが title に入れる)
-  if(mv) $('mpTitle').textContent='今日のメール · v'+mv+' (試験)';
+/* mount(root, {embedded:true}) — 他の TOOL のタブに結合したときは、題名・版の表示はその TOOL に任せる */
+async function mount(root,opts){
+  ROOT=root;opts=opts||{};
+  var mv=opts.embedded?null:(document.title.match(/v([\d.]+)\s*$/)||[])[1];   // 版は LEENAI.init の 1 か所だけ (共通ファイルが title に入れる)
+  if(mv&&$('mpTitle')) $('mpTitle').textContent='今日のメール · v'+mv+' (試験)';
   ROOT.addEventListener('click',onClick);
   ROOT.addEventListener('change',onChange);
   $('mpRefresh').addEventListener('click',function(){refresh();});
@@ -606,7 +607,7 @@ return {mount:mount,unmount:unmount,refresh:refresh,_S:S};
 })();
 
 LEENAI.init({
-  sys:'MAIL', name:'今日のメール', version:'0.2', date:'2026-10-20',
+  sys:'MAIL', name:'今日のメール', version:'0.3', date:'2026-10-20',
   desc:'rcp@ メールの担当・処理状況 (テストページ)',
   graphScopes:['Mail.ReadWrite','Sites.ReadWrite.All'],
   onReady:function(){MailPortal.mount(document.getElementById('mpRoot'));}
