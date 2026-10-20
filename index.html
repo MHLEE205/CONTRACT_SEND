@@ -66,6 +66,11 @@ html[data-theme="dark"] .mp{--mp-page:#14181F;--mp-surface:#1E242E;--mp-text:#E6
 .mp-st{font-size:11px;color:var(--mp-muted);white-space:nowrap}
 .mp-own{font-size:11px;color:var(--mp-text2)}
 .mp-l3{display:flex;align-items:center;gap:8px;min-width:0}
+/* メール行 (v0.8) — 1 行目 送信者 (太字) / 2 行目 件名 / 3 行目 要約・区分。太字は 1 行目だけ */
+.mp-sn.b{font-weight:700}
+.mp-subj.n{font-weight:400}
+.mp-key.n{font-weight:400;color:var(--mp-text2)}
+.mp-l3 .end{margin-left:auto;flex:none}
 .mp-subj{flex:1;min-width:0;font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mp-sbtn{flex:none;border:1px solid var(--mp-ctl);background:var(--mp-surface);color:var(--mp-text2);padding:2px 8px;border-radius:4px;font-size:11px;cursor:pointer}
 .mp-take{flex:none;border:1px solid var(--mp-accent);background:var(--mp-surface);color:var(--mp-accent);padding:3px 10px;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;min-height:26px}
@@ -386,16 +391,20 @@ function rowHtml(x,act){
   var role=S.view==='ALL'?'—':roleJa(f.Role);
   var h='<div class="mp-row'+(S.sel[x.id]?' sel':(fl&&act?' flag':''))+'" data-id="'+esc(x.id)+'"><div class="mp-bar4 '+esc(f.Color)+'"></div>';
   if(act) h+='<div class="mp-ck"><input type="checkbox" aria-label="選択" data-act="sel" data-id="'+esc(x.id)+'"'+(S.sel[x.id]?' checked':'')+'></div>';
-  h+='<div class="mp-body"><div class="mp-l1"><span class="mp-key">'+esc(keyOf(f))+'</span><span class="mp-pat">'+esc(f.PatternId)+' · '+esc(role)+'</span>';
-  if(f.RepliedBy) h+='<span class="mp-rep">返信済 '+esc(nm(f.RepliedBy))+' '+esc(fmtTime(f.RepliedAt))+'</span>';
+  // 1 行目: 送信者 (太字)・相手の種類・時刻・フラグ
+  h+='<div class="mp-body"><div class="mp-l1"><span class="mp-sn b">'+esc(f.FromName||f.FromAddress)+'</span><span class="mp-st">'+esc(partyJa(f))+'</span>';
   h+='<span class="mp-time">'+esc(fmtTime(f.ReceivedAt))+'</span>';
   if(act){var lb=fl?'フラグを外す (Outlook にも反映)':'フラグを付ける (Outlook にも反映)';
     h+='<button class="mp-flagbtn'+(fl?' on':'')+'" data-act="flag" data-id="'+esc(x.id)+'" aria-label="'+lb+'" title="'+lb+'">'+FLAG_SVG.replace('FILL',fl?'#C50F1F':'none')+'</button>';}
-  h+='</div><div class="mp-l2"><span class="mp-sn">'+esc(f.FromName||f.FromAddress)+'</span><span class="mp-st">'+esc(partyJa(f))+'</span></div>';
+  // 2 行目: 件名 (押すと Outlook)
+  h+='</div><div class="mp-l2"><a class="mp-subj n" data-act="outlook" data-imid="'+esc(f.InternetMessageId)+'">'+esc(f.Subject||'(件名なし)')+'</a></div>';
+  // 3 行目: 要約・区分 (POL・IV · パターン・役割 · 返信済) · 担当変更
+  h+='<div class="mp-l3"><span class="mp-key n">'+esc(keyOf(f))+'</span><span class="mp-pat">'+esc(f.PatternId)+' · '+esc(role)+'</span>';
+  if(f.RepliedBy) h+='<span class="mp-rep">返信済 '+esc(nm(f.RepliedBy))+' '+esc(fmtTime(f.RepliedAt))+'</span>';
+  if(canReassign()) h+='<button class="mp-sbtn end" data-act="rsopen" data-id="'+esc(x.id)+'">担当変更</button>';
+  h+='</div>';
   if(S.view==='ALL') h+='<span class="mp-own">担当: '+esc(x.rows.map(function(r){return nm(r.f.StaffCode)+'('+roleJa(r.f.Role)+')';}).join('・'))+'</span>';
-  h+='<div class="mp-l3"><a class="mp-subj" data-act="outlook" data-imid="'+esc(f.InternetMessageId)+'">'+esc(f.Subject||'(件名なし)')+'</a>';
-  if(canReassign()) h+='<button class="mp-sbtn" data-act="rsopen" data-id="'+esc(x.id)+'">担当変更</button>';
-  h+='</div></div></div>';
+  h+='</div></div>';
   if(S.reassign===x.id&&canReassign()) h+=reassignHtml(x);
   return h;
 }
@@ -412,11 +421,11 @@ function renderUnd(){
   var h='<div class="mp-info und">担当が自動で決まらなかったメール (全員に表示)。自分の仕事なら「担当する」— 自分の未完了に移り、他の人の一覧からは消えます</div>';
   S.und.slice().sort(function(a,b){return (b.f.ReceivedAt||'')>(a.f.ReceivedAt||'')?1:-1;}).forEach(function(x){
     var f=x.f;
-    h+='<div class="mp-row"><div class="mp-bar4 U"></div><div class="mp-body" style="padding-left:12px"><div class="mp-l1"><span class="mp-key">'+esc(keyOf(f))+'</span>'
-      +'<span class="mp-reason">'+esc(f.UndecidedReason||'その他')+'</span><span class="mp-time">'+esc(fmtTime(f.ReceivedAt))+'</span></div>'
-      +'<div class="mp-l2"><span class="mp-sn">'+esc(f.FromName||f.FromAddress)+'</span><span class="mp-st">'+esc(partyJa(f))+'</span></div>'
-      +'<div class="mp-l3"><a class="mp-subj" data-act="outlook" data-imid="'+esc(f.InternetMessageId)+'">'+esc(f.Subject||'(件名なし)')+'</a>'
-      +'<button class="mp-take" data-act="take" data-id="'+esc(x.id)+'">担当する</button></div></div></div>';
+    h+='<div class="mp-row"><div class="mp-bar4 U"></div><div class="mp-body" style="padding-left:12px">'
+      +'<div class="mp-l1"><span class="mp-sn b">'+esc(f.FromName||f.FromAddress)+'</span><span class="mp-st">'+esc(partyJa(f))+'</span><span class="mp-time">'+esc(fmtTime(f.ReceivedAt))+'</span></div>'
+      +'<div class="mp-l2"><a class="mp-subj n" data-act="outlook" data-imid="'+esc(f.InternetMessageId)+'">'+esc(f.Subject||'(件名なし)')+'</a></div>'
+      +'<div class="mp-l3"><span class="mp-key n">'+esc(keyOf(f))+'</span><span class="mp-reason">'+esc(f.UndecidedReason||'その他')+'</span>'
+      +'<button class="mp-take end" data-act="take" data-id="'+esc(x.id)+'">担当する</button></div></div></div>';
   });
   if(!S.und.length) h+='<div class="mp-empty">未判定のメールはありません。</div>';
   return h;
@@ -852,7 +861,7 @@ return {mount:mount,unmount:unmount,refresh:refresh,_S:S,_W:W,_buildWork:buildWo
 })();
 
 LEENAI.init({
-  sys:'MAIL', name:'今日のメール', version:'0.7', date:'2026-10-20',
+  sys:'MAIL', name:'今日のメール', version:'0.8', date:'2026-10-20',
   desc:'rcp@ メールの担当・処理状況 (テストページ)',
   graphScopes:['Mail.ReadWrite','Sites.ReadWrite.All'],
   onReady:function(){MailPortal.mount(document.getElementById('mpRoot'));}
