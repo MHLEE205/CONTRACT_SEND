@@ -71,6 +71,7 @@ html[data-theme="dark"] .mp{--mp-page:#14181F;--mp-surface:#1E242E;--mp-text:#E6
 .mp-subj.n{font-weight:400}
 .mp-key.n{font-weight:400;color:var(--mp-text2)}
 .mp-l3 .end{margin-left:auto;flex:none}
+.mp-l3 .mp-own.end{flex:0 1 auto;min-width:0;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mp-subj{flex:1;min-width:0;font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mp-sbtn{flex:none;border:1px solid var(--mp-ctl);background:var(--mp-surface);color:var(--mp-text2);padding:2px 8px;border-radius:4px;font-size:11px;cursor:pointer}
 .mp-take{flex:none;border:1px solid var(--mp-accent);background:var(--mp-surface);color:var(--mp-accent);padding:3px 10px;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;min-height:26px}
@@ -402,9 +403,9 @@ function rowHtml(x,act){
   h+='<div class="mp-l3"><span class="mp-key n">'+esc(keyOf(f))+'</span><span class="mp-pat">'+esc(f.PatternId)+' · '+esc(role)+'</span>';
   if(f.RepliedBy) h+='<span class="mp-rep">返信済 '+esc(nm(f.RepliedBy))+' '+esc(fmtTime(f.RepliedAt))+'</span>';
   if(canReassign()) h+='<button class="mp-sbtn end" data-act="rsopen" data-id="'+esc(x.id)+'">担当変更</button>';
-  h+='</div>';
-  if(S.view==='ALL') h+='<span class="mp-own">担当: '+esc(x.rows.map(function(r){return nm(r.f.StaffCode)+'('+roleJa(r.f.Role)+')';}).join('・'))+'</span>';
-  h+='</div></div>';
+  // 全員表示の担当は 3 行目の右寄せ (v0.9 — 1 行減らす)
+  if(S.view==='ALL') h+='<span class="mp-own end">担当: '+esc(x.rows.map(function(r){return nm(r.f.StaffCode)+'('+roleJa(r.f.Role)+')';}).join('・'))+'</span>';
+  h+='</div></div></div>';
   if(S.reassign===x.id&&canReassign()) h+=reassignHtml(x);
   return h;
 }
@@ -861,7 +862,7 @@ return {mount:mount,unmount:unmount,refresh:refresh,_S:S,_W:W,_buildWork:buildWo
 })();
 
 LEENAI.init({
-  sys:'MAIL', name:'今日のメール', version:'0.8', date:'2026-10-20',
+  sys:'MAIL', name:'今日のメール', version:'0.9', date:'2026-10-20',
   desc:'rcp@ メールの担当・処理状況 (テストページ)',
   graphScopes:['Mail.ReadWrite','Sites.ReadWrite.All'],
   onReady:function(){MailPortal.mount(document.getElementById('mpRoot'));}
