@@ -616,13 +616,19 @@ function pvMark(){
 function pvEnsure(){
   if(PV.el) return;
   var p=$('mpPv');
-  p.innerHTML='<div class="mp-pv-head" id="mpPvHead"></div><div class="mp-pv-frame"><div class="mp-pv-msg" id="mpPvMsg"></div></div>';
-  var fr=document.createElement('iframe');
+  p.innerHTML='<div class="mp-pv-head" id="mpPvHead"></div><div class="mp-pv-frame"><div class="mp-pv-msg" id="mpPvMsg"></div><iframe id="mpPvFrame" style="display:none"></iframe></div>';
+  PV.el=p;
+  pvFrame('');
+}
+/* 表示するメールが変わるときだけ iframe を作り直す — sandbox・srcdoc を付けてから入れるので読み込みは 1 回だけ
+   (同じ iframe の srcdoc を続けて書き換えると、ブラウザによっては空白のままになるため)。更新 (render) では触らない */
+function pvFrame(doc){
+  var old=$('mpPvFrame'),fr=document.createElement('iframe');
   fr.setAttribute('sandbox','allow-popups allow-popups-to-escape-sandbox');   // allow-scripts・allow-same-origin・allow-forms は入れない
   fr.setAttribute('referrerpolicy','no-referrer');
-  fr.id='mpPvFrame';fr.title='メール本文';fr.style.display='none';
-  p.querySelector('.mp-pv-frame').appendChild(fr);
-  PV.el=p;
+  fr.id='mpPvFrame';fr.title='メール本文';
+  if(doc) fr.setAttribute('srcdoc',doc); else fr.style.display='none';
+  old.parentNode.replaceChild(fr,old);
 }
 function pvOpen(kind,id){
   var x=pvFind(kind,id);if(!x) return;
@@ -634,8 +640,7 @@ function pvOpen(kind,id){
 function pvClose(){
   if(!PV.kind) return;
   PV.kind='';PV.id='';PV.f=null;PV.msg=null;PV.state='';PV.doc='';
-  var fr=$('mpPvFrame');if(fr){fr.setAttribute('srcdoc','');fr.style.display='none';}
-  if(PV.el) PV.el.style.display='none';
+  if(PV.el){pvFrame('');PV.el.style.display='none';}
   $('mpWork').style.display='';
   pvMark();
 }
@@ -691,14 +696,15 @@ function pvDoc(m,ext){
     +'<style>html,body{background:#FFFFFF;color:#000000}body{margin:12px;font-family:"Segoe UI","Yu Gothic UI","Meiryo",sans-serif;font-size:14px}</style>'+html;
 }
 function pvBody(){
-  var box=$('mpPvMsg'),fr=$('mpPvFrame');if(!box||!fr) return;
+  var box=$('mpPvMsg');if(!box||!$('mpPvFrame')) return;
   if(PV.state==='ok'){
     var doc=pvDoc(PV.msg,PV.ext);
-    box.style.display='none';fr.style.display='block';
-    if(PV.doc!==doc){PV.doc=doc;fr.setAttribute('srcdoc',doc);}
+    box.style.display='none';
+    if(PV.doc!==doc){PV.doc=doc;pvFrame(doc);}
     return;
   }
-  PV.doc='';fr.setAttribute('srcdoc','');fr.style.display='none';box.style.display='';
+  if(PV.doc){PV.doc='';pvFrame('');}
+  box.style.display='';
   box.innerHTML=PV.state==='loading'?'読み込み中…'
     :PV.state==='none'?'Outlook にこのメールが見つかりません (削除・移動された可能性)'
     :'読み込めません: '+esc(PV.err)+'<br><button class="mp-btn" data-act="pvreload" style="margin-top:8px">再読み込み</button>';
