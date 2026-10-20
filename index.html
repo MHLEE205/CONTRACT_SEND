@@ -8,9 +8,12 @@
 <script src="https://mhlee205.github.io/LEENAI_COMMON/v1/leenai-common.js"></script>
 <script>if(!window.LEENAI){document.addEventListener('DOMContentLoaded',function(){document.body.innerHTML='<div style="padding:40px;font-family:sans-serif">共通ファイルの読み込みに失敗しました。ページを再読み込みしてください。</div>';});}</script>
 <style>
+/* テーマ — ライト既定 (画面案の色) / ダーク (CLEARANCE_COMPASS 既定) */
+.mp{--mp-page:#F3F2F1;--mp-surface:#FFFFFF;--mp-text:#201F1E;--mp-text2:#323130;--mp-muted:#605E5C;--mp-line:#D2D0CE;--mp-line2:#E1DFDD;--mp-line3:#EDEBE9;--mp-ctl:#C8C6C4;--mp-subtle:#FAF9F8;--mp-note:#EEF4FB;--mp-confirm:#FFF4CE;--mp-confirm-line:#F1DFA6;--mp-und:#FFF8EC;--mp-rs:#F3F9FF;--mp-rs-line:#C7E0F4;--mp-sel:#DEECF9;--mp-flag:#FDF3F4;--mp-over:#FDE7E9;--mp-accent:#0F5BA8;--mp-accent2:#0B4683;--mp-icon:#A19F9D}
+html[data-theme="dark"] .mp{--mp-page:#14181F;--mp-surface:#1E242E;--mp-text:#E6E9EE;--mp-text2:#C9CED6;--mp-muted:#9AA3AF;--mp-line:#323A47;--mp-line2:#2C3440;--mp-line3:#28303B;--mp-ctl:#465061;--mp-subtle:#232A35;--mp-note:#1F2C3D;--mp-confirm:#3A3220;--mp-confirm-line:#5A4C25;--mp-und:#33291C;--mp-rs:#1C2A3A;--mp-rs-line:#2E4A66;--mp-sel:#24405E;--mp-flag:#3A2226;--mp-over:#4A2228;--mp-accent:#6CB0F2;--mp-accent2:#9CCBF7;--mp-icon:#8A94A3}
 /* 今日のメール — 画面案 MAIL_PORTAL_画面案_Main_v0_1 の配置・文言・色 */
-.mp{font-family:"Segoe UI","Yu Gothic UI","Meiryo","Noto Sans JP",system-ui,sans-serif;background:#F3F2F1;color:#201F1E;min-height:calc(100vh - 60px)}
-.mp a{color:#0F5BA8;cursor:pointer}.mp a:hover{color:#0B4683}
+.mp{font-family:"Segoe UI","Yu Gothic UI","Meiryo","Noto Sans JP",system-ui,sans-serif;background:var(--mp-page);color:var(--mp-text);min-height:calc(100vh - 60px)}
+.mp a{color:var(--mp-accent);cursor:pointer}.mp a:hover{color:var(--mp-accent2)}
 .mp button{font-family:inherit}
 .mp-bar{background:#1B2A41;color:#FFF;padding:10px 20px;display:flex;flex-wrap:wrap;align-items:center;gap:12px;justify-content:space-between}
 .mp-bar .t1{font-size:16px;font-weight:700}.mp-bar .t2{font-size:12px;color:#C9D3E0}
@@ -19,80 +22,80 @@
 .mp-bar select{font-family:inherit;font-size:12px;padding:3px 6px;border-radius:4px;border:1px solid #5A6B85;background:#24364F;color:#FFF}
 .mp-bar .bbtn{border:1px solid #5A6B85;background:#24364F;color:#FFF;padding:3px 10px;border-radius:4px;font-size:12px;cursor:pointer}
 .mp-main{width:100%;max-width:1400px;margin:0 auto;box-sizing:border-box;padding:12px 20px;display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}
-.mp-panel{flex:1 1 480px;min-width:0;max-width:calc(50% - 8px);background:#FFF;border:1px solid #D2D0CE;border-radius:6px;overflow:hidden;display:flex;flex-direction:column}
-.mp-ext{flex:1 1 480px;min-width:0;max-width:calc(50% - 8px);box-sizing:border-box;min-height:640px;border:2px dashed #C8C6C4;border-radius:6px;display:flex;align-items:center;justify-content:center;padding:24px;color:#605E5C;font-size:13px;text-align:center;white-space:pre-line}
+.mp-panel{flex:1 1 480px;min-width:0;max-width:calc(50% - 8px);background:var(--mp-surface);border:1px solid var(--mp-line);border-radius:6px;overflow:hidden;display:flex;flex-direction:column}
+.mp-ext{flex:1 1 480px;min-width:0;max-width:calc(50% - 8px);box-sizing:border-box;min-height:640px;border:2px dashed var(--mp-ctl);border-radius:6px;display:flex;align-items:center;justify-content:center;padding:24px;color:var(--mp-muted);font-size:13px;text-align:center;white-space:pre-line}
 @media(max-width:900px){.mp-panel,.mp-ext{max-width:100%}}
-.mp-tabs{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;border-bottom:1px solid #E1DFDD}
+.mp-tabs{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;border-bottom:1px solid var(--mp-line2)}
 .mp-tabs .tabs{display:flex;gap:14px;font-size:14px}
-.mp-tab{border:0;background:transparent;padding:4px 0;cursor:pointer;font-size:14px;color:#201F1E;border-bottom:2px solid transparent}
-.mp-tab.on{font-weight:700;border-bottom-color:#0F5BA8}
+.mp-tab{border:0;background:transparent;padding:4px 0;cursor:pointer;font-size:14px;color:var(--mp-text);border-bottom:2px solid transparent}
+.mp-tab.on{font-weight:700;border-bottom-color:var(--mp-accent)}
 .mp-tab.und{color:#8A4B00}.mp-tab.und.on{border-bottom-color:#8A4B00}
 .mp-filters{display:flex;flex-wrap:wrap;gap:6px}
-.mp-chip{display:inline-flex;align-items:center;gap:5px;border:1px solid #C8C6C4;background:#FFF;color:#201F1E;padding:3px 10px;border-radius:999px;font-size:12px;cursor:pointer;min-height:28px}
+.mp-chip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--mp-ctl);background:var(--mp-surface);color:var(--mp-text);padding:3px 10px;border-radius:999px;font-size:12px;cursor:pointer;min-height:28px}
 .mp-chip.on{border-color:#1B2A41;background:#1B2A41;color:#FFF}
 .mk{display:inline-block;width:8px;height:8px;flex:none}
 .mk.R{background:#C50F1F;border-radius:50%}.mk.Y{background:#D99A00;border-radius:1px}.mk.G{background:#107C10;border-radius:0;transform:rotate(45deg)}.mk.ALL{background:#8A8886;border-radius:50%}
-.mp-selbar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 12px;border-bottom:1px solid #E1DFDD;background:#FAF9F8}
+.mp-selbar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 12px;border-bottom:1px solid var(--mp-line2);background:var(--mp-subtle)}
 .mp-selbar label{display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer}
 .mp-selbar .r{display:flex;align-items:center;gap:10px}
-.mp-btn{border:1px solid #C8C6C4;background:#FFF;color:#201F1E;padding:4px 12px;border-radius:4px;font-size:12px;cursor:pointer;min-height:28px}
+.mp-btn{border:1px solid var(--mp-ctl);background:var(--mp-surface);color:var(--mp-text);padding:4px 12px;border-radius:4px;font-size:12px;cursor:pointer;min-height:28px}
 .mp-btn.pri{border:0;background:#0F5BA8;color:#FFF;font-weight:600}
 .mp-btn:disabled{opacity:.45;cursor:default}
-.mp-note{padding:6px 12px;border-bottom:1px solid #E1DFDD;background:#EEF4FB;font-size:12px;color:#323130}
-.mp-confirm{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;background:#FFF4CE;border-bottom:1px solid #F1DFA6;font-size:12px}
-.mp-ghead{display:flex;align-items:center;gap:6px;padding:3px 12px;background:#EDEBE9;font-size:12px;font-weight:700;color:#323130}
-.mp-ghead .o{font-weight:400;color:#605E5C}
-.mp-row{display:flex;align-items:stretch;border-bottom:1px solid #EDEBE9;background:#FFF}
-.mp-row.flag{background:#FDF3F4}.mp-row.sel{background:#DEECF9}
+.mp-note{padding:6px 12px;border-bottom:1px solid var(--mp-line2);background:var(--mp-note);font-size:12px;color:var(--mp-text2)}
+.mp-confirm{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;background:var(--mp-confirm);border-bottom:1px solid var(--mp-confirm-line);font-size:12px}
+.mp-ghead{display:flex;align-items:center;gap:6px;padding:3px 12px;background:var(--mp-line3);font-size:12px;font-weight:700;color:var(--mp-text2)}
+.mp-ghead .o{font-weight:400;color:var(--mp-muted)}
+.mp-row{display:flex;align-items:stretch;border-bottom:1px solid var(--mp-line3);background:var(--mp-surface)}
+.mp-row.flag{background:var(--mp-flag)}.mp-row.sel{background:var(--mp-sel)}
 .mp-bar4{width:4px;flex:none}.mp-bar4.R{background:#C50F1F}.mp-bar4.Y{background:#D99A00}.mp-bar4.G{background:#107C10}.mp-bar4.U{background:#8A8886}
 .mp-ck{display:flex;align-items:flex-start;padding:6px 0 6px 8px}.mp-ck input{width:16px;height:16px;margin:2px 0 0}
 .mp-body{flex:1;min-width:0;padding:5px 12px 6px 8px;display:flex;flex-direction:column;gap:1px}
 .mp-l1{display:flex;align-items:center;gap:8px}
-.mp-key{font-size:12px;font-weight:700;color:#201F1E;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mp-pat{font-size:11px;color:#605E5C;white-space:nowrap}
+.mp-key{font-size:12px;font-weight:700;color:var(--mp-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mp-pat{font-size:11px;color:var(--mp-muted);white-space:nowrap}
 .mp-rep{font-size:11px;color:#0E6B27;white-space:nowrap}
 .mp-reason{font-size:11px;color:#8A4B00;white-space:nowrap}
-.mp-time{margin-left:auto;font-size:12px;font-weight:600;color:#0F5BA8;white-space:nowrap}
-.mp-flagbtn{border:0;background:transparent;padding:2px;margin:-2px -4px -2px 0;cursor:pointer;line-height:0;color:#A19F9D}
+.mp-time{margin-left:auto;font-size:12px;font-weight:600;color:var(--mp-accent);white-space:nowrap}
+.mp-flagbtn{border:0;background:transparent;padding:2px;margin:-2px -4px -2px 0;cursor:pointer;line-height:0;color:var(--mp-icon)}
 .mp-flagbtn.on{color:#C50F1F}
 .mp-l2{display:flex;align-items:baseline;gap:8px;min-width:0}
-.mp-sn{font-size:15px;color:#201F1E;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mp-st{font-size:11px;color:#605E5C;white-space:nowrap}
-.mp-own{font-size:11px;color:#323130}
+.mp-sn{font-size:15px;color:var(--mp-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mp-st{font-size:11px;color:var(--mp-muted);white-space:nowrap}
+.mp-own{font-size:11px;color:var(--mp-text2)}
 .mp-l3{display:flex;align-items:center;gap:8px;min-width:0}
 .mp-subj{flex:1;min-width:0;font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mp-sbtn{flex:none;border:1px solid #C8C6C4;background:#FFF;color:#323130;padding:2px 8px;border-radius:4px;font-size:11px;cursor:pointer}
-.mp-take{flex:none;border:1px solid #0F5BA8;background:#FFF;color:#0F5BA8;padding:3px 10px;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;min-height:26px}
-.mp-rs{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 12px 8px 40px;background:#F3F9FF;border-bottom:1px solid #C7E0F4;font-size:12px}
-.mp-rs select{font-family:inherit;font-size:12px;padding:3px 6px;border:1px solid #C8C6C4;border-radius:4px}
-.mp-rs .rbtn{border:1px solid #C8C6C4;background:#FFF;color:#201F1E;padding:2px 9px;border-radius:999px;font-size:12px;cursor:pointer}
+.mp-sbtn{flex:none;border:1px solid var(--mp-ctl);background:var(--mp-surface);color:var(--mp-text2);padding:2px 8px;border-radius:4px;font-size:11px;cursor:pointer}
+.mp-take{flex:none;border:1px solid var(--mp-accent);background:var(--mp-surface);color:var(--mp-accent);padding:3px 10px;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;min-height:26px}
+.mp-rs{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 12px 8px 40px;background:var(--mp-rs);border-bottom:1px solid var(--mp-rs-line);font-size:12px}
+.mp-rs select{font-family:inherit;font-size:12px;padding:3px 6px;border:1px solid var(--mp-ctl);border-radius:4px}
+.mp-rs .rbtn{border:1px solid var(--mp-ctl);background:var(--mp-surface);color:var(--mp-text);padding:2px 9px;border-radius:999px;font-size:12px;cursor:pointer}
 .mp-rs .rbtn.on{border-color:#1B2A41;background:#1B2A41;color:#FFF}
 .mp-rs .end{margin-left:auto;display:flex;gap:6px}
-.mp-info{padding:6px 12px;border-bottom:1px solid #E1DFDD;font-size:12px;color:#605E5C}
-.mp-info.und{background:#FFF8EC}.mp-info.done{background:#FAF9F8}
-.mp-empty{padding:32px 12px;text-align:center;color:#605E5C;font-size:13px}
-.mp-done{display:flex;align-items:center;gap:10px;padding:6px 12px;border-bottom:1px solid #EDEBE9}
+.mp-info{padding:6px 12px;border-bottom:1px solid var(--mp-line2);font-size:12px;color:var(--mp-muted)}
+.mp-info.und{background:var(--mp-und)}.mp-info.done{background:var(--mp-subtle)}
+.mp-empty{padding:32px 12px;text-align:center;color:var(--mp-muted);font-size:13px}
+.mp-done{display:flex;align-items:center;gap:10px;padding:6px 12px;border-bottom:1px solid var(--mp-line3)}
 .mp-done .b{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
-.mp-done .b span{font-size:12px}.mp-done .s{color:#323130;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mp-done .b span{font-size:12px}.mp-done .s{color:var(--mp-text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* 管理者画面 (全幅) */
 .mp-admin{width:100%;max-width:1400px;margin:0 auto;box-sizing:border-box;padding:12px 20px;display:flex;flex-direction:column;gap:16px}
-.mp-card{background:#FFF;border:1px solid #D2D0CE;border-radius:6px;overflow:hidden}
-.mp-card h3{margin:0;padding:8px 12px;font-size:13px;background:#EDEBE9;color:#323130}
+.mp-card{background:var(--mp-surface);border:1px solid var(--mp-line);border-radius:6px;overflow:hidden}
+.mp-card h3{margin:0;padding:8px 12px;font-size:13px;background:var(--mp-line3);color:var(--mp-text2)}
 .mp-kpi{display:flex;flex-wrap:wrap;gap:12px;padding:12px}
-.mp-kpi div{flex:1 1 160px;border:1px solid #E1DFDD;border-radius:6px;padding:10px 12px}
-.mp-kpi b{display:block;font-size:22px}.mp-kpi span{font-size:12px;color:#605E5C}
+.mp-kpi div{flex:1 1 160px;border:1px solid var(--mp-line2);border-radius:6px;padding:10px 12px}
+.mp-kpi b{display:block;font-size:22px}.mp-kpi span{font-size:12px;color:var(--mp-muted)}
 .mp-kpi .warn b{color:#C50F1F}
 .mp-tbl{width:100%;border-collapse:collapse;font-size:12px}
-.mp-tbl th,.mp-tbl td{padding:5px 10px;border-bottom:1px solid #EDEBE9;text-align:left;white-space:nowrap}
-.mp-tbl th{background:#FAF9F8;font-weight:600;color:#323130}
+.mp-tbl th,.mp-tbl td{padding:5px 10px;border-bottom:1px solid var(--mp-line3);text-align:left;white-space:nowrap}
+.mp-tbl th{background:var(--mp-subtle);font-weight:600;color:var(--mp-text2)}
 .mp-tbl td.n{text-align:right}
-.mp-tbl tr.over td{background:#FDE7E9;font-weight:700}
-.mp-tbl tr.click{cursor:pointer}.mp-tbl tr.click:hover td{background:#F3F9FF}
+.mp-tbl tr.over td{background:var(--mp-over);font-weight:700}
+.mp-tbl tr.click{cursor:pointer}.mp-tbl tr.click:hover td{background:var(--mp-rs)}
 </style>
 </head>
 <body>
 <div id="app" style="display:none">
-  <div class="mp">
+  <div class="mp" id="mpRoot">
     <div class="mp-bar">
       <div style="display:flex;align-items:baseline;gap:10px">
         <span class="t1">LEENAI ポータル</span>
@@ -115,14 +118,21 @@
   </div>
 </div>
 <script>
-'use strict';
 /* ══════════════════════════════════════════════════════════════
-   MAIL ポータル — 今日のメール (テストページ) — 版は下の LEENAI.init だけ
+   MailPortal — 今日のメール (版は下の LEENAI.init だけ)
+   - グローバル名は MailPortal 1 つだけ。画面は mount(ルート要素) で描く — CLEARANCE_COMPASS などに
+     タブとして結合するときは、mpRoot の中身と <style> を移して MailPortal.mount(タブの要素) を呼ぶ。
+     その TOOL の LEENAI.init に graphScopes:['Mail.ReadWrite','Sites.ReadWrite.All'] を足すこと
+   - イベントはルート要素の中だけで受ける (結合先の document のクリック処理と干渉しない)
    - 判定エンジン MAIL_ENGINE が SharePoint リスト MAIL_TASKS に書いた「やること」を表示する
    - メールボックスへの書き込みは「フラグ (flag) の変更」だけ。移動・削除・送信・既読化はしない
    - 管理者かどうかは共通マスター staff の portal_admin だけで判断 (名前・アドレスをコードに書かない)
    ✦ Powered by LEENAI Automation System
 ══════════════════════════════════════════════════════════════ */
+var MailPortal=(function(){
+'use strict';
+var ROOT=null;
+function $(id){return ROOT.querySelector('#'+id);}
 var GRAPH='https://graph.microsoft.com/v1.0';
 var SITE_PATH='leenear.sharepoint.com:/sites/leenearsite1';
 var LIST={T:'MAIL_TASKS',A:'MAIL_TASKS_ARCHIVE',L:'MAIL_REASSIGN_LOG'};
@@ -135,6 +145,9 @@ var PARTY_JA={'선사':'船社','공컨테이너·터미널':'空コン·ター�
   '보험':'保険','판매처·에이전트':'販売先·エージェント','매입처·Packer':'仕入先·Packer','청구·정산 시스템':'請求·精算システム',
   '기관·공공':'機関·公共','택배·기타 서비스':'宅配·その他','사내':'社内'};
 var REASONS=['担当違い','一時代理','その他'];
+/* 役割 — エンジンが書く Role (基準実装 build_tasks の値) の表示名。変更・引受 はポータルが書く日本語 */
+var ROLE_JA={'주':'主','참고':'参考','R0':'R0','미판정':'未判定'};
+function roleJa(r){return ROLE_JA[r]||r||'';}
 
 var S={site:null,lists:{},staff:{},order:[],me:null,view:null,tab:'open',filter:'ALL',sel:{},confirming:false,
   reassign:null,target:'',reason:'担当違い',open:[],und:[],done:[],adminOpen:[],log:[],updatedAt:null,busy:false,adminMode:false,timer:null};
@@ -309,22 +322,22 @@ function countsOf(rows){var n={ALL:rows.length,R:0,Y:0,G:0};rows.forEach(functio
 /* ── 描画 ── */
 var FLAG_SVG='<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 15V2M3 2.5h8.5l-2 3 2 3H3" fill="FILL" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"></path></svg>';
 function render(){
-  document.getElementById('mpUpdated').textContent='最終更新 '+(S.updatedAt?S.updatedAt.getHours()+':'+pad(S.updatedAt.getMinutes()):'—');
-  document.getElementById('mpWho').textContent=S.me.name+(isAdmin()?' (管理者)':'');
-  var vw=document.getElementById('mpViewWrap');vw.style.display=isAdmin()?'flex':'none';
-  document.getElementById('mpAdminBtn').style.display=isAdmin()?'':'none';
-  document.getElementById('mpAdminBtn').textContent=S.adminMode?'担当者画面':'管理者画面';
+  $('mpUpdated').textContent='最終更新 '+(S.updatedAt?S.updatedAt.getHours()+':'+pad(S.updatedAt.getMinutes()):'—');
+  $('mpWho').textContent=S.me.name+(isAdmin()?' (管理者)':'');
+  var vw=$('mpViewWrap');vw.style.display=isAdmin()?'flex':'none';
+  $('mpAdminBtn').style.display=isAdmin()?'':'none';
+  $('mpAdminBtn').textContent=S.adminMode?'担当者画面':'管理者画面';
   if(isAdmin()){
-    var sel=document.getElementById('mpView');
+    var sel=$('mpView');
     var opts=[['ALL','全員'],[S.me.code,'自分 ('+S.me.name+')']].concat(S.order.filter(function(c){return c!==S.me.code&&S.staff[c].active;}).map(function(c){return [c,S.staff[c].name];}));
     sel.innerHTML=opts.map(function(o){return '<option value="'+esc(o[0])+'"'+(o[0]===S.view?' selected':'')+'>'+esc(o[1])+'</option>';}).join('');
   }
-  document.getElementById('mpMain').style.display=S.adminMode?'none':'flex';
-  document.getElementById('mpAdmin').style.display=S.adminMode?'flex':'none';
+  $('mpMain').style.display=S.adminMode?'none':'flex';
+  $('mpAdmin').style.display=S.adminMode?'flex':'none';
   if(S.adminMode) renderAdmin(); else renderPanel();
 }
 function renderPanel(){
-  var p=document.getElementById('mpPanel');
+  var p=$('mpPanel');
   var openBase=S.view==='ALL'?groupByMail(S.open):S.open;
   var n=countsOf(openBase);
   var h='<div class="mp-tabs"><div class="tabs">'
@@ -368,7 +381,7 @@ function renderOpen(){
 }
 function rowHtml(x,act){
   var f=x.f, fl=!!f.Flagged;
-  var role=S.view==='ALL'?'—':(f.Role||'');
+  var role=S.view==='ALL'?'—':roleJa(f.Role);
   var h='<div class="mp-row'+(S.sel[x.id]?' sel':(fl&&act?' flag':''))+'" data-id="'+esc(x.id)+'"><div class="mp-bar4 '+esc(f.Color)+'"></div>';
   if(act) h+='<div class="mp-ck"><input type="checkbox" aria-label="選択" data-act="sel" data-id="'+esc(x.id)+'"'+(S.sel[x.id]?' checked':'')+'></div>';
   h+='<div class="mp-body"><div class="mp-l1"><span class="mp-key">'+esc(keyOf(f))+'</span><span class="mp-pat">'+esc(f.PatternId)+' · '+esc(role)+'</span>';
@@ -377,7 +390,7 @@ function rowHtml(x,act){
   if(act){var lb=fl?'フラグを外す (Outlook にも反映)':'フラグを付ける (Outlook にも反映)';
     h+='<button class="mp-flagbtn'+(fl?' on':'')+'" data-act="flag" data-id="'+esc(x.id)+'" aria-label="'+lb+'" title="'+lb+'">'+FLAG_SVG.replace('FILL',fl?'#C50F1F':'none')+'</button>';}
   h+='</div><div class="mp-l2"><span class="mp-sn">'+esc(f.FromName||f.FromAddress)+'</span><span class="mp-st">'+esc(partyJa(f))+'</span></div>';
-  if(S.view==='ALL') h+='<span class="mp-own">担当: '+esc(x.rows.map(function(r){return nm(r.f.StaffCode)+'('+(r.f.Role||'')+')';}).join('・'))+'</span>';
+  if(S.view==='ALL') h+='<span class="mp-own">担当: '+esc(x.rows.map(function(r){return nm(r.f.StaffCode)+'('+roleJa(r.f.Role)+')';}).join('・'))+'</span>';
   h+='<div class="mp-l3"><a class="mp-subj" data-act="outlook" data-imid="'+esc(f.InternetMessageId)+'">'+esc(f.Subject||'(件名なし)')+'</a>';
   if(canReassign()) h+='<button class="mp-sbtn" data-act="rsopen" data-id="'+esc(x.id)+'">担当変更</button>';
   h+='</div></div></div>';
@@ -439,7 +452,7 @@ function renderAdmin(){
   h+='<div class="mp-card"><h3>担当変更ログ (最近 50 件)</h3><table class="mp-tbl"><tr><th>日時</th><th>操作</th><th>変更前</th><th>変更後</th><th>理由</th><th>パターン</th><th>相手</th><th>番号</th><th>変更者</th></tr>'
     +S.log.map(function(l){return '<tr><td>'+esc(fmtTime(l.At))+'</td><td>'+(l.Action==='TAKE'?'引受':'担当変更')+'</td><td>'+esc(nm(l.FromStaff))+'</td><td>'+esc(nm(l.ToStaff))+'</td><td>'+esc(l.Reason)+'</td><td>'+esc(l.PatternId)+'</td><td>'+esc(PARTY_JA[l.PartyType]||l.PartyType||l.FromDomain)+'</td><td>'+esc(keyOf(l))+'</td><td>'+esc(nm(l.ByStaff))+'</td></tr>';}).join('')
     +(S.log.length?'':'<tr><td colspan="9">記録はまだありません。</td></tr>')+'</table></div>';
-  document.getElementById('mpAdmin').innerHTML=h;
+  $('mpAdmin').innerHTML=h;
 }
 
 /* ── 操作 ── */
@@ -562,14 +575,15 @@ function onChange(e){
   else if(a==='target'){S.target=el.value;}
 }
 
-async function startTool(){
+async function mount(root){
+  ROOT=root;
   var mv=(document.title.match(/v([\d.]+)\s*$/)||[])[1];   // 版は LEENAI.init の 1 か所だけ (共通ファイルが title に入れる)
-  if(mv) document.getElementById('mpTitle').textContent='今日のメール · v'+mv+' (試験)';
-  document.addEventListener('click',onClick);
-  document.addEventListener('change',onChange);
-  document.getElementById('mpRefresh').addEventListener('click',function(){refresh();});
-  document.getElementById('mpView').addEventListener('change',function(e){S.view=e.target.value;S.sel={};S.confirming=false;S.filter='ALL';S.reassign=null;refresh();});
-  document.getElementById('mpAdminBtn').addEventListener('click',function(){S.adminMode=!S.adminMode;refresh();});
+  if(mv) $('mpTitle').textContent='今日のメール · v'+mv+' (試験)';
+  ROOT.addEventListener('click',onClick);
+  ROOT.addEventListener('change',onChange);
+  $('mpRefresh').addEventListener('click',function(){refresh();});
+  $('mpView').addEventListener('change',function(e){S.view=e.target.value;S.sel={};S.confirming=false;S.filter='ALL';S.reassign=null;refresh();});
+  $('mpAdminBtn').addEventListener('click',function(){S.adminMode=!S.adminMode;refresh();});
   LEENAI.loading.show('メールを読み込み中…');
   try{
     if(LEENAI.auth.status.graphExtra&&LEENAI.auth.status.graphExtra!=='ok')
@@ -579,17 +593,23 @@ async function startTool(){
     await loadData();
     render();
   }catch(e){
-    document.getElementById('mpPanel').innerHTML='<div class="mp-empty">読み込めません: '+esc(e.message)+'</div>';
+    $('mpPanel').innerHTML='<div class="mp-empty">読み込めません: '+esc(e.message)+'</div>';
   }finally{LEENAI.loading.hide();}
+  if(S.timer) clearInterval(S.timer);
   S.timer=setInterval(function(){refresh(true);},REFRESH_MS);
 }
-window.MP={S:S,start:startTool,refresh:refresh,render:render,groupByMail:groupByMail,grouped:grouped,visibleRows:visibleRows};
+function unmount(){
+  if(S.timer){clearInterval(S.timer);S.timer=null;}
+  if(ROOT){ROOT.removeEventListener('click',onClick);ROOT.removeEventListener('change',onChange);}
+}
+return {mount:mount,unmount:unmount,refresh:refresh,_S:S};
+})();
 
 LEENAI.init({
-  sys:'MAIL', name:'今日のメール', version:'0.1', date:'2026-10-20',
+  sys:'MAIL', name:'今日のメール', version:'0.2', date:'2026-10-20',
   desc:'rcp@ メールの担当・処理状況 (テストページ)',
   graphScopes:['Mail.ReadWrite','Sites.ReadWrite.All'],
-  onReady:startTool
+  onReady:function(){MailPortal.mount(document.getElementById('mpRoot'));}
 });
 </script>
 </body>
