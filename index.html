@@ -638,7 +638,16 @@ function pvOpen(kind,id){
   pvEnsure();
   PV.kind=kind;PV.id=id;PV.f=x.f;PV.msg=null;PV.state='';PV.err='';PV.ext=false;PV.gone=false;
   $('mpWork').style.display='none';PV.el.style.display='flex';
-  pvMark();pvHead();pvLoad();
+  pvPlace();pvMark();pvHead();pvLoad();
+}
+/* 上に貼り付く帯 (共通ヘッダー・結合先のタブ帯) の下に合わせて止める — スクロールしても見出しが隠れない (v0.12) */
+function pvPlace(){
+  var t=0;
+  Array.prototype.forEach.call(document.querySelectorAll('.ln-header,.tab-bar'),function(el){
+    var cs=getComputedStyle(el);
+    if((cs.position==='sticky'||cs.position==='fixed')&&cs.display!=='none') t=Math.max(t,(parseFloat(cs.top)||0)+el.offsetHeight);
+  });
+  PV.el.style.top=(t+8)+'px';PV.el.style.height='calc(100vh - '+(t+16)+'px)';
 }
 function pvClose(){
   if(!PV.kind) return;
@@ -1083,7 +1092,7 @@ return {mount:mount,unmount:unmount,refresh:refresh,_S:S,_W:W,_buildWork:buildWo
 })();
 
 LEENAI.init({
-  sys:'MAIL', name:'今日のメール', version:'0.11', date:'2026-10-20',
+  sys:'MAIL', name:'今日のメール', version:'0.12', date:'2026-10-20',
   desc:'rcp@ メールの担当・処理状況 (テストページ)',
   graphScopes:['Mail.ReadWrite','Sites.ReadWrite.All'],
   onReady:function(){MailPortal.mount(document.getElementById('mpRoot'));}
