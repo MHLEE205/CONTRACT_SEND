@@ -590,7 +590,7 @@ var WK_SI_DAYS=180;      // 書類 ④ は契約日が最近 180 日の契約だ
 var WK_CHUNK=15;         // COMPASS は 15 件ずつ or で (CLEARANCE_COMPASS と同じ)
 var WK_SEC=[
   {k:'tsukan',kind:'pol',label:'通関',order:'CUT'},
-  {k:'insp',kind:'pol',label:'検査',order:'作業日'},
+  {k:'insp',kind:'pol',label:'COTECNA 検査',order:'作業日'},
   {k:'d1',kind:'doc',label:'書類 ① FD送付',order:'B/L DATE'},
   {k:'d2',kind:'doc',label:'書類 ② DEP',order:'CUT'},
   {k:'d3',kind:'doc',label:'書類 ③ 振込',order:'CUT'},
@@ -614,15 +614,20 @@ function wkPolOwners(pol,polRows){
   if(!hit) hit=polRows.find(function(r){return r.pol==='*';});
   return hit?[hit.staff,hit.assist].filter(Boolean):[];
 }
-/* 書類担当 — CLEARANCE_COMPASS getShipStaff (IV 先頭 1 文字を除き長いコード優先・直後が数字) → なければ getBuyerStaff (輸入者名と一致) */
+/* 書類担当 — CLEARANCE_COMPASS getShipStaff (IV 先頭 1 文字を除き長いコード優先・直後が数字) → なければ販売先名:
+   ① 輸入者名と一致 (getBuyerStaff) ② 輸入者名 (4 文字以上) が販売先名に含まれる — エンジン MAIL_ENGINE と同じ (v0.6)。担当が 1 人に決まるときだけ */
 function wkDocOwner(iv,buyer,docRows){
   var body=String(iv||'').trim().toUpperCase().slice(1);
   var rows=docRows.filter(function(r){return r.iv_code;}).sort(function(a,b){return b.iv_code.length-a.iv_code.length;});
   for(var i=0;i<rows.length;i++){var k=String(rows[i].iv_code).toUpperCase();
     if(body.indexOf(k)===0&&/\d/.test(body.charAt(k.length)||''))return rows[i].staff||'';}
-  var b=String(buyer||'').trim().toUpperCase();
-  var r=b?docRows.find(function(x){return x.staff&&String(x.importer||'').toUpperCase()===b;}):null;
-  return r?r.staff:'';
+  var nk=function(t){return String(t||'').replace(/[\s　]+/g,'').toUpperCase();},b=nk(buyer);
+  if(!b) return '';
+  var same=docRows.filter(function(x){return x.staff&&nk(x.importer)===b;});
+  if(!same.length) same=docRows.filter(function(x){var k=nk(x.importer);return x.staff&&k.length>=4&&b.indexOf(k)>=0;});
+  var st={};same.forEach(function(x){st[x.staff]=1;});
+  var ks=Object.keys(st);
+  return ks.length===1?ks[0]:'';
 }
 
 /* 条件 (形님 確定 2026-10-20) — raw は COMPASS・状態 JSON を読んだまま。判定だけをするので日付を変えて試験できる */
@@ -674,6 +679,7 @@ function buildWork(raw,now,polRows,docRows){
   // 書類 ④: 契約日が最近 180 日・S/I がない販売契約 (Booking の IV コード → なければ販売先名 → 決まらなければ全員)
   (raw.contracts||[]).forEach(function(c){
     var dt=d10(c.cr49f_sale_contract_date);if(!dt||dt<D.S180) return;
+    if(/^LS/i.test(String(c.cr49f_sale_contract_no||'').trim())) return;   // 契約「LS」始まり = 国内販売 → 書類の対象外 (v0.6)
     if((raw.siSet||{})[c.cr49f_sale_contractid]) return;
     var ivs=(raw.ivsOfContract||{})[c.cr49f_sale_contractid]||[],buyer=(raw.buyerName||{})[c._cr49f_buyer_id_value]||'',codes={};
     ivs.forEach(function(iv){var o=wkDocOwner(iv,'',docRows);if(o)codes[o]=1;});
@@ -836,7 +842,7 @@ return {mount:mount,unmount:unmount,refresh:refresh,_S:S,_W:W,_buildWork:buildWo
 })();
 
 LEENAI.init({
-  sys:'MAIL', name:'今日のメール', version:'0.5', date:'2026-10-20',
+  sys:'MAIL', name:'今日のメール', version:'0.6', date:'2026-10-20',
   desc:'rcp@ メールの担当・処理状況 (テストページ)',
   graphScopes:['Mail.ReadWrite','Sites.ReadWrite.All'],
   onReady:function(){MailPortal.mount(document.getElementById('mpRoot'));}
