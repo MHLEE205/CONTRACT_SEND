@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ja" data-theme="dark">
+<html lang="ja" data-theme="light">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -8,256 +8,588 @@
 <script src="https://mhlee205.github.io/LEENAI_COMMON/v1/leenai-common.js"></script>
 <script>if(!window.LEENAI){document.addEventListener('DOMContentLoaded',function(){document.body.innerHTML='<div style="padding:40px;font-family:sans-serif">共通ファイルの読み込みに失敗しました。ページを再読み込みしてください。</div>';});}</script>
 <style>
-.card{background:var(--read);border:1px solid var(--border);border-radius:10px;padding:18px 20px;margin-bottom:16px}
-.card h3{margin:0 0 10px;font-size:14px}
-.stat{font-family:var(--mono);font-size:13px;margin:4px 0}
-.ok{color:var(--ok)}.warn{color:var(--warn)}.danger{color:var(--danger)}.info{color:var(--info)}
-.cg{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
-.cg>div{border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12.5px;line-height:1.8}
-.cg b{display:block;font-size:11px;color:var(--text2);font-weight:600}
-@media(max-width:700px){.cg{grid-template-columns:repeat(2,1fr)}}
+/* 今日のメール — 画面案 MAIL_PORTAL_画面案_Main_v0_1 の配置・文言・色 */
+.mp{font-family:"Segoe UI","Yu Gothic UI","Meiryo","Noto Sans JP",system-ui,sans-serif;background:#F3F2F1;color:#201F1E;min-height:calc(100vh - 60px)}
+.mp a{color:#0F5BA8;cursor:pointer}.mp a:hover{color:#0B4683}
+.mp button{font-family:inherit}
+.mp-bar{background:#1B2A41;color:#FFF;padding:10px 20px;display:flex;flex-wrap:wrap;align-items:center;gap:12px;justify-content:space-between}
+.mp-bar .t1{font-size:16px;font-weight:700}.mp-bar .t2{font-size:12px;color:#C9D3E0}
+.mp-bar .r{display:flex;align-items:center;gap:14px;font-size:12px}
+.mp-bar .muted{color:#C9D3E0}
+.mp-bar select{font-family:inherit;font-size:12px;padding:3px 6px;border-radius:4px;border:1px solid #5A6B85;background:#24364F;color:#FFF}
+.mp-bar .bbtn{border:1px solid #5A6B85;background:#24364F;color:#FFF;padding:3px 10px;border-radius:4px;font-size:12px;cursor:pointer}
+.mp-main{width:100%;max-width:1400px;margin:0 auto;box-sizing:border-box;padding:12px 20px;display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}
+.mp-panel{flex:1 1 480px;min-width:0;max-width:calc(50% - 8px);background:#FFF;border:1px solid #D2D0CE;border-radius:6px;overflow:hidden;display:flex;flex-direction:column}
+.mp-ext{flex:1 1 480px;min-width:0;max-width:calc(50% - 8px);box-sizing:border-box;min-height:640px;border:2px dashed #C8C6C4;border-radius:6px;display:flex;align-items:center;justify-content:center;padding:24px;color:#605E5C;font-size:13px;text-align:center;white-space:pre-line}
+@media(max-width:900px){.mp-panel,.mp-ext{max-width:100%}}
+.mp-tabs{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;border-bottom:1px solid #E1DFDD}
+.mp-tabs .tabs{display:flex;gap:14px;font-size:14px}
+.mp-tab{border:0;background:transparent;padding:4px 0;cursor:pointer;font-size:14px;color:#201F1E;border-bottom:2px solid transparent}
+.mp-tab.on{font-weight:700;border-bottom-color:#0F5BA8}
+.mp-tab.und{color:#8A4B00}.mp-tab.und.on{border-bottom-color:#8A4B00}
+.mp-filters{display:flex;flex-wrap:wrap;gap:6px}
+.mp-chip{display:inline-flex;align-items:center;gap:5px;border:1px solid #C8C6C4;background:#FFF;color:#201F1E;padding:3px 10px;border-radius:999px;font-size:12px;cursor:pointer;min-height:28px}
+.mp-chip.on{border-color:#1B2A41;background:#1B2A41;color:#FFF}
+.mk{display:inline-block;width:8px;height:8px;flex:none}
+.mk.R{background:#C50F1F;border-radius:50%}.mk.Y{background:#D99A00;border-radius:1px}.mk.G{background:#107C10;border-radius:0;transform:rotate(45deg)}.mk.ALL{background:#8A8886;border-radius:50%}
+.mp-selbar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 12px;border-bottom:1px solid #E1DFDD;background:#FAF9F8}
+.mp-selbar label{display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer}
+.mp-selbar .r{display:flex;align-items:center;gap:10px}
+.mp-btn{border:1px solid #C8C6C4;background:#FFF;color:#201F1E;padding:4px 12px;border-radius:4px;font-size:12px;cursor:pointer;min-height:28px}
+.mp-btn.pri{border:0;background:#0F5BA8;color:#FFF;font-weight:600}
+.mp-btn:disabled{opacity:.45;cursor:default}
+.mp-note{padding:6px 12px;border-bottom:1px solid #E1DFDD;background:#EEF4FB;font-size:12px;color:#323130}
+.mp-confirm{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;background:#FFF4CE;border-bottom:1px solid #F1DFA6;font-size:12px}
+.mp-ghead{display:flex;align-items:center;gap:6px;padding:3px 12px;background:#EDEBE9;font-size:12px;font-weight:700;color:#323130}
+.mp-ghead .o{font-weight:400;color:#605E5C}
+.mp-row{display:flex;align-items:stretch;border-bottom:1px solid #EDEBE9;background:#FFF}
+.mp-row.flag{background:#FDF3F4}.mp-row.sel{background:#DEECF9}
+.mp-bar4{width:4px;flex:none}.mp-bar4.R{background:#C50F1F}.mp-bar4.Y{background:#D99A00}.mp-bar4.G{background:#107C10}.mp-bar4.U{background:#8A8886}
+.mp-ck{display:flex;align-items:flex-start;padding:6px 0 6px 8px}.mp-ck input{width:16px;height:16px;margin:2px 0 0}
+.mp-body{flex:1;min-width:0;padding:5px 12px 6px 8px;display:flex;flex-direction:column;gap:1px}
+.mp-l1{display:flex;align-items:center;gap:8px}
+.mp-key{font-size:12px;font-weight:700;color:#201F1E;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mp-pat{font-size:11px;color:#605E5C;white-space:nowrap}
+.mp-rep{font-size:11px;color:#0E6B27;white-space:nowrap}
+.mp-reason{font-size:11px;color:#8A4B00;white-space:nowrap}
+.mp-time{margin-left:auto;font-size:12px;font-weight:600;color:#0F5BA8;white-space:nowrap}
+.mp-flagbtn{border:0;background:transparent;padding:2px;margin:-2px -4px -2px 0;cursor:pointer;line-height:0;color:#A19F9D}
+.mp-flagbtn.on{color:#C50F1F}
+.mp-l2{display:flex;align-items:baseline;gap:8px;min-width:0}
+.mp-sn{font-size:15px;color:#201F1E;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mp-st{font-size:11px;color:#605E5C;white-space:nowrap}
+.mp-own{font-size:11px;color:#323130}
+.mp-l3{display:flex;align-items:center;gap:8px;min-width:0}
+.mp-subj{flex:1;min-width:0;font-size:12px;font-weight:600;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mp-sbtn{flex:none;border:1px solid #C8C6C4;background:#FFF;color:#323130;padding:2px 8px;border-radius:4px;font-size:11px;cursor:pointer}
+.mp-take{flex:none;border:1px solid #0F5BA8;background:#FFF;color:#0F5BA8;padding:3px 10px;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;min-height:26px}
+.mp-rs{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 12px 8px 40px;background:#F3F9FF;border-bottom:1px solid #C7E0F4;font-size:12px}
+.mp-rs select{font-family:inherit;font-size:12px;padding:3px 6px;border:1px solid #C8C6C4;border-radius:4px}
+.mp-rs .rbtn{border:1px solid #C8C6C4;background:#FFF;color:#201F1E;padding:2px 9px;border-radius:999px;font-size:12px;cursor:pointer}
+.mp-rs .rbtn.on{border-color:#1B2A41;background:#1B2A41;color:#FFF}
+.mp-rs .end{margin-left:auto;display:flex;gap:6px}
+.mp-info{padding:6px 12px;border-bottom:1px solid #E1DFDD;font-size:12px;color:#605E5C}
+.mp-info.und{background:#FFF8EC}.mp-info.done{background:#FAF9F8}
+.mp-empty{padding:32px 12px;text-align:center;color:#605E5C;font-size:13px}
+.mp-done{display:flex;align-items:center;gap:10px;padding:6px 12px;border-bottom:1px solid #EDEBE9}
+.mp-done .b{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.mp-done .b span{font-size:12px}.mp-done .s{color:#323130;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 管理者画面 (全幅) */
+.mp-admin{width:100%;max-width:1400px;margin:0 auto;box-sizing:border-box;padding:12px 20px;display:flex;flex-direction:column;gap:16px}
+.mp-card{background:#FFF;border:1px solid #D2D0CE;border-radius:6px;overflow:hidden}
+.mp-card h3{margin:0;padding:8px 12px;font-size:13px;background:#EDEBE9;color:#323130}
+.mp-kpi{display:flex;flex-wrap:wrap;gap:12px;padding:12px}
+.mp-kpi div{flex:1 1 160px;border:1px solid #E1DFDD;border-radius:6px;padding:10px 12px}
+.mp-kpi b{display:block;font-size:22px}.mp-kpi span{font-size:12px;color:#605E5C}
+.mp-kpi .warn b{color:#C50F1F}
+.mp-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.mp-tbl th,.mp-tbl td{padding:5px 10px;border-bottom:1px solid #EDEBE9;text-align:left;white-space:nowrap}
+.mp-tbl th{background:#FAF9F8;font-weight:600;color:#323130}
+.mp-tbl td.n{text-align:right}
+.mp-tbl tr.over td{background:#FDE7E9;font-weight:700}
+.mp-tbl tr.click{cursor:pointer}.mp-tbl tr.click:hover td{background:#F3F9FF}
 </style>
 </head>
 <body>
 <div id="app" style="display:none">
-  <main style="max-width:900px;margin:0 auto;padding:24px 20px">
-    <div class="card">
-      <h3>&#35469;&#35388;&#12473;&#12486;&#12540;&#12479;&#12473;</h3>
-      <div class="stat">Dataverse: <span id="st-dv">-</span></div>
-      <div class="stat">Graph: <span id="st-gr">-</span></div>
-      <div class="stat">graphError: <span id="st-grerr" style="color:var(--warn)">-</span></div>
-    </div>
-    <div class="card">
-      <h3>&#12518;&#12540;&#12470;&#12540;&#24773;&#22577;</h3>
-      <div class="stat">name: <span id="u-name">-</span></div>
-      <div class="stat">email: <span id="u-email">-</span></div>
-      <div class="stat">staffCode: <span id="u-staff">-</span></div>
-    </div>
-    <div class="card">
-      <h3>Dataverse &#30094;&#36890; (WhoAmI)</h3>
-      <div class="stat" id="dv-result">-</div>
-    </div>
-    <div class="card">
-      <h3>Graph &#30094;&#36890; (GET /me)</h3>
-      <div class="stat" id="gr-result">-</div>
-    </div>
-    <div class="card">
-      <h3>&#12488;&#12540;&#12463;&#12531;&#26356;&#26032;&#12486;&#12473;&#12488; (?debug=1 &#24517;&#35201;)</h3>
-      <button class="ln-btn-ghost" id="btn-refresh">&#26399;&#38480;&#24378;&#21046; → token('dataverse') &#20877;&#21462;&#24471;</button>
-      <div class="stat" id="refresh-result" style="margin-top:8px">URL&#12395; ?debug=1 &#12434;&#20184;&#12369;&#12390;&#12363;&#12425;&#12486;&#12473;&#12488;</div>
-    </div>
-    <div class="card">
-      <h3>&#25991;&#23383;&#33394;&#12481;&#12455;&#12483;&#12463; (&#20840;&#12486;&#12540;&#12510;&#12391;&#35501;&#12417;&#12427;&#12371;&#12392;)</h3>
-      <div id="cgrid"></div>
-    </div>
-    <div class="card">
-      <h3>SharePoint &#30758;&#36890;</h3>
-      <div class="stat" id="sp-files-result">-</div>
-      <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-        <input class="fi" id="sp-contract-input" placeholder="&#22özm;&#32004;&#30058;&#21495; (&#20363;: NSG-2607-03)" style="max-width:220px;">
-        <button class="ln-btn-ghost" id="sp-search-btn">LC JSON &#26908;&#32034;</button>
+  <div class="mp">
+    <div class="mp-bar">
+      <div style="display:flex;align-items:baseline;gap:10px">
+        <span class="t1">LEENAI ポータル</span>
+        <span class="t2" id="mpTitle">今日のメール (試験)</span>
       </div>
-      <div class="stat" id="sp-lc-result" style="margin-top:8px">-</div>
-      <div id="sp-files-error" style="color:var(--danger);font-size:12px;margin-top:6px;"></div>
+      <div class="r">
+        <span class="muted" id="mpUpdated">最終更新 —</span>
+        <button class="bbtn" id="mpRefresh">更新</button>
+        <label id="mpViewWrap" style="display:none;align-items:center;gap:6px"><span class="muted">表示</span><select id="mpView"></select></label>
+        <button class="bbtn" id="mpAdminBtn" style="display:none">管理者画面</button>
+        <span id="mpWho"></span>
+      </div>
     </div>
-    <div class="card">
-      <h3>&#20849;&#36890;&#37096;&#21697;&#12486;&#12473;&#12488;</h3>
-      <button class="ln-btn-ghost" onclick="LEENAI.loading.show('&#12525;&#12540;&#12487;&#12451;&#12531;&#12464;&#12486;&#12473;&#12488;&#20013;&#8230;');setTimeout(function(){LEENAI.loading.hide();},2000)" style="margin:4px">Loading 2&#31186;</button>
-      <button class="ln-btn-ghost" onclick="LEENAI.toast('ok &#12486;&#12473;&#12488;','ok')" style="margin:4px">toast ok</button>
-      <button class="ln-btn-ghost" onclick="LEENAI.toast('warn &#12486;&#12473;&#12488;','warn')" style="margin:4px">toast warn</button>
-      <button class="ln-btn-ghost" onclick="LEENAI.toast('danger &#12486;&#12473;&#12488;','danger')" style="margin:4px">toast danger</button>
-      <button class="ln-btn-ghost" onclick="LEENAI.toast('info &#12486;&#12473;&#12488;','info')" style="margin:4px">toast info</button>
-      <button class="ln-btn-ghost" onclick="LEENAI.addHeaderButton({label:'&#12486;&#12473;&#12488;Btn',onClick:function(){alert('&#12إder&#12540;Btn!');}})" style="margin:4px">addHeaderButton</button>
+    <div class="mp-main" id="mpMain">
+      <section class="mp-panel" id="mpPanel"></section>
+      <aside class="mp-ext">今後の拡張用 (右半分)
+通関・COTECNA・書類など 今日の作業</aside>
     </div>
-    <div class="card">
-      <h3>COMPASS メタデータ確認</h3>
-      <button class="ln-btn-ghost" id="meta-run-btn">メタデータ確認を実行</button>
-      <div id="meta-result" style="margin-top:12px;font-size:12px;"></div>
-      <button class="ln-btn-ghost" id="meta-copy-btn" style="margin-top:8px;display:none;">結果をコピー</button>
-    </div>
-    <div class="card">
-      <h3>マスター疎通</h3>
-      <div class="stat" id="master-list-result">-</div>
-      <button class="ln-btn-ghost" onclick="LEENAI._openMasterPanel()" style="margin-top:8px;">⚙ マスター設定を開く</button>
-    </div>
-  </main>
+    <div class="mp-admin" id="mpAdmin" style="display:none"></div>
+  </div>
 </div>
 <script>
-async function startTool(){
-  var s=LEENAI.auth.status;
-  var u=LEENAI.user;
-  document.getElementById('st-dv').textContent=s.dataverse;
-  document.getElementById('st-dv').className=s.dataverse==='ok'?'ok':'danger';
-  document.getElementById('st-gr').textContent=s.graph;
-  document.getElementById('st-gr').className=s.graph==='ok'?'ok':s.graph==='error'?'warn':'';
-  document.getElementById('st-grerr').textContent=s.graphError||'-';
-  if(u){
-    document.getElementById('u-name').textContent=u.name;
-    document.getElementById('u-email').textContent=u.email;
-    document.getElementById('u-staff').textContent=u.staffCode;
-  }
-  try{
-    var t=await LEENAI.auth.token('dataverse');
-    var r=await fetch('https://orgde512c6f.crm7.dynamics.com/api/data/v9.2/WhoAmI()',{headers:{Authorization:'Bearer '+t,Accept:'application/json'}});
-    var j=await r.json();
-    document.getElementById('dv-result').innerHTML='<span class="ok">✔ UserId: '+j.UserId+'</span>';
-  }catch(e){document.getElementById('dv-result').innerHTML='<span class="danger">✖ '+e.message+'</span>';}
-  try{
-    var gt=await LEENAI.auth.token('graph');
-    if(gt){
-      var r2=await fetch('https://graph.microsoft.com/v1.0/me',{headers:{Authorization:'Bearer '+gt}});
-      var j2=await r2.json();
-      document.getElementById('gr-result').innerHTML='<span class="ok">✔ '+j2.displayName+' / '+j2.mail+'</span>';
-    } else {document.getElementById('gr-result').textContent='skip';}
-  }catch(e){document.getElementById('gr-result').innerHTML='<span class="danger">✖ '+e.message+'</span>';}
-  function tokTail(t){return t?t.slice(-10):'(none)';}
-  function tokExp(t){
-    try{
-      var raw=t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
-      var bytes=Uint8Array.from(atob(raw),function(c){return c.charCodeAt(0);});
-      var p=JSON.parse(new TextDecoder().decode(bytes));
-      return p.exp?new Date(p.exp*1000).toLocaleTimeString('ja-JP'):'?';
-    }catch(e){return '?';}
-  }
-  document.getElementById('btn-refresh').addEventListener('click',async function(){
-    var el=document.getElementById('refresh-result');
-    try{
-      var before=await LEENAI.auth.token('dataverse');
-      var bTail=tokTail(before), bExp=tokExp(before);
-      LEENAI.auth._expireForTest();
-      var after=await LEENAI.auth.token('dataverse');
-      var aTail=tokTail(after), aExp=tokExp(after);
-      var changed=bTail!==aTail;
-      el.innerHTML='<span class="'+(changed?'ok':'warn')+'">'
-        +(changed?'✔ 更新成功':'⚠ 変化なし')
-        +' | 末尾: …'+bTail+' → …'+aTail
-        +' | exp: '+bExp+' → '+aExp+'</span>';
-    }catch(e){el.innerHTML='<span class="danger">✖ '+e.message+'</span>';}
-  });
-  var bgs=[['★ read','--read'],['frame','--frame'],['surface2','--surface2'],['surface3','--surface3']];
-  var fgs=[['text','--text'],['text2','--text2'],['text3','--text3'],['accent','--accent'],['ok','--ok'],['warn','--warn'],['danger','--danger'],['info','--info']];
-  var g=document.getElementById('cgrid'); g.className='cg';
-  g.innerHTML=bgs.map(function(b){return '<div style="background:var('+b[1]+')"><b>'+b[0]+'</b>'+fgs.map(function(f){return '<div style="color:var('+f[1]+')">'+f[0]+'</div>';}).join('')+'</div>';}).join('');
-  /* SharePoint 疎通 */
-  var spStatus=LEENAI.auth.status;
-  if(spStatus.graphError&&spStatus.graphError.startsWith('files:')){
-    document.getElementById('sp-files-error').textContent='SharePoint 権限なし: '+spStatus.graphError;
-  }
-  LEENAI.sp.list(LEENAI.SP.PATH.LC_JSON[0]).then(function(files){
-    document.getElementById('sp-files-result').innerHTML=
-      '<span class="ok">✔ '+files.length+'件</span> | 最近5件: '+
-      files.slice(-5).map(function(f){return f.name;}).join(', ');
-  }).catch(function(e){
-    document.getElementById('sp-files-result').innerHTML='<span class="danger">✖ '+e.message+'</span>';
-  });
-  document.getElementById('sp-search-btn').addEventListener('click',async function(){
-    var contractNo=document.getElementById('sp-contract-input').value.trim();
-    var el=document.getElementById('sp-lc-result');
-    if(!contractNo){el.textContent='契約番号を入力してください';return;}
-    el.textContent='検索中…';
-    try{
-      var found=null,foundName='';
-      for(var pi=0;pi<LEENAI.SP.PATH.LC_JSON.length;pi++){
-        var files=await LEENAI.sp.list(LEENAI.SP.PATH.LC_JSON[pi]);
-        var match=files.filter(function(f){
-          return f.name.startsWith(contractNo)&&f.name.endsWith('.json')&&!f.name.includes('_TT_BASE');
-        });
-        if(match.length>0){
-          var fpath=LEENAI.SP.PATH.LC_JSON[pi]+'/'+match[0].name;
-          found=await LEENAI.sp.getJson(fpath);
-          foundName=match[0].name;
-          break;
-        }
-      }
-      if(!found){el.innerHTML='<span class="warn">⚠ 見つかりませんでした</span>';return;}
-      var lc=Array.isArray(found)?found[0]:found;
-      el.innerHTML='<span class="ok">✔ '+foundName+'</span> | lcNo: '+(lc.lcNo||lc.lc_no||'-')+' / lcDate: '+(lc.lcDate||lc.lc_date||'-');
-    }catch(e){el.innerHTML='<span class="danger">✖ '+e.message+'</span>';}
-  });
-  /* マスター疎通 */
-  LEENAI.master.list().then(function(list){
-    document.getElementById('master-list-result').innerHTML=
-      '<span class="ok">✔ '+list.length+'件</span>: '+
-      list.map(function(m){return m.title+'('+m.count+'件)';}).join(', ');
-  }).catch(function(e){
-    document.getElementById('master-list-result').innerHTML='<span class="danger">✖ '+e.message+'</span>';
-  });
-  /* COMPASS メタデータ確認 */
-  var metaRunBtn=document.getElementById('meta-run-btn');
-  if(metaRunBtn) metaRunBtn.addEventListener('click',async function(){
-    var el=document.getElementById('meta-result');
-    var copyBtn=document.getElementById('meta-copy-btn');
-    el.textContent='実行中…'; copyBtn.style.display='none';
-    var DV_API='https://orgde512c6f.crm7.dynamics.com/api/data/v9.2';
-    var resultText='';
-    async function dvMeta(path){
-      var tok=await LEENAI.auth.token('dataverse');
-      var res=await fetch(DV_API+'/'+path,{headers:{Authorization:'Bearer '+tok,Accept:'application/json','OData-MaxVersion':'4.0','OData-Version':'4.0'}});
-      if(!res.ok) throw new Error(res.status+' '+(await res.text()).slice(0,100));
-      return res.json();
-    }
-    function pad(s,n){s=String(s||'');return s.length>=n?s:s+' '.repeat(n-s.length);}
-    function mkTable(hdrs,rows){
-      var w=hdrs.map(function(h,i){return Math.max(h.length,Math.max.apply(null,rows.map(function(r){return String(r[i]||'').length;})));});
-      var sep='+'+w.map(function(n){return '-'.repeat(n+2);}).join('+')+'+';
-      var hdr='|'+hdrs.map(function(h,i){return ' '+pad(h,w[i])+' ';}).join('|')+'|';
-      var body=rows.map(function(r){return '|'+r.map(function(c,i){return ' '+pad(c,w[i])+' ';}).join('|')+'|';}).join('\n');
-      return sep+'\n'+hdr+'\n'+sep+'\n'+body+'\n'+sep;
-    }
-    var html='',buyerNameExists=false,rows1=[],rows2=[],rows3=[];
-    /* ① フィールド確認 */
-    var tgts=[
-      {t:'cr49f_buyer',         fs:['cr49f_buyer','cr49f_buyer_name','cr49f_buyer_code']},
-      {t:'cr49f_booking',       fs:['crcf9_carrier_code','crcf9_bl_pol_text']},
-      {t:'cr49f_sale_contract', fs:['cr49f_terms_conditions_full','cr49f_sale_contract_id']},
-      {t:'cr49f_sale_detail',   fs:['cr49f_price_yen','cr49f_item_id']},
-      {t:'crcf9_s_i_detail',    fs:['crcf9_price_yen','crcf9_sale_detail_id']},
-    ];
-    for(var ti=0;ti<tgts.length;ti++){
-      var tgt=tgts[ti];
-      try{
-        var d=await dvMeta("EntityDefinitions(LogicalName='"+tgt.t+"')/Attributes?$select=LogicalName,AttributeType,SourceType");
-        var am={};(d.value||[]).forEach(function(a){am[a.LogicalName]=a;});
-        tgt.fs.forEach(function(f){
-          var a=am[f];
-          rows1.push([tgt.t,f,a?'✅':'❌',a?(a.AttributeType||'-'):'-',a&&a.SourceType!=null?String(a.SourceType):'-']);
-          if(f==='cr49f_buyer_name'&&a) buyerNameExists=true;
-        });
-      }catch(e){tgt.fs.forEach(function(f){rows1.push([tgt.t,f,'⚠ERR',e.message.slice(0,40),'-']);});}
-    }
-    var t1=mkTable(['テーブル','フィールド','存在','AttributeType','SourceType'],rows1);
-    html+='<b>① フィールド確認</b><pre style="font-size:11px;overflow-x:auto;background:var(--surface2);padding:8px;border-radius:6px;margin:6px 0">'+t1+'</pre>';
-    /* ② テーブル名確認 */
-    try{
-      var d2=await dvMeta("EntityDefinitions?$select=LogicalName,EntitySetName&$filter=startswith(LogicalName,'crcf9_custom') or startswith(LogicalName,'crcf9_dray')");
-      (d2.value||[]).forEach(function(e){rows2.push([e.LogicalName,e.EntitySetName||'-']);});
-      if(!rows2.length) rows2.push(['(該当なし)','-']);
-    }catch(e){rows2.push(['⚠ERR',e.message.slice(0,60)]);}
-    var t2=mkTable(['LogicalName','EntitySetName'],rows2);
-    html+='<b>② テーブル名確認</b><pre style="font-size:11px;overflow-x:auto;background:var(--surface2);padding:8px;border-radius:6px;margin:6px 0">'+t2+'</pre>';
-    /* ③ cr49f_buyer 実値 */
-    if(buyerNameExists){
-      try{
-        var d3=await dvMeta("cr49f_buyers?$select=cr49f_buyer,cr49f_buyer_name,cr49f_buyer_code&$top=3");
-        (d3.value||[]).forEach(function(r){rows3.push([r.cr49f_buyer||'-',r.cr49f_buyer_name||'-',r.cr49f_buyer_code||'-']);});
-        if(!rows3.length) rows3.push(['(レコードなし)','-','-']);
-      }catch(e){rows3.push(['⚠ERR',e.message.slice(0,60),'-']);}
-      var t3=mkTable(['buyer','buyer_name','buyer_code'],rows3);
-      html+='<b>③ cr49f_buyer 実値 (top 3)</b><pre style="font-size:11px;overflow-x:auto;background:var(--surface2);padding:8px;border-radius:6px;margin:6px 0">'+t3+'</pre>';
-      resultText='① フィールド確認\n'+t1+'\n\n② テーブル名確認\n'+t2+'\n\n③ cr49f_buyer 実値\n'+t3;
-    }else{
-      html+='<b>③ cr49f_buyer_name</b> <span class="warn">❌ 存在しないためスキップ</span>';
-      resultText='① フィールド確認\n'+t1+'\n\n② テーブル名確認\n'+t2+'\n\n③ cr49f_buyer_name ❌ スキップ';
-    }
-    el.innerHTML=html;
-    copyBtn.style.display='';
-    copyBtn.onclick=function(){navigator.clipboard.writeText(resultText).then(function(){copyBtn.textContent='✅ コピー済';setTimeout(function(){copyBtn.textContent='結果をコピー';},2000);});};
-  });
+'use strict';
+/* ══════════════════════════════════════════════════════════════
+   MAIL ポータル — 今日のメール (テストページ) — 版は下の LEENAI.init だけ
+   - 判定エンジン MAIL_ENGINE が SharePoint リスト MAIL_TASKS に書いた「やること」を表示する
+   - メールボックスへの書き込みは「フラグ (flag) の変更」だけ。移動・削除・送信・既読化はしない
+   - 管理者かどうかは共通マスター staff の portal_admin だけで判断 (名前・アドレスをコードに書かない)
+   ✦ Powered by LEENAI Automation System
+══════════════════════════════════════════════════════════════ */
+var GRAPH='https://graph.microsoft.com/v1.0';
+var SITE_PATH='leenear.sharepoint.com:/sites/leenearsite1';
+var LIST={T:'MAIL_TASKS',A:'MAIL_TASKS_ARCHIVE',L:'MAIL_REASSIGN_LOG'};
+var REFRESH_MS=60000;
+var OVER_LIMIT=100;   // 担当者 1 人の未完了がこれを超えたら強調 (DOC-MAIL-01 §2-12)
+var COL={R:{label:'処理',order:'古い順'},Y:{label:'情報',order:'新しい順'},G:{label:'要約',order:'新しい順'}};
+var COL_RANK={R:0,Y:1,G:2};
+/* 相手の種類 — エンジンが書く PartyType (基準実装 party_type の値) の表示名 */
+var PARTY_JA={'선사':'船社','공컨테이너·터미널':'空コン·ターミナル','乙仲·통관':'乙仲·通関','드레이':'ドレー','검사기관':'検査機関',
+  '보험':'保険','판매처·에이전트':'販売先·エージェント','매입처·Packer':'仕入先·Packer','청구·정산 시스템':'請求·精算システム',
+  '기관·공공':'機関·公共','택배·기타 서비스':'宅配·その他','사내':'社内'};
+var REASONS=['担当違い','一時代理','その他'];
+
+var S={site:null,lists:{},staff:{},order:[],me:null,view:null,tab:'open',filter:'ALL',sel:{},confirming:false,
+  reassign:null,target:'',reason:'担当違い',open:[],und:[],done:[],adminOpen:[],log:[],updatedAt:null,busy:false,adminMode:false,timer:null};
+
+/* ── Graph / SharePoint ── */
+async function tok(){var t=await LEENAI.auth.token('graph');if(!t)throw new Error('Graph トークンがありません (再ログインしてください)');return t;}
+async function gx(method,url,body,hdr){
+  var h=Object.assign({Authorization:'Bearer '+(await tok())},hdr||{});
+  if(body!==undefined) h['Content-Type']='application/json';
+  var r=await fetch(url.indexOf('http')===0?url:GRAPH+url,{method:method,headers:h,body:body===undefined?undefined:JSON.stringify(body)});
+  if(r.status===412){var e=new Error('412');e.status=412;throw e;}
+  if(!r.ok){var t='';try{t=await r.text();}catch(_){} var e2=new Error(method+' '+r.status+' '+t.slice(0,160));e2.status=r.status;throw e2;}
+  if(r.status===204) return {};
+  try{return await r.json();}catch(_){return {};}
 }
+async function gall(url,hdr){var out=[];while(url){var d=await gx('GET',url,undefined,hdr);out=out.concat(d.value||[]);url=d['@odata.nextLink']||null;}return out;}
+function q(v){return "'"+String(v==null?'':v).replace(/'/g,"''")+"'";}
+function itemsUrl(k){return '/sites/'+S.site+'/lists/'+S.lists[k]+'/items';}
+async function query(k,flt,extra){
+  var url=itemsUrl(k)+'?$expand=fields&$top=999&$filter='+encodeURIComponent(flt)+(extra||'');
+  var hdr={Prefer:'HonorNonIndexedQueriesWarningMayFailRandomly'};
+  return (await gall(url,hdr)).map(function(it){return {id:it.id,etag:it['@odata.etag']||it.eTag||'',list:k,f:it.fields||{}};});
+}
+async function patchItem(row,fields,useEtag){
+  var hdr=useEtag&&row.etag?{'If-Match':row.etag}:{};
+  return gx('PATCH',itemsUrl(row.list)+'/'+row.id+'/fields',fields,hdr);
+}
+/* eTag 付きで保存。412 (版が変わった) なら読み直し、still(現在の値) が真なら新しい eTag でもう一度 —
+   フラグ保存などで版だけ変わった場合は続行し、他の人が担当・状態を変えた本当の衝突だけ止める */
+async function patchGuarded(row,fields,still){
+  try{return await patchItem(row,fields,true);}
+  catch(e){
+    if(e.status!==412) throw e;
+    var cur=await gx('GET',itemsUrl(row.list)+'/'+row.id+'?$expand=fields');
+    row.etag=cur['@odata.etag']||cur.eTag||row.etag;
+    if(!still(cur.fields||{})){var e2=new Error('412');e2.status=412;e2.current=cur.fields||{};throw e2;}
+    row.f=cur.fields||row.f;
+    return await patchItem(row,fields,true);
+  }
+}
+async function addLog(fields){return gx('POST',itemsUrl('L'),{fields:fields});}
+
+/* ── Outlook (本人のメールボックス) — 書き込みは flag だけ ── */
+async function findMail(imid){
+  var d=await gx('GET','/me/messages?$filter='+encodeURIComponent('internetMessageId eq '+q(imid))+'&$select=id,webLink,flag&$top=1');
+  return (d.value||[])[0]||null;
+}
+async function setOutlookFlag(imid,status){   // status: flagged | complete | notFlagged
+  var m=await findMail(imid);
+  if(!m) return false;
+  await gx('PATCH','/me/messages/'+m.id,{flag:{flagStatus:status}});
+  return true;
+}
+async function openInOutlook(imid){
+  var w=window.open('about:blank','_blank');
+  try{
+    var m=await findMail(imid);
+    if(!m||!m.webLink){if(w)w.close();LEENAI.toast('Outlook にこのメールが見つかりません','warn');return;}
+    if(w) w.location.href=m.webLink; else window.open(m.webLink,'_blank');
+  }catch(e){if(w)w.close();LEENAI.toast('Outlook を開けません: '+e.message,'danger');}
+}
+
+/* ── 表示用 ── */
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function nm(code){return code==='UNDECIDED'?'未判定':((S.staff[code]||{}).name||code||'—');}
+function pad(n){return (n<10?'0':'')+n;}
+function fmtTime(iso,now){
+  if(!iso) return '';
+  var d=new Date(iso),n=now||new Date();
+  var hm=d.getHours()+':'+pad(d.getMinutes());
+  var day=function(x){return x.getFullYear()+'-'+x.getMonth()+'-'+x.getDate();};
+  if(day(d)===day(n)) return hm;
+  var y=new Date(n.getTime()-86400000);
+  if(day(d)===day(y)) return '昨日 '+hm;
+  return (d.getMonth()+1)+'/'+d.getDate()+' '+hm;
+}
+function keyOf(f){
+  var a=[];if(f.Pol)a.push(f.Pol);if(f.InvoiceNo)a.push('IV '+f.InvoiceNo);
+  return a.length?a.join(' · '):'—';
+}
+function domainOf(a){a=String(a||'');return a.indexOf('@')>=0?a.split('@').pop().toLowerCase():'';}
+function partyJa(f){var p=f.PartyType||'';return p?(PARTY_JA[p]||p):'不明 ('+domainOf(f.FromAddress)+')';}
+function todayStartIso(){var d=new Date();d.setHours(0,0,0,0);return d.toISOString();}
+function isAdmin(){return !!(S.me&&S.me.admin);}
+function canAct(){return S.view===S.me.code;}
+function canReassign(){return S.view!=='ALL'&&(S.view===S.me.code||isAdmin());}
+
+/* ── 読み込み ── */
+async function loadMasters(){
+  var items=await LEENAI.master.get('staff',{fresh:true});
+  S.staff={};S.order=[];
+  (items||[]).forEach(function(r){
+    if(!r.code) return;
+    S.staff[r.code]={name:r.name_ja||r.name_en||r.code,email:String(r.email||'').toLowerCase(),active:r.active!==false&&r.active!=='false',
+      admin:r.portal_admin===true||r.portal_admin==='true'};
+    S.order.push(r.code);
+  });
+  var email=String((LEENAI.user||{}).email||'').toLowerCase();
+  var code=S.order.find(function(c){return S.staff[c].email===email;});
+  if(!code) throw new Error('職員マスターにこのアカウント ('+email+') がありません');
+  S.me={code:code,name:S.staff[code].name,admin:S.staff[code].admin};
+  if(!S.view) S.view=S.me.admin?'ALL':code;
+  if(!S.me.admin) S.view=code;   // 一般職員は本人のみ
+}
+async function resolveSite(){
+  if(S.site) return;
+  S.site=(await gx('GET','/sites/'+SITE_PATH+'?$select=id')).id;
+  (await gall('/sites/'+S.site+'/lists?$select=id,displayName')).forEach(function(l){
+    Object.keys(LIST).forEach(function(k){if(l.displayName===LIST[k])S.lists[k]=l.id;});
+  });
+  ['T','A','L'].forEach(function(k){if(!S.lists[k])throw new Error('SharePoint リスト '+LIST[k]+' がありません');});
+}
+async function loadData(){
+  var v=S.view, t0=todayStartIso();
+  var jobs=[];
+  if(v==='ALL') jobs.push(query('T',"fields/Status eq 'OPEN'"));
+  else jobs.push(query('T',"fields/StaffCode eq "+q(v)+" and fields/Status eq 'OPEN'"));
+  jobs.push(query('T',"fields/StaffCode eq 'UNDECIDED' and fields/Status eq 'OPEN'"));
+  if(v!=='ALL'){
+    jobs.push(query('T',"fields/StaffCode eq "+q(v)+" and fields/Status eq 'DONE'"));
+    jobs.push(query('A',"fields/StaffCode eq "+q(v)+" and fields/CompletedAt ge "+q(t0)));
+  }
+  var r=await Promise.all(jobs);
+  S.open=r[0].filter(function(x){return x.f.StaffCode!=='UNDECIDED';});
+  S.und=r[1];
+  S.done=v==='ALL'?[]:r[2].concat(r[3].filter(function(x){return x.f.Status==='DONE'&&(x.f.CompletedAt||'')>=t0;}));
+  if(isAdmin()&&S.adminMode){
+    var a=await Promise.all([v==='ALL'?Promise.resolve(r[0]):query('T',"fields/Status eq 'OPEN'"),
+      gall(itemsUrl('L')+'?$expand=fields&$top=999')]);
+    S.adminOpen=a[0];
+    S.log=a[1].map(function(it){return it.fields||{};}).sort(function(x,y){return (y.At||'')>(x.At||'')?1:(y.At||'')<(x.At||'')?-1:0;}).slice(0,50);
+  }
+  // 選択・開いたパネルは、まだ存在する行のぶんだけ残す
+  var ids={};S.open.forEach(function(x){ids[x.id]=1;});
+  Object.keys(S.sel).forEach(function(id){if(!ids[id])delete S.sel[id];});
+  if(S.reassign&&!ids[S.reassign]) S.reassign=null;
+  S.updatedAt=new Date();
+}
+async function refresh(quiet){
+  if(S.busy) return;
+  S.busy=true;
+  try{await loadData();render();}
+  catch(e){if(!quiet)LEENAI.toast('読み込みエラー: '+e.message,'danger');}
+  finally{S.busy=false;}
+}
+
+/* ── 全員表示: InternetMessageId で 1 通 1 行 ── */
+function groupByMail(rows){
+  var m={},out=[];
+  rows.forEach(function(x){
+    var k=x.f.InternetMessageId||x.id;
+    if(!m[k]){m[k]={id:'M:'+k,f:x.f,rows:[],c:x.f.Color};out.push(m[k]);}
+    m[k].rows.push(x);
+    if(COL_RANK[x.f.Color]<COL_RANK[m[k].c]) m[k].c=x.f.Color;   // いちばん急ぐ色
+  });
+  out.forEach(function(g){g.f=Object.assign({},g.f,{Color:g.c});});
+  return out;
+}
+function visibleRows(){
+  var base=S.view==='ALL'?groupByMail(S.open):S.open;
+  return base.filter(function(x){return S.filter==='ALL'||x.f.Color===S.filter;});
+}
+function grouped(rows){
+  return ['R','Y','G'].map(function(c){
+    var rs=rows.filter(function(x){return x.f.Color===c;}).sort(function(a,b){
+      var A=a.f.ReceivedAt||'',B=b.f.ReceivedAt||'';return c==='R'?(A<B?-1:A>B?1:0):(A>B?-1:A<B?1:0);});
+    return {c:c,rows:rs};
+  }).filter(function(g){return g.rows.length;});
+}
+function countsOf(rows){var n={ALL:rows.length,R:0,Y:0,G:0};rows.forEach(function(x){n[x.f.Color]=(n[x.f.Color]||0)+1;});return n;}
+
+/* ── 描画 ── */
+var FLAG_SVG='<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 15V2M3 2.5h8.5l-2 3 2 3H3" fill="FILL" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"></path></svg>';
+function render(){
+  document.getElementById('mpUpdated').textContent='最終更新 '+(S.updatedAt?S.updatedAt.getHours()+':'+pad(S.updatedAt.getMinutes()):'—');
+  document.getElementById('mpWho').textContent=S.me.name+(isAdmin()?' (管理者)':'');
+  var vw=document.getElementById('mpViewWrap');vw.style.display=isAdmin()?'flex':'none';
+  document.getElementById('mpAdminBtn').style.display=isAdmin()?'':'none';
+  document.getElementById('mpAdminBtn').textContent=S.adminMode?'担当者画面':'管理者画面';
+  if(isAdmin()){
+    var sel=document.getElementById('mpView');
+    var opts=[['ALL','全員'],[S.me.code,'自分 ('+S.me.name+')']].concat(S.order.filter(function(c){return c!==S.me.code&&S.staff[c].active;}).map(function(c){return [c,S.staff[c].name];}));
+    sel.innerHTML=opts.map(function(o){return '<option value="'+esc(o[0])+'"'+(o[0]===S.view?' selected':'')+'>'+esc(o[1])+'</option>';}).join('');
+  }
+  document.getElementById('mpMain').style.display=S.adminMode?'none':'flex';
+  document.getElementById('mpAdmin').style.display=S.adminMode?'flex':'none';
+  if(S.adminMode) renderAdmin(); else renderPanel();
+}
+function renderPanel(){
+  var p=document.getElementById('mpPanel');
+  var openBase=S.view==='ALL'?groupByMail(S.open):S.open;
+  var n=countsOf(openBase);
+  var h='<div class="mp-tabs"><div class="tabs">'
+    +'<button class="mp-tab'+(S.tab==='open'?' on':'')+'" data-act="tab" data-v="open">未完了 '+n.ALL+'</button>'
+    +'<button class="mp-tab'+(S.tab==='done'?' on':'')+'" data-act="tab" data-v="done">今日完了 '+S.done.length+'</button>'
+    +'<button class="mp-tab und'+(S.tab==='und'?' on':'')+'" data-act="tab" data-v="und">未判定 (全員) '+S.und.length+'</button></div>';
+  if(S.tab==='open'){
+    h+='<div class="mp-filters">'+[['ALL','すべて'],['R','処理'],['Y','情報'],['G','要約']].map(function(o){
+      return '<button class="mp-chip'+(S.filter===o[0]?' on':'')+'" data-act="filter" data-v="'+o[0]+'"><span class="mk '+o[0]+'"></span>'+o[1]+' '+(n[o[0]]||0)+'</button>';}).join('')+'</div>';
+  }
+  h+='</div>';
+  if(S.tab==='open') h+=renderOpen();
+  else if(S.tab==='und') h+=renderUnd();
+  else h+=renderDone();
+  p.innerHTML=h;
+}
+function renderOpen(){
+  var vis=visibleRows(), act=canAct();
+  var selIds=vis.filter(function(x){return S.sel[x.id];}).map(function(x){return x.id;});
+  var h='';
+  if(act){
+    var all=vis.length>0&&selIds.length===vis.length;
+    h+='<div class="mp-selbar"><label><input type="checkbox" data-act="selall"'+(all?' checked':'')+' style="width:16px;height:16px">表示中をすべて選択</label>'
+      +'<div class="r"><span style="font-size:12px;color:#605E5C">'+selIds.length+'件 選択</span>'
+      +'<button class="mp-btn" data-act="flagsel"'+(selIds.length?'':' disabled')+'>フラグ</button>'
+      +'<button class="mp-btn pri" data-act="askdone"'+(selIds.length?'':' disabled')+'>完了にする</button></div></div>';
+  } else {
+    h+='<div class="mp-note">'+(S.view==='ALL'?'全員の未完了を表示中 — 1 通 1 行・担当者を表示 (閲覧のみ。完了・フラグは各担当者が操作)'
+      :'選択した担当者の未完了を表示中 — 完了・フラグは本人のみ。「担当変更」は管理者も可')+'</div>';
+  }
+  if(S.confirming&&selIds.length){
+    h+='<div class="mp-confirm"><span>'+selIds.length+'件を完了にします (当日中は「今日完了」から戻せます)</span><div style="display:flex;gap:6px">'
+      +'<button class="mp-btn" data-act="canceldone">キャンセル</button><button class="mp-btn pri" data-act="dodone">完了にする</button></div></div>';
+  }
+  grouped(vis).forEach(function(g){
+    h+='<div class="mp-ghead"><span class="mk '+g.c+'"></span>'+COL[g.c].label+' '+g.rows.length+'<span class="o"> — '+COL[g.c].order+'</span></div>';
+    g.rows.forEach(function(x){h+=rowHtml(x,act);});
+  });
+  if(!vis.length) h+='<div class="mp-empty">表示するメールはありません。</div>';
+  return h;
+}
+function rowHtml(x,act){
+  var f=x.f, fl=!!f.Flagged;
+  var role=S.view==='ALL'?'—':(f.Role||'');
+  var h='<div class="mp-row'+(S.sel[x.id]?' sel':(fl&&act?' flag':''))+'" data-id="'+esc(x.id)+'"><div class="mp-bar4 '+esc(f.Color)+'"></div>';
+  if(act) h+='<div class="mp-ck"><input type="checkbox" aria-label="選択" data-act="sel" data-id="'+esc(x.id)+'"'+(S.sel[x.id]?' checked':'')+'></div>';
+  h+='<div class="mp-body"><div class="mp-l1"><span class="mp-key">'+esc(keyOf(f))+'</span><span class="mp-pat">'+esc(f.PatternId)+' · '+esc(role)+'</span>';
+  if(f.RepliedBy) h+='<span class="mp-rep">返信済 '+esc(nm(f.RepliedBy))+' '+esc(fmtTime(f.RepliedAt))+'</span>';
+  h+='<span class="mp-time">'+esc(fmtTime(f.ReceivedAt))+'</span>';
+  if(act){var lb=fl?'フラグを外す (Outlook にも反映)':'フラグを付ける (Outlook にも反映)';
+    h+='<button class="mp-flagbtn'+(fl?' on':'')+'" data-act="flag" data-id="'+esc(x.id)+'" aria-label="'+lb+'" title="'+lb+'">'+FLAG_SVG.replace('FILL',fl?'#C50F1F':'none')+'</button>';}
+  h+='</div><div class="mp-l2"><span class="mp-sn">'+esc(f.FromName||f.FromAddress)+'</span><span class="mp-st">'+esc(partyJa(f))+'</span></div>';
+  if(S.view==='ALL') h+='<span class="mp-own">担当: '+esc(x.rows.map(function(r){return nm(r.f.StaffCode)+'('+(r.f.Role||'')+')';}).join('・'))+'</span>';
+  h+='<div class="mp-l3"><a class="mp-subj" data-act="outlook" data-imid="'+esc(f.InternetMessageId)+'">'+esc(f.Subject||'(件名なし)')+'</a>';
+  if(canReassign()) h+='<button class="mp-sbtn" data-act="rsopen" data-id="'+esc(x.id)+'">担当変更</button>';
+  h+='</div></div></div>';
+  if(S.reassign===x.id&&canReassign()) h+=reassignHtml(x);
+  return h;
+}
+function reassignTargets(){return S.order.filter(function(c){return c!==S.view&&S.staff[c].active&&!S.staff[c].admin;});}
+function reassignHtml(x){
+  var ts=reassignTargets();
+  if(ts.indexOf(S.target)<0) S.target=ts[0]||'';
+  return '<div class="mp-rs"><span>担当変更: '+esc(nm(S.view))+' →</span><select data-act="target">'
+    +ts.map(function(c){return '<option value="'+esc(c)+'"'+(c===S.target?' selected':'')+'>'+esc(nm(c))+'</option>';}).join('')+'</select>'
+    +'<span style="color:#605E5C">理由</span>'+REASONS.map(function(r){return '<button class="rbtn'+(S.reason===r?' on':'')+'" data-act="reason" data-v="'+r+'">'+r+'</button>';}).join('')
+    +'<span class="end"><button class="mp-btn" data-act="rscancel">キャンセル</button><button class="mp-btn pri" data-act="rsdo" data-id="'+esc(x.id)+'">移す</button></span></div>';
+}
+function renderUnd(){
+  var h='<div class="mp-info und">担当が自動で決まらなかったメール (全員に表示)。自分の仕事なら「担当する」— 自分の未完了に移り、他の人の一覧からは消えます</div>';
+  S.und.slice().sort(function(a,b){return (b.f.ReceivedAt||'')>(a.f.ReceivedAt||'')?1:-1;}).forEach(function(x){
+    var f=x.f;
+    h+='<div class="mp-row"><div class="mp-bar4 U"></div><div class="mp-body" style="padding-left:12px"><div class="mp-l1"><span class="mp-key">'+esc(keyOf(f))+'</span>'
+      +'<span class="mp-reason">'+esc(f.UndecidedReason||'その他')+'</span><span class="mp-time">'+esc(fmtTime(f.ReceivedAt))+'</span></div>'
+      +'<div class="mp-l2"><span class="mp-sn">'+esc(f.FromName||f.FromAddress)+'</span><span class="mp-st">'+esc(partyJa(f))+'</span></div>'
+      +'<div class="mp-l3"><a class="mp-subj" data-act="outlook" data-imid="'+esc(f.InternetMessageId)+'">'+esc(f.Subject||'(件名なし)')+'</a>'
+      +'<button class="mp-take" data-act="take" data-id="'+esc(x.id)+'">担当する</button></div></div></div>';
+  });
+  if(!S.und.length) h+='<div class="mp-empty">未判定のメールはありません。</div>';
+  return h;
+}
+function renderDone(){
+  var h='<div class="mp-info done">今日完了にしたメール — 間違えたものは「戻す」(当日分のみ)</div>';
+  S.done.slice().sort(function(a,b){return (b.f.CompletedAt||'')>(a.f.CompletedAt||'')?1:-1;}).forEach(function(x){
+    var f=x.f;
+    h+='<div class="mp-done"><div class="b"><span style="font-weight:700">'+esc(keyOf(f))+' <span style="font-weight:400;color:#605E5C">· '+esc((COL[f.Color]||{}).label||'')+' · 完了 '+esc(fmtTime(f.CompletedAt))+'</span></span>'
+      +'<span class="s">'+esc(f.FromName||f.FromAddress)+' — '+esc(f.Subject)+'</span></div>'
+      +(canAct()?'<button class="mp-btn" data-act="restore" data-id="'+esc(x.list+':'+x.id)+'">戻す</button>':'')+'</div>';
+  });
+  if(!S.done.length) h+='<div class="mp-empty">今日完了にしたメールはまだありません。</div>';
+  return h;
+}
+function renderAdmin(){
+  var rows=S.adminOpen.filter(function(x){return x.f.StaffCode!=='UNDECIDED';});
+  var per={};
+  rows.forEach(function(x){var c=x.f.StaffCode;per[c]=per[c]||{R:0,Y:0,G:0,n:0,old:''};per[c][x.f.Color]=(per[c][x.f.Color]||0)+1;per[c].n++;
+    if(!per[c].old||(x.f.ReceivedAt||'')<per[c].old)per[c].old=x.f.ReceivedAt||'';});
+  var codes=Object.keys(per).sort(function(a,b){return per[b].n-per[a].n;});
+  var over=codes.filter(function(c){return per[c].n>OVER_LIMIT;});
+  var mails={};rows.forEach(function(x){mails[x.f.InternetMessageId]=1;});
+  var h='<div class="mp-card"><h3>全員の未完了 · 未判定 · '+OVER_LIMIT+'件超の担当者</h3><div class="mp-kpi">'
+    +'<div><b>'+Object.keys(mails).length+'</b><span>未完了メール (1 通 1 件)</span></div>'
+    +'<div><b>'+rows.length+'</b><span>未完了 (担当者ごとの行)</span></div>'
+    +'<div><b>'+S.und.length+'</b><span>未判定</span></div>'
+    +'<div class="'+(over.length?'warn':'')+'"><b>'+over.length+'</b><span>'+OVER_LIMIT+'件超の担当者'+(over.length?' — '+esc(over.map(nm).join('・')):'')+'</span></div></div></div>';
+  h+='<div class="mp-card"><h3>担当者別 (行をクリック → その人の古い順の一覧)</h3><table class="mp-tbl"><tr><th>担当者</th><th>処理</th><th>情報</th><th>要約</th><th>合計</th><th>最も古い</th></tr>'
+    +codes.map(function(c){var v=per[c];return '<tr class="click'+(v.n>OVER_LIMIT?' over':'')+'" data-act="adminpick" data-v="'+esc(c)+'"><td>'+esc(nm(c))+'</td><td class="n">'+v.R+'</td><td class="n">'+v.Y+'</td><td class="n">'+v.G+'</td><td class="n">'+v.n+'</td><td>'+esc(fmtTime(v.old))+'</td></tr>';}).join('')
+    +(codes.length?'':'<tr><td colspan="6">未完了はありません。</td></tr>')+'</table></div>';
+  h+='<div class="mp-card"><h3>未判定の待ち行列 ('+S.und.length+')</h3><table class="mp-tbl"><tr><th>受信</th><th>理由</th><th>送信者</th><th>相手</th><th>件名</th></tr>'
+    +S.und.slice().sort(function(a,b){return (a.f.ReceivedAt||'')<(b.f.ReceivedAt||'')?-1:1;}).map(function(x){var f=x.f;return '<tr><td>'+esc(fmtTime(f.ReceivedAt))+'</td><td>'+esc(f.UndecidedReason||'その他')+'</td><td>'+esc(f.FromName||f.FromAddress)+'</td><td>'+esc(partyJa(f))+'</td><td>'+esc(f.Subject)+'</td></tr>';}).join('')
+    +'</table></div>';
+  h+='<div class="mp-card"><h3>担当変更ログ (最近 50 件)</h3><table class="mp-tbl"><tr><th>日時</th><th>操作</th><th>変更前</th><th>変更後</th><th>理由</th><th>パターン</th><th>相手</th><th>番号</th><th>変更者</th></tr>'
+    +S.log.map(function(l){return '<tr><td>'+esc(fmtTime(l.At))+'</td><td>'+(l.Action==='TAKE'?'引受':'担当変更')+'</td><td>'+esc(nm(l.FromStaff))+'</td><td>'+esc(nm(l.ToStaff))+'</td><td>'+esc(l.Reason)+'</td><td>'+esc(l.PatternId)+'</td><td>'+esc(PARTY_JA[l.PartyType]||l.PartyType||l.FromDomain)+'</td><td>'+esc(keyOf(l))+'</td><td>'+esc(nm(l.ByStaff))+'</td></tr>';}).join('')
+    +(S.log.length?'':'<tr><td colspan="9">記録はまだありません。</td></tr>')+'</table></div>';
+  document.getElementById('mpAdmin').innerHTML=h;
+}
+
+/* ── 操作 ── */
+function rowById(id){return S.open.find(function(x){return x.id===id;});}
+async function doFlag(ids){
+  var errs=0;
+  for(var i=0;i<ids.length;i++){
+    var x=rowById(ids[i]);if(!x)continue;
+    var on=!x.f.Flagged;
+    try{
+      var found=await setOutlookFlag(x.f.InternetMessageId,on?'flagged':'notFlagged');
+      if(!found) LEENAI.toast('Outlook にこのメールが見つかりません (リストのフラグのみ変更)','warn');
+      await patchItem(x,{Flagged:on});
+      x.f.Flagged=on;
+    }catch(e){errs++;}
+  }
+  if(errs) LEENAI.toast(errs+'件 フラグを変更できませんでした','danger');
+  render();
+  await refresh(true);
+}
+async function flagSelected(){
+  var ids=visibleRows().filter(function(x){return S.sel[x.id]&&!x.f.Flagged;}).map(function(x){return x.id;});
+  S.sel={};await doFlag(ids);
+}
+async function completeSelected(){
+  var ids=visibleRows().filter(function(x){return S.sel[x.id];}).map(function(x){return x.id;});
+  var now=new Date().toISOString(),errs=[];
+  for(var i=0;i<ids.length;i++){
+    var x=rowById(ids[i]);if(!x)continue;
+    try{
+      if(x.f.Flagged){try{await setOutlookFlag(x.f.InternetMessageId,'complete');}catch(e){}}
+      await patchGuarded(x,{Status:'DONE',CompletedAt:now,CompletedBy:S.me.code},function(c){return c.StaffCode===x.f.StaffCode&&c.Status==='OPEN';});
+    }catch(e){errs.push(e.status===412?'他の人が先に変更しました':e.message);}
+  }
+  S.sel={};S.confirming=false;
+  if(errs.length) LEENAI.toast(errs.length+'件 完了にできませんでした: '+errs[0],'danger');
+  else LEENAI.toast(ids.length+'件を完了にしました','ok');
+  await refresh(true);
+}
+async function restore(key){
+  var p=key.split(':'),x=S.done.find(function(d){return d.list===p[0]&&d.id===p[1];});
+  if(!x) return;
+  try{
+    var st=function(c){return c.StaffCode===x.f.StaffCode&&c.Status==='DONE';};
+    if(x.list==='T') await patchGuarded(x,{Status:'OPEN',CompletedAt:null,CompletedBy:null},st);
+    else await patchGuarded(x,{Status:'RESTORE'},st);   // 保管側はエンジンが作業用に戻す
+    if(x.f.Flagged){try{await setOutlookFlag(x.f.InternetMessageId,'flagged');}catch(e){}}
+    LEENAI.toast(x.list==='T'?'戻しました':'戻しました (反映まで最大 2 分)','ok');
+  }catch(e){LEENAI.toast(e.status===412?'他の人が先に変更しました。更新してください':'戻せません: '+e.message,'danger');}
+  await refresh(true);
+}
+function logFields(x,action,from,to,reason){
+  var f=x.f;
+  return {At:new Date().toISOString(),Action:action,FromStaff:from,ToStaff:to,ByStaff:S.me.code,Reason:reason,
+    InternetMessageId:(f.InternetMessageId||'').slice(0,255),ConversationId:(f.ConversationId||'').slice(0,255),
+    PatternId:f.PatternId||'',Color:f.Color||'',Role:f.Role||'',FromAddress:f.FromAddress||'',FromDomain:domainOf(f.FromAddress),
+    PartyType:f.PartyType||'',Subject:(f.Subject||'').slice(0,255),Pol:f.Pol||'',InvoiceNo:f.InvoiceNo||'',BuyerName:f.BuyerName||'',
+    EngineVersion:f.EngineVersion||'',RefVersion:f.RefVersion||''};
+}
+/* 移す先が同じメールの行をもう持っていれば、新しく作らず元の行だけ片付ける (削除 — 記録はログに残る) */
+async function moveRow(x,to,role,action,reason){
+  var same=await query('T',"fields/InternetMessageId eq "+q(x.f.InternetMessageId)+" and fields/StaffCode eq "+q(to));
+  var from=x.f.StaffCode;
+  if(same.some(function(r){return r.f.Status==='OPEN';})){
+    await gx('DELETE',itemsUrl('T')+'/'+x.id,undefined,x.etag?{'If-Match':x.etag}:{});
+  } else {
+    await patchGuarded(x,{StaffCode:to,Role:role,ReassignedFrom:from,ReassignedAt:new Date().toISOString(),Flagged:false,
+      Title:((x.f.PatternId||'')+' '+to).trim()},function(c){return c.StaffCode===from&&c.Status==='OPEN';});
+  }
+  await addLog(logFields(x,action,from,to,reason));
+}
+async function doReassign(id){
+  var x=rowById(id);if(!x||!S.target) return;
+  try{
+    await moveRow(x,S.target,'変更','REASSIGN',S.reason);
+    LEENAI.toast(nm(S.target)+' さんに移しました','ok');
+    S.reassign=null;
+  }catch(e){LEENAI.toast(e.status===412?'他の人が先に変更しました。更新してください':'担当変更できません: '+e.message,'danger');}
+  await refresh(true);
+}
+async function take(id){
+  var x=S.und.find(function(u){return u.id===id;});if(!x) return;
+  try{
+    await moveRow(x,S.me.code,'引受','TAKE','未判定引受');
+    LEENAI.toast('担当しました — 「未完了」に移りました','ok');
+  }catch(e){
+    if(e.status===412){
+      var cur=e.current||null;
+      if(!cur){try{cur=(await gx('GET',itemsUrl('T')+'/'+x.id+'?$expand=fields')).fields;}catch(_){}}
+      LEENAI.toast(cur&&cur.StaffCode&&cur.StaffCode!=='UNDECIDED'?'すでに'+nm(cur.StaffCode)+'さんが担当しました':'他の人が先に変更しました','warn');
+    } else LEENAI.toast('担当できません: '+e.message,'danger');
+  }
+  await refresh(true);
+}
+
+/* ── イベント (委任) ── */
+function onClick(e){
+  var el=e.target.closest('[data-act]');if(!el) return;
+  var a=el.getAttribute('data-act'),v=el.getAttribute('data-v'),id=el.getAttribute('data-id');
+  if(a==='tab'){S.tab=v;S.confirming=false;render();}
+  else if(a==='filter'){S.filter=v;S.sel={};S.confirming=false;render();}
+  else if(a==='flag'){doFlag([id]);}
+  else if(a==='flagsel'){flagSelected();}
+  else if(a==='askdone'){if(Object.keys(S.sel).some(function(k){return S.sel[k];})){S.confirming=true;render();}}
+  else if(a==='canceldone'){S.confirming=false;render();}
+  else if(a==='dodone'){completeSelected();}
+  else if(a==='outlook'){e.preventDefault();openInOutlook(el.getAttribute('data-imid'));}
+  else if(a==='rsopen'){S.reassign=S.reassign===id?null:id;render();}
+  else if(a==='rscancel'){S.reassign=null;render();}
+  else if(a==='reason'){S.reason=v;render();}
+  else if(a==='rsdo'){doReassign(id);}
+  else if(a==='take'){take(id);}
+  else if(a==='restore'){restore(id);}
+  else if(a==='adminpick'){S.view=v;S.adminMode=false;S.tab='open';S.filter='R';S.sel={};refresh();}
+}
+function onChange(e){
+  var el=e.target,a=el.getAttribute('data-act');
+  if(a==='sel'){S.sel[el.getAttribute('data-id')]=el.checked;S.confirming=false;render();}
+  else if(a==='selall'){var n={};if(el.checked)visibleRows().forEach(function(x){n[x.id]=true;});S.sel=n;S.confirming=false;render();}
+  else if(a==='target'){S.target=el.value;}
+}
+
+async function startTool(){
+  var mv=(document.title.match(/v([\d.]+)\s*$/)||[])[1];   // 版は LEENAI.init の 1 か所だけ (共通ファイルが title に入れる)
+  if(mv) document.getElementById('mpTitle').textContent='今日のメール · v'+mv+' (試験)';
+  document.addEventListener('click',onClick);
+  document.addEventListener('change',onChange);
+  document.getElementById('mpRefresh').addEventListener('click',function(){refresh();});
+  document.getElementById('mpView').addEventListener('change',function(e){S.view=e.target.value;S.sel={};S.confirming=false;S.filter='ALL';S.reassign=null;refresh();});
+  document.getElementById('mpAdminBtn').addEventListener('click',function(){S.adminMode=!S.adminMode;refresh();});
+  LEENAI.loading.show('メールを読み込み中…');
+  try{
+    if(LEENAI.auth.status.graphExtra&&LEENAI.auth.status.graphExtra!=='ok')
+      LEENAI.toast('SharePoint・メールの権限が許可されていません ('+LEENAI.auth.status.graphExtra+') — 一度ログアウトして再ログインし、同意してください','danger');
+    await loadMasters();
+    await resolveSite();
+    await loadData();
+    render();
+  }catch(e){
+    document.getElementById('mpPanel').innerHTML='<div class="mp-empty">読み込めません: '+esc(e.message)+'</div>';
+  }finally{LEENAI.loading.hide();}
+  S.timer=setInterval(function(){refresh(true);},REFRESH_MS);
+}
+window.MP={S:S,start:startTool,refresh:refresh,render:render,groupByMail:groupByMail,grouped:grouped,visibleRows:visibleRows};
+
 LEENAI.init({
-  sys:'Z-05', name:'COMMON TEST', version:'1.9', date:'2026-10-08',
-  desc:'LEENAI_COMMON v1 動作確認ページ',
-  onReady: startTool
+  sys:'MAIL', name:'今日のメール', version:'0.1', date:'2026-10-20',
+  desc:'rcp@ メールの担当・処理状況 (テストページ)',
+  graphScopes:['Mail.ReadWrite','Sites.ReadWrite.All'],
+  onReady:startTool
 });
 </script>
 </body>
