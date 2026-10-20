@@ -23,8 +23,11 @@ html[data-theme="dark"] .mp{--mp-page:#14181F;--mp-surface:#1E242E;--mp-text:#E6
 .mp-bar .bbtn{border:1px solid #5A6B85;background:#24364F;color:#FFF;padding:3px 10px;border-radius:4px;font-size:12px;cursor:pointer}
 .mp-main{width:100%;max-width:1400px;margin:0 auto;box-sizing:border-box;padding:12px 20px;display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}
 .mp-panel{flex:1 1 480px;min-width:0;max-width:calc(50% - 8px);background:var(--mp-surface);border:1px solid var(--mp-line);border-radius:6px;overflow:hidden;display:flex;flex-direction:column}
-.mp-ext{flex:1 1 480px;min-width:0;max-width:calc(50% - 8px);box-sizing:border-box;min-height:640px;border:2px dashed var(--mp-ctl);border-radius:6px;display:flex;align-items:center;justify-content:center;padding:24px;color:var(--mp-muted);font-size:13px;text-align:center;white-space:pre-line}
-@media(max-width:900px){.mp-panel,.mp-ext{max-width:100%}}
+.mp-wk-title{font-size:14px;font-weight:700;color:var(--mp-text)}
+.mp-wk-sub{font-size:11px;color:var(--mp-muted)}
+.mp-wk-st{font-size:12px;font-weight:600;color:var(--mp-text2)}
+.mp-wk-click{cursor:pointer}
+@media(max-width:900px){.mp-panel{max-width:100%}}
 .mp-tabs{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;border-bottom:1px solid var(--mp-line2)}
 .mp-tabs .tabs{display:flex;gap:14px;font-size:14px}
 .mp-tab{border:0;background:transparent;padding:4px 0;cursor:pointer;font-size:14px;color:var(--mp-text);border-bottom:2px solid transparent}
@@ -111,8 +114,7 @@ html[data-theme="dark"] .mp{--mp-page:#14181F;--mp-surface:#1E242E;--mp-text:#E6
     </div>
     <div class="mp-main" id="mpMain">
       <section class="mp-panel" id="mpPanel"></section>
-      <aside class="mp-ext">今後の拡張用 (右半分)
-通関・COTECNA・書類など 今日の作業</aside>
+      <section class="mp-panel" id="mpWork"></section>
     </div>
     <div class="mp-admin" id="mpAdmin" style="display:none"></div>
   </div>
@@ -334,7 +336,7 @@ function render(){
   }
   $('mpMain').style.display=S.adminMode?'none':'flex';
   $('mpAdmin').style.display=S.adminMode?'flex':'none';
-  if(S.adminMode) renderAdmin(); else renderPanel();
+  if(S.adminMode) renderAdmin(); else {renderPanel();renderWork();}
 }
 function renderPanel(){
   var p=$('mpPanel');
@@ -566,6 +568,7 @@ function onClick(e){
   else if(a==='rsdo'){doReassign(id);}
   else if(a==='take'){take(id);}
   else if(a==='restore'){restore(id);}
+  else if(a==='wkfold'){W.open[v]=W.open[v]===false;renderWork();}
   else if(a==='adminpick'){S.view=v;S.adminMode=false;S.tab='open';S.filter='R';S.sel={};refresh();}
 }
 function onChange(e){
@@ -575,6 +578,226 @@ function onChange(e){
   else if(a==='target'){S.target=el.value;}
 }
 
+/* ══════════════════════════════════════════════════════════════
+   今日の作業 (右半分, v0.5) — 閲覧のみ
+   CLEARANCE_COMPASS v4.5 (loadTsukan · loadCotecna · 船積書類 · nextBizDay · getTs/Sp/CtStatus · S/I 有無) と
+   同じ条件・同じ項目で COMPASS と clearance_status.json を「読むだけ」。チェック・入力は CLEARANCE_COMPASS で行う
+══════════════════════════════════════════════════════════════ */
+var DV_API='https://orgde512c6f.crm7.dynamics.com/api/data/v9.2';
+var STATUS_PATH='古紙/-. AI 活用/PORTAL/clearance_status.json';
+var WORK_MS=300000;      // 右側は 5 分ごと
+var WK_SI_DAYS=180;      // 書類 ④ は契約日が最近 180 日の契約だけ (形님 決定 2026-10-20)
+var WK_CHUNK=15;         // COMPASS は 15 件ずつ or で (CLEARANCE_COMPASS と同じ)
+var WK_SEC=[
+  {k:'tsukan',kind:'pol',label:'通関',order:'CUT'},
+  {k:'insp',kind:'pol',label:'検査',order:'作業日'},
+  {k:'d1',kind:'doc',label:'書類 ① FD送付',order:'B/L DATE'},
+  {k:'d2',kind:'doc',label:'書類 ② DEP',order:'CUT'},
+  {k:'d3',kind:'doc',label:'書類 ③ 振込',order:'CUT'},
+  {k:'d4',kind:'doc',label:'書類 ④ S/I',order:'契約日'}];
+var W={raw:null,rows:[],pol:[],doc:[],loadedAt:null,busy:false,timer:null,open:{},err:''};
+
+function ymd(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
+/* CLEARANCE_COMPASS nextBizDay と同じ (土日を飛ばす) */
+function wkDates(now){
+  var n=new Date(now.getTime()),add=function(k){var d=new Date(n.getTime());d.setDate(d.getDate()+k);return d;};
+  var nb=add(1);while(nb.getDay()===0||nb.getDay()===6)nb.setDate(nb.getDate()+1);
+  return {T:ymd(n),NB:ymd(nb),M7:ymd(add(-7)),M30:ymd(add(-30)),M90:ymd(add(-90)),P180:ymd(add(180)),S180:ymd(add(-WK_SI_DAYS))};
+}
+function d10(s){return s?String(s).slice(0,10):'';}
+function fmtD(s){s=d10(s);return s?s.slice(5).replace('-','/'):'—';}
+
+/* POL 担当 — CLEARANCE_COMPASS getStaff と同じ (POL 文字列に含まれる → なければ「*」の行)。補助も一緒に見る */
+function wkPolOwners(pol,polRows){
+  var up=String(pol||'').toUpperCase(),hit=null;
+  if(up&&up!=='—') polRows.forEach(function(r){if(!hit&&r.pol&&r.pol!=='*'&&up.indexOf(String(r.pol).toUpperCase())>=0)hit=r;});
+  if(!hit) hit=polRows.find(function(r){return r.pol==='*';});
+  return hit?[hit.staff,hit.assist].filter(Boolean):[];
+}
+/* 書類担当 — CLEARANCE_COMPASS getShipStaff (IV 先頭 1 文字を除き長いコード優先・直後が数字) → なければ getBuyerStaff (輸入者名と一致) */
+function wkDocOwner(iv,buyer,docRows){
+  var body=String(iv||'').trim().toUpperCase().slice(1);
+  var rows=docRows.filter(function(r){return r.iv_code;}).sort(function(a,b){return b.iv_code.length-a.iv_code.length;});
+  for(var i=0;i<rows.length;i++){var k=String(rows[i].iv_code).toUpperCase();
+    if(body.indexOf(k)===0&&/\d/.test(body.charAt(k.length)||''))return rows[i].staff||'';}
+  var b=String(buyer||'').trim().toUpperCase();
+  var r=b?docRows.find(function(x){return x.staff&&String(x.importer||'').toUpperCase()===b;}):null;
+  return r?r.staff:'';
+}
+
+/* 条件 (形님 確定 2026-10-20) — raw は COMPASS・状態 JSON を読んだまま。判定だけをするので日付を変えて試験できる */
+function buildWork(raw,now,polRows,docRows){
+  var D=wkDates(now),rows=[],st=raw.status||{},rec=st.records||{},shp=st.shipping||{},cot=st.cotecna||{};
+  var sp=function(iv){return shp[iv]||{dep:'未',furikomi:'未',fd_date:''};};
+  var isL=function(iv){return /^L/i.test(String(iv||'').trim());};
+  var pol=function(b){var p=(raw.pol||{})[b._cr49f_region_japan_id_value]||(b.crcf9_delivery_location?String(b.crcf9_delivery_location).replace(/ CY$| PORT$/,''):'');return String(p||'').replace(', JAPAN','').trim()||'—';};
+  // 通関: CUT が今日または次の営業日 かつ 通関依頼 未
+  (raw.cut||[]).forEach(function(b){
+    var c=d10(b.cr49f_cy_cut),iv=b.cr49f_invoice_no||'—';
+    if(c!==D.T&&c!==D.NB) return;
+    if((rec[iv]||{}).tsukan_irai) return;
+    var p=pol(b);
+    rows.push({sec:'tsukan',date:c,red:c===D.T,owners:wkPolOwners(p,polRows),iv:iv,a:p,b:b.cr49f_booking_no||'—',
+      c:'CT '+((raw.ctCount||{})[b.cr49f_bookingid]||'—'),d:'CUT '+fmtD(c),st:'通関依頼 未',st2:(raw.siSet||{})[b._cr49f_sale_contract_id_value]?'S/I 済':'S/I 未'});
+  });
+  // 検査: 検査ありコンテナを iv|vo|partial で束ね、作業日に今日または次の営業日があるもの
+  var grp={};
+  (raw.insp||[]).forEach(function(c){
+    var b=(raw.inspBk||{})[c._crcf9_booking_id_value]||{};
+    var rv=(raw.vo||{})[b._cr49f_sale_contract_id_value]||'',m=String(rv).match(/(\d+\.\d+)/);
+    var vo=m?'X.'+m[1]:(rv||'—'),iv=b.cr49f_invoice_no||'—',pt=c.crcf9_partial_no||'—',key=iv+'|'+vo+'|'+pt;
+    var g=grp[key]||(grp[key]={key:key,iv:iv,vo:vo,pt:pt,dates:[],n:0,pol:pol(b),place:'—'});
+    var wd=d10(c.crcf9_work_date);if(wd&&g.dates.indexOf(wd)<0)g.dates.push(wd);
+    g.n++;var pl=(raw.place||{})[c._crcf9_purchase_contract_id_value];if(g.place==='—'&&pl)g.place=pl;
+  });
+  Object.keys(grp).forEach(function(k){
+    var g=grp[k];if(g.dates.indexOf(D.T)<0&&g.dates.indexOf(D.NB)<0) return;
+    g.dates.sort();var day=g.dates.indexOf(D.T)>=0?D.T:D.NB;
+    rows.push({sec:'insp',date:day,red:day===D.T,owners:wkPolOwners(g.pol,polRows),iv:g.iv,a:g.place,b:'CT '+g.n,c:g.vo+(g.pt!=='—'?'-'+g.pt:''),
+      d:'作業 '+(g.dates.length>1?fmtD(g.dates[0])+'〜'+fmtD(g.dates[g.dates.length-1]):fmtD(day)),st:'報告 '+((cot[k]||{}).report_status||'未')});
+  });
+  // 書類 ①②③ (CLEARANCE_COMPASS 船積書類と同じ ETD −90〜+180 の Booking から, IV「L」= 国内転売は除外)
+  (raw.ship||[]).forEach(function(b){
+    var iv=b.cr49f_invoice_no||'';if(!iv||isL(iv)) return;
+    var s=sp(iv),buyer=(raw.buyerOfContract||{})[b._cr49f_sale_contract_id_value]||'',own=wkDocOwner(iv,buyer,docRows);
+    var owners=own?[own]:[],imp=raw.importer?raw.importer(iv):'',cut=d10(b.cr49f_cy_cut),bl=d10(b.crcf9_bl_etd);
+    var base={owners:owners,iv:iv,a:buyer||imp||'—',b:b.cr49f_booking_no||'—'};
+    if(bl&&bl<=D.T&&!String(s.fd_date||'').trim())
+      rows.push(Object.assign({sec:'d1',date:bl,red:bl===D.T,c:'B/L '+fmtD(bl),d:'',st:'FD送付日 未入力'},base));
+    if(cut&&cut<D.T&&cut>=D.M30){
+      if(String((raw.region||{})[b._cr49f_region_id_value]||'').toUpperCase().indexOf('VIETNAM')>=0&&(s.dep||'未')==='未')
+        rows.push(Object.assign({sec:'d2',date:cut,red:false,c:'CUT '+fmtD(cut),d:'',st:'DEP 未'},base));
+      if((s.furikomi||'未')==='未')
+        rows.push(Object.assign({sec:'d3',date:cut,red:false,c:(raw.carrier||{})[b._cr49f_carrier_id_value]||'—',d:'CUT '+fmtD(cut),st:'振込 未'},base));
+    }
+  });
+  // 書類 ④: 契約日が最近 180 日・S/I がない販売契約 (Booking の IV コード → なければ販売先名 → 決まらなければ全員)
+  (raw.contracts||[]).forEach(function(c){
+    var dt=d10(c.cr49f_sale_contract_date);if(!dt||dt<D.S180) return;
+    if((raw.siSet||{})[c.cr49f_sale_contractid]) return;
+    var ivs=(raw.ivsOfContract||{})[c.cr49f_sale_contractid]||[],buyer=(raw.buyerName||{})[c._cr49f_buyer_id_value]||'',codes={};
+    ivs.forEach(function(iv){var o=wkDocOwner(iv,'',docRows);if(o)codes[o]=1;});
+    var ks=Object.keys(codes);if(!ks.length){var o=wkDocOwner('',buyer,docRows);if(o)ks=[o];}
+    var und=ks.length!==1;
+    rows.push({sec:'d4',date:dt,red:false,owners:und?[]:ks,undecided:und,iv:c.cr49f_sale_contract_no||'—',a:buyer||'—',b:'',c:'契約 '+fmtD(dt),d:'',st:'S/I 未'});
+  });
+  rows.sort(function(x,y){return x.date<y.date?-1:x.date>y.date?1:0;});   // 各区域とも古い順
+  return rows;
+}
+
+/* 見る人ごと — POL 担当なら 通関・検査、書類担当なら 書類 ①〜④ (両方なら両方)。全員 = すべて (行ごとに担当名) */
+function workView(view,rows,polRows,docRows){
+  var isPol=view==='ALL'||polRows.some(function(r){return r.staff===view||r.assist===view;});
+  var isDoc=view==='ALL'||docRows.some(function(r){return r.staff===view;});
+  return WK_SEC.map(function(s){
+    var mine=rows.filter(function(r){return r.sec===s.k&&(view==='ALL'||r.owners.indexOf(view)>=0||(s.k==='d4'&&r.undecided));});
+    var show=(s.kind==='pol'?isPol:isDoc)||(s.k==='d4'&&mine.length>0);
+    return {sec:s,rows:show?mine:[],show:show};
+  }).filter(function(x){return x.show;});
+}
+
+async function dvUrl(url){
+  var t=await LEENAI.auth.token('dataverse');
+  var r=await fetch(url,{headers:{Authorization:'Bearer '+t,'OData-MaxVersion':'4.0','OData-Version':'4.0',Accept:'application/json',Prefer:'odata.maxpagesize=500'}});
+  if(!r.ok) throw new Error('COMPASS '+r.status);
+  return r.json();
+}
+async function dvAll(path){var out=[],url=DV_API+path;while(url){var d=await dvUrl(url);out=out.concat(d.value||[]);url=d['@odata.nextLink']||null;}return out;}
+/* field eq id を 15 件ずつ or で */
+async function dvIn(es,field,ids,select){
+  var u=[];ids.forEach(function(x){if(x&&u.indexOf(x)<0)u.push(x);});
+  var out=[];
+  for(var i=0;i<u.length;i+=WK_CHUNK){
+    var f=u.slice(i,i+WK_CHUNK).map(function(g){return field+' eq '+g;}).join(' or ');
+    out=out.concat(await dvAll('/'+es+'?$filter='+encodeURIComponent(f)+'&$select='+select));
+  }
+  return out;
+}
+async function loadWorkRaw(now){
+  var D=wkDates(now),t0=Date.now(),raw={};
+  var st=await LEENAI.sp.getJson(STATUS_PATH);   // GET のみ (保存しない)
+  raw.status=st||{};
+  var r=await Promise.all([
+    dvAll('/cr49f_bookings?$filter='+encodeURIComponent('cr49f_cy_cut ge '+D.T+'T00:00:00Z and cr49f_cy_cut le '+D.NB+'T23:59:59Z')
+      +'&$select=cr49f_bookingid,cr49f_invoice_no,cr49f_booking_no,cr49f_cy_cut,crcf9_delivery_location,_cr49f_region_japan_id_value,_cr49f_sale_contract_id_value'),
+    dvAll('/crcf9_container_informations?$filter='+encodeURIComponent('crcf9_inspection eq true and crcf9_work_date ge '+D.M7+'T00:00:00Z and crcf9_work_date le '+D.NB+'T23:59:59Z')
+      +'&$select=crcf9_partial_no,crcf9_work_date,_crcf9_booking_id_value,_crcf9_purchase_contract_id_value'),
+    dvAll('/cr49f_bookings?$filter='+encodeURIComponent('cr49f_etd ge '+D.M90+'T00:00:00Z and cr49f_etd le '+D.P180+'T23:59:59Z')
+      +'&$select=cr49f_bookingid,cr49f_invoice_no,cr49f_booking_no,cr49f_cy_cut,crcf9_bl_etd,cr49f_etd,_cr49f_region_japan_id_value,_cr49f_carrier_id_value,_cr49f_region_id_value,_cr49f_sale_contract_id_value'),
+    dvAll('/cr49f_sale_contracts?$filter='+encodeURIComponent('cr49f_sale_contract_date ge '+D.S180+'T00:00:00Z')
+      +'&$select=cr49f_sale_contractid,cr49f_sale_contract_no,cr49f_sale_contract_date,_cr49f_buyer_id_value')]);
+  raw.cut=r[0];raw.insp=r[1];raw.ship=r[2];raw.contracts=r[3];
+  var inspBk=await dvIn('cr49f_bookings','cr49f_bookingid',raw.insp.map(function(c){return c._crcf9_booking_id_value;}),
+    'cr49f_bookingid,cr49f_invoice_no,crcf9_delivery_location,_cr49f_region_japan_id_value,_cr49f_sale_contract_id_value');
+  raw.inspBk={};inspBk.forEach(function(b){raw.inspBk[b.cr49f_bookingid]=b;});
+  var scIds=raw.cut.concat(inspBk).concat(raw.ship).map(function(b){return b._cr49f_sale_contract_id_value;})
+    .concat(raw.contracts.map(function(c){return c.cr49f_sale_contractid;}));
+  var sub=await Promise.all([
+    dvIn('cr49f_s_is','_cr49f_sale_contract_id_value',scIds,'_cr49f_sale_contract_id_value,crcf9_vo_no'),
+    dvIn('crcf9_container_informations','_crcf9_booking_id_value',raw.cut.map(function(b){return b.cr49f_bookingid;}),'_crcf9_booking_id_value'),
+    dvIn('crcf9_region_japans','crcf9_region_japanid',raw.cut.concat(inspBk).concat(raw.ship).map(function(b){return b._cr49f_region_japan_id_value;}),'crcf9_region_japanid,crcf9_pol,crcf9_region_japan'),
+    dvIn('cr49f_regions','cr49f_regionid',raw.ship.map(function(b){return b._cr49f_region_id_value;}),'cr49f_regionid,cr49f_region'),
+    dvIn('crcf9_carriers','crcf9_carrierid',raw.ship.map(function(b){return b._cr49f_carrier_id_value;}),'crcf9_carrierid,crcf9_carrier'),
+    dvIn('cr49f_purchase_contracts','cr49f_purchase_contractid',raw.insp.map(function(c){return c._crcf9_purchase_contract_id_value;}),'cr49f_purchase_contractid,_cr49f_packer_id_value'),
+    dvIn('cr49f_bookings','_cr49f_sale_contract_id_value',raw.contracts.map(function(c){return c.cr49f_sale_contractid;}),'_cr49f_sale_contract_id_value,cr49f_invoice_no'),
+    dvIn('cr49f_sale_contracts','cr49f_sale_contractid',raw.ship.map(function(b){return b._cr49f_sale_contract_id_value;}),'cr49f_sale_contractid,_cr49f_buyer_id_value')]);
+  raw.siSet={};raw.vo={};
+  sub[0].forEach(function(s){var c=s._cr49f_sale_contract_id_value;raw.siSet[c]=1;if(s.crcf9_vo_no&&!raw.vo[c])raw.vo[c]=s.crcf9_vo_no;});
+  raw.ctCount={};sub[1].forEach(function(c){var b=c._crcf9_booking_id_value;raw.ctCount[b]=(raw.ctCount[b]||0)+1;});
+  raw.pol={};sub[2].forEach(function(p){raw.pol[p.crcf9_region_japanid]=p.crcf9_pol||p.crcf9_region_japan||'';});
+  raw.region={};sub[3].forEach(function(p){raw.region[p.cr49f_regionid]=p.cr49f_region||'';});
+  raw.carrier={};sub[4].forEach(function(p){raw.carrier[p.crcf9_carrierid]=p.crcf9_carrier||'';});
+  raw.ivsOfContract={};sub[6].forEach(function(b){var c=b._cr49f_sale_contract_id_value;if(b.cr49f_invoice_no)(raw.ivsOfContract[c]=raw.ivsOfContract[c]||[]).push(b.cr49f_invoice_no);});
+  var pk=await dvIn('cr49f_packers','cr49f_packerid',sub[5].map(function(p){return p._cr49f_packer_id_value;}),'cr49f_packerid,cr49f_packer,cr49f_packer_name');
+  var pkName={};pk.forEach(function(p){pkName[p.cr49f_packerid]=p.cr49f_packer_name||p.cr49f_packer||'';});
+  raw.place={};sub[5].forEach(function(p){if(pkName[p._cr49f_packer_id_value])raw.place[p.cr49f_purchase_contractid]=pkName[p._cr49f_packer_id_value];});
+  var scBuyer={};sub[7].forEach(function(c){scBuyer[c.cr49f_sale_contractid]=c._cr49f_buyer_id_value;});
+  var bIds=raw.contracts.map(function(c){return c._cr49f_buyer_id_value;}).concat(Object.keys(scBuyer).map(function(k){return scBuyer[k];}));
+  var buyers=await dvIn('cr49f_buyers','cr49f_buyerid',bIds,'cr49f_buyerid,cr49f_buyer_name,cr49f_buyer');
+  raw.buyerName={};buyers.forEach(function(b){raw.buyerName[b.cr49f_buyerid]=b.cr49f_buyer_name||b.cr49f_buyer||'';});
+  raw.buyerOfContract={};Object.keys(scBuyer).forEach(function(k){raw.buyerOfContract[k]=raw.buyerName[scBuyer[k]]||'';});
+  console.log('[今日の作業] 更新 '+((Date.now()-t0)/1000).toFixed(1)+' 秒 — CUT '+raw.cut.length+' · 検査CT '+raw.insp.length+' · 書類Booking '+raw.ship.length+' · 契約 '+raw.contracts.length);
+  return raw;
+}
+async function refreshWork(quiet){
+  if(W.busy) return;
+  W.busy=true;
+  try{
+    var m=await Promise.all([LEENAI.master.get('pol_staff'),LEENAI.master.get('doc_staff')]);
+    W.pol=(m[0]||[]).map(function(r){return {pol:String(r.pol||'').trim().toUpperCase(),staff:r.staff||'',assist:r.assist||''};});
+    W.doc=(m[1]||[]).map(function(r){return {iv_code:String(r.iv_code||'').trim(),importer:r.importer||'',staff:r.staff||''};});
+    W.raw=await loadWorkRaw(new Date());
+    W.rows=buildWork(W.raw,new Date(),W.pol,W.doc);W.loadedAt=new Date();W.err='';
+  }catch(e){W.err=e.message;if(!quiet)LEENAI.toast('今日の作業を読み込めません: '+e.message,'danger');}
+  finally{W.busy=false;}
+  renderWork();
+}
+function renderWork(){
+  var p=$('mpWork');if(!p||!S.me) return;
+  var h='<div class="mp-tabs"><div class="tabs"><span class="mp-wk-title">今日の作業 · 閲覧のみ</span></div>'
+    +'<span class="mp-wk-sub">'+(W.loadedAt?'更新 '+W.loadedAt.getHours()+':'+pad(W.loadedAt.getMinutes()):'読み込み中…')+' · 入力は CLEARANCE_COMPASS</span></div>';
+  if(W.err) h+='<div class="mp-empty">読み込めません: '+esc(W.err)+'</div>';
+  else if(W.loadedAt){
+    var secs=workView(S.view,W.rows,W.pol,W.doc);
+    if(!secs.length) h+='<div class="mp-empty">この担当者の作業区分はありません。</div>';
+    secs.forEach(function(x){
+      var n=x.rows.length,open=n>0&&W.open[x.sec.k]!==false;
+      h+='<div class="mp-ghead'+(n?' mp-wk-click':'')+'" data-act="wkfold" data-v="'+x.sec.k+'"><span class="mp-mk '+(n?'R':'ALL')+'"></span>'+x.sec.label+' '+n
+        +(n?'<span class="o"> — '+x.sec.order+' 古い順</span>':'')+'</div>';
+      if(open) x.rows.forEach(function(r){
+        h+='<div class="mp-row"><div class="mp-bar4 '+(r.red?'R':'Y')+'"></div><div class="mp-body" style="padding-left:12px">'
+          +'<div class="mp-l1"><span class="mp-key">'+esc(r.iv)+'</span><span class="mp-pat">'+esc([r.a,r.b].filter(Boolean).join(' · '))+'</span>'
+          +'<span class="mp-time">'+esc([r.c,r.d].filter(Boolean).join(' · '))+'</span></div>'
+          +'<div class="mp-l2"><span class="mp-wk-st">'+esc(r.st)+'</span>'+(r.st2?'<span class="mp-st">'+esc(r.st2)+'</span>':'')
+          +(r.undecided?'<span class="mp-reason">担当未定</span>':'')+'</div>'
+          +(S.view==='ALL'&&r.owners.length?'<span class="mp-own">担当: '+esc(r.owners.map(nm).join('・'))+'</span>':'')
+          +'</div></div>';
+      });
+    });
+  }
+  p.innerHTML=h;
+}
+
 /* mount(root, {embedded:true}) — 他の TOOL のタブに結合したときは、題名・版の表示はその TOOL に任せる */
 async function mount(root,opts){
   ROOT=root;opts=opts||{};
@@ -582,7 +805,7 @@ async function mount(root,opts){
   if(mv&&$('mpTitle')) $('mpTitle').textContent='今日のメール · v'+mv+' (試験)';
   ROOT.addEventListener('click',onClick);
   ROOT.addEventListener('change',onChange);
-  $('mpRefresh').addEventListener('click',function(){refresh();});
+  $('mpRefresh').addEventListener('click',function(){refresh();refreshWork();});
   $('mpView').addEventListener('change',function(e){S.view=e.target.value;S.sel={};S.confirming=false;S.filter='ALL';S.reassign=null;refresh();});
   $('mpAdminBtn').addEventListener('click',function(){S.adminMode=!S.adminMode;refresh();});
   LEENAI.loading.show('メールを読み込み中…');
@@ -598,16 +821,22 @@ async function mount(root,opts){
   }finally{LEENAI.loading.hide();}
   if(S.timer) clearInterval(S.timer);
   S.timer=setInterval(function(){refresh(true);},REFRESH_MS);
+  if(S.me&&$('mpWork')){
+    refreshWork(true);   // 右側は左の読み込みを待たせない
+    if(W.timer) clearInterval(W.timer);
+    W.timer=setInterval(function(){refreshWork(true);},WORK_MS);
+  }
 }
 function unmount(){
   if(S.timer){clearInterval(S.timer);S.timer=null;}
+  if(W.timer){clearInterval(W.timer);W.timer=null;}
   if(ROOT){ROOT.removeEventListener('click',onClick);ROOT.removeEventListener('change',onChange);}
 }
-return {mount:mount,unmount:unmount,refresh:refresh,_S:S};
+return {mount:mount,unmount:unmount,refresh:refresh,_S:S,_W:W,_buildWork:buildWork,_workView:workView,_wkDates:wkDates,_renderWork:renderWork};
 })();
 
 LEENAI.init({
-  sys:'MAIL', name:'今日のメール', version:'0.4', date:'2026-10-20',
+  sys:'MAIL', name:'今日のメール', version:'0.5', date:'2026-10-20',
   desc:'rcp@ メールの担当・処理状況 (テストページ)',
   graphScopes:['Mail.ReadWrite','Sites.ReadWrite.All'],
   onReady:function(){MailPortal.mount(document.getElementById('mpRoot'));}
