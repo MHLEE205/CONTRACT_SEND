@@ -630,6 +630,14 @@ function wkDocOwner(iv,buyer,docRows){
   return ks.length===1?ks[0]:'';
 }
 
+/* 契約番号のコード — LRS-2611SG1 → SG (英字-年月 4 桁 + コード + 連番, IV コードと同じ体系) → 書類担当マスター (v0.7) */
+function wkContractOwner(no,docRows){
+  var m=String(no||'').trim().match(/^[A-Z]+-\d{4}([A-Z]{1,3})\d*$/i);
+  if(!m) return '';
+  var r=docRows.find(function(x){return x.staff&&String(x.iv_code||'').toUpperCase()===m[1].toUpperCase();});
+  return r?r.staff:'';
+}
+
 /* 条件 (形님 確定 2026-10-20) — raw は COMPASS・状態 JSON を読んだまま。判定だけをするので日付を変えて試験できる */
 function buildWork(raw,now,polRows,docRows){
   var D=wkDates(now),rows=[],st=raw.status||{},rec=st.records||{},shp=st.shipping||{},cot=st.cotecna||{};
@@ -676,14 +684,16 @@ function buildWork(raw,now,polRows,docRows){
         rows.push(Object.assign({sec:'d3',date:cut,red:false,c:(raw.carrier||{})[b._cr49f_carrier_id_value]||'—',d:'CUT '+fmtD(cut),st:'振込 未'},base));
     }
   });
-  // 書類 ④: 契約日が最近 180 日・S/I がない販売契約 (Booking の IV コード → なければ販売先名 → 決まらなければ全員)
+  // 書類 ④: 契約日が最近 180 日・S/I がない販売契約 (Booking の IV コード → 契約番号のコード → 販売先名 → 決まらなければ全員)
   (raw.contracts||[]).forEach(function(c){
     var dt=d10(c.cr49f_sale_contract_date);if(!dt||dt<D.S180) return;
     if(/^LS/i.test(String(c.cr49f_sale_contract_no||'').trim())) return;   // 契約「LS」始まり = 国内販売 → 書類の対象外 (v0.6)
     if((raw.siSet||{})[c.cr49f_sale_contractid]) return;
     var ivs=(raw.ivsOfContract||{})[c.cr49f_sale_contractid]||[],buyer=(raw.buyerName||{})[c._cr49f_buyer_id_value]||'',codes={};
     ivs.forEach(function(iv){var o=wkDocOwner(iv,'',docRows);if(o)codes[o]=1;});
-    var ks=Object.keys(codes);if(!ks.length){var o=wkDocOwner('',buyer,docRows);if(o)ks=[o];}
+    var ks=Object.keys(codes);
+    if(!ks.length){var cc=wkContractOwner(c.cr49f_sale_contract_no,docRows);if(cc)ks=[cc];}   // v0.7 — LRS-2611SG1 → SG
+    if(!ks.length){var o=wkDocOwner('',buyer,docRows);if(o)ks=[o];}
     var und=ks.length!==1;
     rows.push({sec:'d4',date:dt,red:false,owners:und?[]:ks,undecided:und,iv:c.cr49f_sale_contract_no||'—',a:buyer||'—',b:'',c:'契約 '+fmtD(dt),d:'',st:'S/I 未'});
   });
@@ -838,11 +848,11 @@ function unmount(){
   if(W.timer){clearInterval(W.timer);W.timer=null;}
   if(ROOT){ROOT.removeEventListener('click',onClick);ROOT.removeEventListener('change',onChange);}
 }
-return {mount:mount,unmount:unmount,refresh:refresh,_S:S,_W:W,_buildWork:buildWork,_workView:workView,_wkDates:wkDates,_renderWork:renderWork};
+return {mount:mount,unmount:unmount,refresh:refresh,_S:S,_W:W,_buildWork:buildWork,_workView:workView,_wkDates:wkDates,_renderWork:renderWork,_wkContractOwner:wkContractOwner};
 })();
 
 LEENAI.init({
-  sys:'MAIL', name:'今日のメール', version:'0.6', date:'2026-10-20',
+  sys:'MAIL', name:'今日のメール', version:'0.7', date:'2026-10-20',
   desc:'rcp@ メールの担当・処理状況 (テストページ)',
   graphScopes:['Mail.ReadWrite','Sites.ReadWrite.All'],
   onReady:function(){MailPortal.mount(document.getElementById('mpRoot'));}
