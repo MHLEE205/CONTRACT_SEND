@@ -146,7 +146,7 @@ var PARTY_JA={'선사':'船社','공컨테이너·터미널':'空コン·ター�
   '기관·공공':'機関·公共','택배·기타 서비스':'宅配·その他','사내':'社内'};
 var REASONS=['担当違い','一時代理','その他'];
 /* 役割 — エンジンが書く Role (基準実装 build_tasks の値) の表示名。変更・引受 はポータルが書く日本語 */
-var ROLE_JA={'주':'主','참고':'参考','R0':'R0','미판정':'未判定'};
+var ROLE_JA={'주':'主','참고':'参考','R0':'R0','미판정':'未判定','To':'宛先'};   // To = R1 (宛先の職員 1 名, エンジン v1.4)
 function roleJa(r){return ROLE_JA[r]||r||'';}
 
 var S={site:null,lists:{},staff:{},order:[],me:null,view:null,tab:'open',filter:'ALL',sel:{},confirming:false,
@@ -607,7 +607,7 @@ return {mount:mount,unmount:unmount,refresh:refresh,_S:S};
 })();
 
 LEENAI.init({
-  sys:'MAIL', name:'今日のメール', version:'0.3', date:'2026-10-20',
+  sys:'MAIL', name:'今日のメール', version:'0.4', date:'2026-10-20',
   desc:'rcp@ メールの担当・処理状況 (テストページ)',
   graphScopes:['Mail.ReadWrite','Sites.ReadWrite.All'],
   onReady:function(){MailPortal.mount(document.getElementById('mpRoot'));}
