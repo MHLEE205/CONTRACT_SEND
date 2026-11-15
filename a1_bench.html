@@ -39,7 +39,7 @@ textarea.a1-in{width:100%;min-height:90px}
 <main id="a1Main" style="display:none;max-width:1200px;margin:0 auto;padding:20px 16px">
 
   <div class="a1-card">
-    <h3>A1 「契約/LC → S/I」 추천 정확도 시험 (설계서 v0.2 · 지시서 v1.2)</h3>
+    <h3>A1 「契約/LC → S/I」 추천 정확도 시험 (설계서 v0.5 · 지시서 시험도구 v0.3 R2)</h3>
     <div class="a1-note">정답 = COMPASS S/I (2609 이전 = 검증). 이 페이지는 COMPASS · LC 원본 · 마스터를 <b>읽기만</b> 하고, 결과는 SharePoint <code>古紙/-. AI 活用/D-00/A1_bench/{run_id}/</code> 에만 저장합니다.<br>
     「몇 건 맞았다」 로 결론 내지 않습니다 — 파일럿은 모델 · 비용을 고르기 위한 것 (설계서 v0.2 §7).</div>
   </div>
@@ -53,9 +53,10 @@ textarea.a1-in{width:100%;min-height:90px}
     </div>
     <div class="a1-note">키는 이 브라우저 저장소에만 (D-01 과 같은 저장 위치). 화면 · 콘솔 · 결과 파일에 출력하지 않습니다.</div>
     <div class="a1-row">
-      <label>R1 모델 1 <input id="a1M1" class="a1-in" value="claude-sonnet-4-6" style="width:170px"></label>
-      <label>모델 2 <input id="a1M2" class="a1-in" value="claude-opus-5-5" style="width:170px"></label>
-      <label>모델 3 <input id="a1M3" class="a1-in" value="claude-fable-5-2" style="width:170px"></label>
+      <label>R1 모델 1 <input id="a1M1" class="a1-in" value="claude-opus-5-5" style="width:170px"></label>
+      <label>모델 2 <input id="a1M2" class="a1-in" value="" placeholder="(비교할 때만)" style="width:170px"></label>
+      <label>모델 3 <input id="a1M3" class="a1-in" value="" placeholder="(비교할 때만)" style="width:170px"></label>
+      <label>R2 모델 <input id="a1R2Model" class="a1-in" value="claude-opus-5-5" style="width:170px"></label>
     </div>
     <div class="a1-row">
       <label>effort (3모델 같게) <select id="a1Effort" class="a1-in"><option>low</option><option>medium</option><option selected>high</option><option>max</option></select></label>
@@ -66,6 +67,7 @@ textarea.a1-in{width:100%;min-height:90px}
       <label>R0 LC JSON <select id="a1R0Src" class="a1-in"><option value="new" selected>D-01 v3.2 프롬프트로 새로 생성</option><option value="sp">SharePoint 기존 D-01 JSON 우선</option></select></label>
     </div>
     <div class="a1-row"><label style="flex:1">단가표 US$/1M [입력, 출력] (추정 비용용) <input id="a1Price" class="a1-in" style="flex:1;min-width:300px"></label></div>
+    <div class="a1-note" id="a1PriceNote"></div>
   </div>
 
   <div class="a1-card">
@@ -87,11 +89,12 @@ textarea.a1-in{width:100%;min-height:90px}
   <div class="a1-card" id="a1Step3" style="display:none">
     <h3>④ 실행</h3>
     <div class="a1-row">
-      <button id="a1RunPilot" class="a1-btn">파일럿 실행 (R0 + R1 × 모델 3종 × 2회)</button>
+      <label>회차 <select id="a1Rounds" class="a1-in"><option value="R1R2" selected>R1+R2</option><option value="R1">R1만</option><option value="R2">R2만</option></select></label>
+      <button id="a1RunPilot" class="a1-btn">파일럿 실행 (각 2회)</button>
       <button id="a1Stop" class="a1-btn ghost" disabled>중지</button>
       <span style="flex:1"></span>
-      <label>전체 실행 모델 <input id="a1FullModel" class="a1-in" value="" placeholder="파일럿 후 결정" style="width:160px"></label>
-      <button id="a1RunFull" class="a1-btn ghost" disabled title="형님 결정 후 잠금 해제">🔒 전체 실행 (대상 전부 · R1 × 2회)</button>
+      <label>전체 실행 모델 <input id="a1FullModel" class="a1-in" value="claude-opus-5-5" style="width:160px"></label>
+      <button id="a1RunFull" class="a1-btn ghost" disabled title="형님 결정 후 잠금 해제">🔒 전체 실행 (대상 전부 · 선택 회차 × 2회)</button>
     </div>
     <div class="a1-bar"><div id="a1ProgBar"></div></div>
     <div id="a1Prog" class="a1-note"></div>
@@ -105,6 +108,9 @@ textarea.a1-in{width:100%;min-height:90px}
     <div class="a1-row"><button id="a1DlJson" class="a1-btn ghost">results.json 내려받기</button><button id="a1DlCsv" class="a1-btn ghost">results.csv</button><button id="a1DlMd" class="a1-btn ghost">summary.md</button></div>
   </div>
 </main>
+<div id="a1Ask" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center">
+  <div class="a1-card" style="max-width:620px;width:92%;margin:0"><div id="a1AskBody" style="font-size:13px;line-height:1.7"></div><div id="a1AskBtns" class="a1-row" style="justify-content:flex-end;margin-top:12px"></div></div>
+</div>
 </div>
 
 <script id="a1-core">
@@ -182,6 +188,7 @@ var NOTATION_RULES=[
   {id:'P1',  f:function(t){return t.replace(/\bVIET\s+NAM\b/g,'VIETNAM');}},
   {id:'P8a', f:function(t){return t.replace(/\bBILLS?\s+OF\s+LADING\b/g,'B/L');}},
   {id:'P8b', f:function(t){return t.replace(/\s+OR\s+/g,'/').replace(/\s*\/\s*/g,'/');}},
+  {id:'P-PAY', payOnly:true, f:function(t){return payNorm(t);}},   // v0.3: 지급조건 같은 뜻 (B/L · PCT · OF/THE/DATE 생략)
   {id:'R15', hsOnly:true, f:function(t){return t.replace(/(\d)[\s.]+(?=\d)/g,'$1');}},
   {id:'P10', f:function(t){return t.replace(/\s*#\s*/g,' ').replace(/\s+/g,' ').trim();}},
   {id:'PUNCT',guard:punctNearDigit,f:function(t){return t.replace(/[.,;:]/g,' ').replace(/\s+/g,' ').trim();}},
@@ -215,9 +222,10 @@ function judgeField(ans, rec, field){
   if(!r) return {verdict:'推奨なし', rules:[]};
   if(a===r) return {verdict:'完全一致', rules:['N']};
   var hs=(field==='hs_code')||/\bHS\b/.test(a)||/\bHS\b/.test(r);
+  if(PAY_FIELDS.indexOf(field)>=0){ var da=(a.match(/\d+/g)||[]).join(','), dr=(r.match(/\d+/g)||[]).join(','); if(da!==dr) return {verdict:'内容差', rules:['P-PAY-NUM']}; }   // v0.3: 지급조건 숫자가 다르면 内容差
   var used=[], punctNum=false;
   for(var i=0;i<NOTATION_RULES.length;i++){
-    var R=NOTATION_RULES[i]; if(R.hsOnly && !hs) continue;
+    var R=NOTATION_RULES[i]; if(R.hsOnly && !hs) continue; if(R.payOnly && PAY_FIELDS.indexOf(field)<0) continue;
     var a2=R.f(a), r2=R.f(r);
     if(R.guard && (a2!==a || r2!==r) && R.guard(a,r)) punctNum=true;   // 숫자 옆 구두점 차이 (80,800 / 80800 · 1.5 / 15)
     if(a2!==a || r2!==r){ used.push(R.id); a=a2; r=r2; }
@@ -577,6 +585,153 @@ function lcJsonDiff(d01, lc){
   return items.map(function(x){ return {item:x[0], d01:x[1]==null?'':String(x[1]), new_read:String(x[2]), same:x[3](x[1],x[2])?'一致':'差異'}; });
 }
 
+/* ============================================================
+   v0.3 — R2 (3단계 분리, 설계서 v0.5 · 지시서 D00_A1_시험도구v0.3_R2 v1.0)
+============================================================ */
+/* R2-① 프롬프트 — 인수는 LC 판독 결과(lcp)뿐. 쓰는 것은 본 LC · Amend 원문 텍스트와 판독 구조(view)만.
+   파일명(계약번호가 들어 있음)도 넣지 않는다. 판매계약 · 직전 S/I · 마스터 · 바이어 정보는 이 함수에 들어올 길이 없음 */
+var R2_ITEMS=[
+  ['lc_no',':20 LC番号 (MT710 は :21)'],['issue_date',':31C 発行日'],['expiry',':31D 有効期限・場所'],['latest_shipment',':44C 船積期限'],
+  ['port_loading',':44E 積地'],['port_discharge',':44F 揚地 (REFER FIELD 47A なら 47A の該当項)'],['tolerance',':39A 過不足'],
+  ['payment_term','支払条件 原文 (:42C、無ければ 46A 冒頭の文)'],['applicant_name',':50 申請人 名称'],['applicant_address',':50 申請人 住所 (47A で補足・上書きされていればそれも)'],
+  ['beneficiary',':59 受益者'],['bl_consignee','46A B/L の CONSIGNEE 指示 原文'],['bl_notify','46A B/L の NOTIFY 指示 原文'],
+  ['po','45A の PO・ORDER 番号'],['hs','45A の HS CODE'],['price_term','45A の価格条件 (CIF ○○ 等)'],['port_45A','45A の港'],['included_costs','45A の含まれる費用 (DTHC 等)']
+];
+function r2ExtractPrompt(lcp){
+  var files=(lcp&&lcp.files||[]).map(function(f,i){return '=== LC 本文'+(lcp.files.length>1?(' '+(i+1)):'')+' ===\n'+String(f.text||'');})
+    .concat((lcp&&lcp.amends||[]).map(function(a){return '=== AMEND '+a.n+' ===\n'+String(a.text||'');})).join('\n\n');
+  var items=R2_ITEMS.map(function(x){return '  "'+x[0]+'": {"value": "...", "loc": "タグ・項・行 (例 46A-2)", "quote": "原文そのまま"}   // '+x[1];}).join(',\n');
+  return '次の信用状（L/C）だけを読んで、項目を抜き出してください。L/C 以外の知識・推測で値を補ってはいけません。\n'+
+    '【規則】\n- quote は下の【L/C 原文】から一字一句そのまま写す（改行・連続空白は1つの空白にしてよい。それ以外の変更・要約・補完は禁止）。\n'+
+    '- 値が L/C に無い項目は value・loc・quote を null にする（推測禁止）。\n- 「REFER FIELD 47A」等で他の項目に回されている場合は回された先の原文を quote にする。\n'+
+    '- 出力は JSON のみ。\n\n【出力形式】\n{\n'+items+',\n  "goods": [{"grade":"...","quantity":"...","unit_price":"...","amount":"...","loc":"45A-n","quote":"..."}],\n'+
+    '  "docs": [{"doc_type":"IV|PL|B/L|INS|C/O|Q&Q|BENE_CERT|FREE_TIME_CERT|OTHER","originals":"...","copies":"...","set_fraction":"3/3 等","alt_group":"択一の相手 (無ければ null)","loc":"46A-n","quote":"..."}],\n'+
+    '  "conditions_47A": [{"no":"47A-n","quote":"..."}]\n}\n\n'+
+    '【L/C 判読構造 (参考 — 0 復元後・HEX→#)】\n'+String(lcp&&lcp.view||'')+'\n\n【L/C 原文】\n'+files;
+}
+/* 원문 검사용 정규화 — 공백 · 줄바꿈 · HEX→# · 쪽 표시 */
+function normQuote(s){
+  var t=String(s==null?'':s); try{t=t.normalize('NFKC');}catch(e){}
+  return t.toUpperCase().replace(/^\s*-{2,}\s*Page\s+\d+\s*-{2,}\s*$/gim,' ').replace(/^\s*===.*===\s*$/gm,' ').replace(HEX_RE,'#').replace(/\s+/g,' ').trim();
+}
+function quoteCheck(quote, lcRaw){
+  if(quote==null || String(quote).trim()==='') return '原文なし';
+  var q=normQuote(quote); if(!q) return '原文なし';
+  return normQuote(lcRaw).indexOf(q)>=0?'OK':'原文なし';
+}
+/* ① 결과 → 평평한 항목 지도 {path:{value,loc,quote}} */
+function flattenExtract(e){
+  var out={}; e=e||{};
+  R2_ITEMS.forEach(function(x){ var v=e[x[0]]; if(v&&typeof v==='object') out[x[0]]={value:v.value==null?null:String(v.value),loc:v.loc||'',quote:v.quote==null?null:String(v.quote)}; else if(v!=null) out[x[0]]={value:String(v),loc:'',quote:null}; });
+  (e.goods||[]).forEach(function(g,i){ ['grade','quantity','unit_price','amount'].forEach(function(f){ out['goods['+i+'].'+f]={value:g[f]==null?null:String(g[f]),loc:g.loc||'',quote:g.quote==null?null:String(g.quote)}; }); });
+  (e.docs||[]).forEach(function(d,i){ out['docs['+i+']']={value:[d.doc_type,d.originals,d.copies,d.set_fraction,d.alt_group].map(function(x){return x==null?'':String(x);}).join(' | '),loc:d.loc||'',quote:d.quote==null?null:String(d.quote)}; });
+  (e.conditions_47A||[]).forEach(function(c,i){ out['47A['+(c.no||i)+']']={value:c.quote==null?null:String(c.quote),loc:c.no||'',quote:c.quote==null?null:String(c.quote)}; });
+  return out;
+}
+/* ② 이중 판독 · 원문 검사. image=true(이미지 LC: 원문 텍스트 없음)면 원문 검사는 「イメージLC」 로 두고 두 번 일치만 봄 */
+function r2Check(e1, e2, lcRaw, image){
+  var a=flattenExtract(e1), b=flattenExtract(e2), keys={}; Object.keys(a).concat(Object.keys(b)).forEach(function(k){keys[k]=1;});
+  return Object.keys(keys).map(function(k){
+    var x=a[k]||{value:null}, y=b[k]||{value:null};
+    var agree=normV(x.value)===normV(y.value);
+    var q1=x.value==null?'—':(image?'イメージLC':quoteCheck(x.quote,lcRaw)), q2=y.value==null?'—':(image?'イメージLC':quoteCheck(y.quote,lcRaw));
+    var pass=x.value!=null && agree && (q1==='OK'||q1==='イメージLC');
+    return {item:k, value1:x.value, value2:y.value, loc:x.loc||y.loc||'', quote:x.quote, read:x.value==null&&y.value==null?'—':(agree?'一致':'判読不一致'), quote1:q1, quote2:q2, pass:pass};
+  });
+}
+/* ③-1 대조표 (코드) — 통과한 LC 값 ↔ 판매계약 · 직전 S/I · 마스터 */
+function amountNum(s){ var m=String(s==null?'':s).replace(/,/g,'').match(/\d+(?:\.\d+)?/); return m?+m[0]:null; }
+function cmpVals(a,b,numeric){
+  var A=a==null?'':String(a), B=b==null?'':String(b);
+  if(!normV(A)&&!normV(B)) return '';
+  if(!normV(A)||!normV(B)) return '片方のみ';
+  if(numeric) return amountNum(A)!=null&&amountNum(A)===amountNum(B)?'一致':'差異';
+  var na=normV(A), nb=normV(B);
+  return (na===nb||judgeField(A,B,'x').verdict==='表記差')?'一致':'差異';
+}
+function r2Reconcile(checks, compass){
+  var lc={}; (checks||[]).forEach(function(c){ if(c.pass) lc[c.item]=c; });
+  var c=compass||{}, k=c.contract||{}, p=(c.prior||{}), rows=[];
+  var add=function(item,src,cv,numeric){ var v=lc[item]?lc[item].value1:null; var r=cmpVals(v,cv,numeric); if(!r) return; rows.push({item:item, lc_value:v==null?'':v, lc_loc:lc[item]?lc[item].loc:'', compass_src:src, compass_value:cv==null?'':String(cv), result:r}); };
+  add('applicant_name','販売契約 buyer_name',k.buyerName);
+  add('applicant_name','直前SI '+(p.no||'')+' sino1 notify_party',p.s1&&p.s1.crcf9_notify_party);
+  add('applicant_address','直前SI '+(p.no||'')+' sino1 address',p.s1&&p.s1.crcf9_address);
+  add('payment_term','販売契約 pay_days',k.payDays);
+  add('payment_term','直前SI '+(p.no||'')+' payment_deadline',p.s1&&p.s1.crcf9_payment_deadline);
+  add('price_term','販売契約 terms_conditions',k.terms);
+  add('price_term','直前SI '+(p.no||'')+' payment_terms',p.s1&&p.s1.cr49f_payment_terms);
+  add('port_discharge','販売契約 POD',k.pod);
+  add('port_discharge','直前SI '+(p.no||'')+' place_of_delivery_1',p.s1&&p.s1.crcf9_place_of_delivery_1);
+  add('po','販売契約 po_no',k.poNo);
+  add('po','直前SI '+(p.no||'')+' po_vo',p.s1&&p.s1.crcf9_po_vo);
+  add('bl_consignee','直前SI '+(p.no||'')+' consignee',p.s1&&p.s1.crcf9_consignee);
+  add('hs','マスター hscode',(c.masterHs||[]).map(function(r){return r.hs||r.hs_code||JSON.stringify(r);}).join(' / '));
+  (k.details||[]).forEach(function(d,i){ add('goods['+i+'].quantity','販売契約 明細'+(i+1)+' 数量 ('+(d.item||'')+')',d.quantity,true); add('goods['+i+'].unit_price','販売契約 明細'+(i+1)+' 単価 ('+(d.item||'')+')',d.price,true); });
+  if(k.no){ var inLc=normQuote(c.lcRaw||'').indexOf(normQuote(k.no))>=0; rows.push({item:'contract_no',lc_value:inLc?k.no:'',lc_loc:inLc?'L/C 本文':'',compass_src:'販売契約 contract_no',compass_value:k.no,result:inLc?'一致':'片方のみ'}); }
+  return rows;
+}
+/* ③-3 출처 검사 — source=LC 인 칸의 값(또는 핵심 부분)이 통과 quote 안에 있는가 */
+function sourceCheck(value, source, passedQuotes){
+  if(!/^LC/i.test(String(source||''))) return '';
+  var v=String(value==null?'':value); if(!normV(v)) return '';
+  var hay=normQuote((passedQuotes||[]).join(' \u0001 '));
+  var segs=v.split(/\*\*\*|#|\r?\n| \/ /).map(function(s){return normQuote(s).replace(/^[\s,.;:]+|[\s,.;:]+$/g,'');}).filter(function(s){return s.replace(/[^A-Z0-9]/g,'').length>=3 && !/^X+$/.test(s.replace(/\s/g,''));});
+  if(!segs.length) return '';
+  var tok=function(x){ return x.split(/[^A-Z0-9]+/).filter(Boolean).map(function(t){return /^\d+$/.test(t)?String(+t):t;}); };
+  var hayTok={}; tok(hay).forEach(function(t){hayTok[t]=1;});
+  // 핵심 부분: 통째로 있으면 OK. 아니면 ① 숫자가 든 토큰(3자 이상 · 앞 0 무시)이 전부 있으면 OK (예: 「ILC… DATED ON APR 07, 2026」 = :20 + :31C)
+  //           ② 숫자 토큰이 없으면 4자 이상 영문 낱말의 60% 이상이 있으면 OK (예: VIET NAM / VIETNAM 표기 차이)
+  var segOk=function(sg){
+    if(hay.indexOf(sg)>=0) return true;
+    var ts=tok(sg), dig=ts.filter(function(t){return /\d/.test(t)&&t.length>=3;});
+    if(dig.length) return dig.every(function(t){return !!hayTok[t];});
+    var al=ts.filter(function(t){return /^[A-Z]{4,}$/.test(t);}); if(!al.length) return true;
+    return al.filter(function(t){return !!hayTok[t];}).length/al.length>=0.6;
+  };
+  return segs.every(segOk)?'OK':'出典不一致';
+}
+/* ── v0.3 명세 짝짓기 — 줄 순서가 아니라 품목끼리 (등급 약호 · 품명 유사도) ── */
+var GRADE_RE=/\b(J?ONP|J?OMG|J?OCC|J?SOP\d?|J?OINP|J?INP|MIX|CBS|DLK|NCC|KLS|SCN|UBC|SWL|CCN|KCB|NP|MG)\b/g;
+function gradesOf(s){ return (String(s||'').toUpperCase().match(GRADE_RE)||[]).map(function(g){return g.replace(/^J(?=ONP|OMG|OCC|SOP|OINP|INP)/,'');}); }
+function detailScore(a, b){
+  var ga=gradesOf(a.crcf9_productname), gb=gradesOf(b.crcf9_productname);
+  var g=ga.length&&gb.length?(ga.some(function(x){return gb.indexOf(x)>=0;})?1:-1):0;
+  var ta=normV(a.crcf9_productname).split(/[^A-Z0-9]+/).filter(Boolean), tb=normV(b.crcf9_productname).split(/[^A-Z0-9]+/).filter(Boolean);
+  var inter=ta.filter(function(x){return tb.indexOf(x)>=0;}).length, uni=ta.length+tb.length-inter;
+  return g*2+(uni?inter/uni:0);
+}
+/* → [{ai, ri}] 정답 줄마다 짝 (없으면 ri=-1). 점수 높은 쌍부터 욕심쟁이 방식 */
+function pairDetails(ans, rec){
+  var pairs=[]; (ans||[]).forEach(function(a,i){ (rec||[]).forEach(function(r,j){ pairs.push({i:i,j:j,s:detailScore(a,r)}); }); });
+  pairs.sort(function(x,y){return y.s-x.s || x.i-y.i || x.j-y.j;});
+  var usedA={}, usedR={}, out=(ans||[]).map(function(_,i){return {ai:i,ri:-1};});
+  pairs.forEach(function(p){ if(usedA[p.i]||usedR[p.j]||p.s<0) return; usedA[p.i]=usedR[p.j]=1; out[p.i].ri=p.j; });
+  return out;
+}
+/* ── v0.3 P-PAY — 지급조건 문구 같은 뜻 (숫자가 다르면 内容差) ── */
+var PAY_FIELDS=['payment_deadline','payment_terms'];
+function payNorm(t){
+  return String(t).replace(/\bBILLS?\s+OF\s+LADING\b/g,'B/L').replace(/\bB\/L\s+DATE\b/g,'B/L').replace(/(\d)\s*(?:PERCENT|PCT|%)/g,'$1PCT').replace(/\b(?:PERCENT|PCT)\b|%/g,'PCT')
+    .replace(/\b(?:OF|THE|DATE)\b/g,' ').replace(/\s+/g,' ').trim();
+}
+/* ── v0.3 auto_cat — 内容差 자동 분류 ── */
+function digitTokens(s){ return (normV(s).match(/[A-Z0-9][A-Z0-9\-\/.]*\d[A-Z0-9\-\/.]*|\d[A-Z0-9\-\/.]*/g)||[]).map(function(t){return t.replace(/[.\-\/]+$/,'');}).filter(function(t){return t.length>=3;}); }
+function autoCat(row, sourcesText, priorValue){
+  if(row.verdict!=='内容差') return '';
+  var cats=[], src=normV(sourcesText), compact=src.replace(/[\s.\-,\/]/g,'');
+  var miss=digitTokens(row.answer).filter(function(t){ return src.indexOf(t)<0 && compact.indexOf(t.replace(/[\s.\-,\/]/g,''))<0; });
+  if(miss.length) cats.push('E5_入力外番号');
+  if(priorValue!=null && normV(priorValue) && normV(priorValue)===normV(row.answer)) cats.push('E4_前回維持');
+  if(row.after_etd) cats.push('ETD後修正');
+  return cats.join('+');
+}
+/* ── v0.3 추정 비용 (확인 상자용) ── */
+function estimateCost(plan, price){
+  var tot=0, lines=[];
+  plan.forEach(function(p){ var pr=price[p.model]; var c=pr?(p.calls*(p.inTok*pr[0]+p.outTok*pr[1])/1e6):0; tot+=c; lines.push({label:p.label,model:p.model,calls:p.calls,cost:c,priced:!!pr}); });
+  return {total:tot, lines:lines};
+}
+
 /* ── 집계 ── */
 function accuracy(rows){
   var c={n:0,完全一致:0,表記差:0,内容差:0,推奨なし:0,正解なし:0,両方空:0};
@@ -593,6 +748,8 @@ return {HEAD_FIELDS:HEAD_FIELDS, DETAIL_FIELDS:DETAIL_FIELDS, IMPORTANT:IMPORTAN
   orderMessages:orderMessages, splitClauses:splitClauses, mergeTags:mergeTags, findForwarding:findForwarding, bankKeyOf:bankKeyOf, lcNoOf:lcNoOf,
   applyAmends:applyAmends, analyzeLcTexts:analyzeLcTexts, parseLcFileName:parseLcFileName, groupOf:groupOf, pickPilot:pickPilot,
   extractJson:extractJson, accuracy:accuracy, toCsv:toCsv, SWIFT_TAGS:SWIFT_TAGS,
+  R2_ITEMS:R2_ITEMS, r2ExtractPrompt:r2ExtractPrompt, normQuote:normQuote, quoteCheck:quoteCheck, flattenExtract:flattenExtract, r2Check:r2Check, r2Reconcile:r2Reconcile,
+  sourceCheck:sourceCheck, pairDetails:pairDetails, gradesOf:gradesOf, payNorm:payNorm, PAY_FIELDS:PAY_FIELDS, autoCat:autoCat, digitTokens:digitTokens, estimateCost:estimateCost,
   formatTags:formatTags, branchKeyOf:branchKeyOf, branchCompare:branchCompare, punctNearDigit:punctNearDigit, BRANCH_FIELDS:['consignee','notify_party'], classifyChange:classifyChange, siChanges:siChanges, swiftDate:swiftDate, lcJsonDiff:lcJsonDiff, LAYER_MIN:3};
 })();
 
@@ -1231,8 +1388,9 @@ const A1_AKEY        = 'leenai_apikey_v1';           // D-01 と同じ保存場�
 const a1Version = () => (document.title.match(/v([\d.]+)\s*$/)||[])[1]||'';   // 버전은 LEENAI.init 1곳 (공통 파일이 title 에 넣는다 — 실행 시점에 읽음)
 const A1_FULL_RUN_UNLOCKED = false;                   // 지시서 범위: 파일럿까지. 전체 실행은 형님 결정 후
 const A1_R0_MODEL    = 'claude-sonnet-4-6';           // D-01 v3.2 _callApiCore 의 모델
-const A1_DEFAULT_MODELS = ['claude-sonnet-4-6','claude-opus-5-5','claude-fable-5-2'];
-const A1_PRICE = {'claude-sonnet-4-6':[3,15],'claude-opus-5-5':[4,20],'claude-fable-5-2':[10,50],'claude-fable-5-1':[10,50]};  // US$/1M (입력, 출력) — 화면에서 고칠 수 있음
+const A1_DEFAULT_MODEL = 'claude-opus-5-5';           // v0.3: 형님 결정 D1 「그냥 opus로」
+const A1_PRICE_DATE = '2026-11-09';                   // 단가표 기준일 (실제 청구는 Anthropic 콘솔)
+const A1_PRICE = {'claude-opus-5-5':[4,20],'claude-fable-5-2':[8,40],'claude-sonnet-4-6':[3,15],'claude-sonnet-5-5':[2,10]};  // US$/1M (입력, 출력) — v0.3 지시서 Step 4-4, 화면에서 고칠 수 있음
 
 const S = { contracts:[], byNo:{}, buyers:{}, lcFiles:{}, lcParsed:{}, siByContract:{}, targets:[], excluded:[], fileIssues:[],
   fieldCheck:null, shapeBank:{}, pilot:[], running:false, stop:false, run:null };
@@ -1415,6 +1573,24 @@ async function callClaude(body, label){
     return {text, usage, stop, stopDetails, model, ms:Math.round(performance.now()-t0), attempts:attempt+1};
   }
   const e=new Error('재시도 한도 초과: '+(lastErr&&lastErr.message)); e.api=lastErr; throw e;
+}
+
+/* JSON 응답 받기 — 해석 실패면 「JSON のみ」 를 덧붙여 1회 재시도 (v0.3 Step 4-5). 그래도 실패면 오류 */
+const A1_JSON_RETRY_NOTE='\n\n【再指示】前の応答を JSON として読めませんでした。指定の形式の JSON だけを出力してください（前置き・説明・コードブロック不要）。';
+async function callJson(body, label){
+  const calls=[]; let r=await callClaude(body,label);
+  calls.push({usage:r.usage,ms:r.ms,stop:r.stop,attempts:r.attempts,servedModel:r.model});
+  if(r.stop==='refusal'){ const e=new Error('refusal '+JSON.stringify(r.stopDetails||{})); e.api={type:'refusal'}; e.calls=calls; throw e; }
+  let j=A1C.extractJson(r.text);
+  if(!j){
+    logLine(label+': JSON 해석 실패 → 1회 재시도','warn');
+    const b2=JSON.parse(JSON.stringify(body)); const m=b2.messages[b2.messages.length-1];
+    if(typeof m.content==='string') m.content+=A1_JSON_RETRY_NOTE; else m.content.push({type:'text',text:A1_JSON_RETRY_NOTE});
+    r=await callClaude(b2,label+' (再試行)'); calls.push({usage:r.usage,ms:r.ms,stop:r.stop,attempts:r.attempts,servedModel:r.model,retry:true});
+    j=A1C.extractJson(r.text);
+    if(!j){ const e=new Error('JSON 해석 실패 (재시도 후)'); e.calls=calls; e.rawText=String(r.text||'').slice(0,20000); throw e; }
+  }
+  return {json:j, calls, text:r.text, stop:r.stop, retried:calls.length>1};
 }
 
 /* ============================================================
@@ -1644,22 +1820,24 @@ async function buildR1Input(t, lcp, opts){
   "notes": "L/C と直前 S/I の違いで判断に迷った点（日本語・短く）"
 }
 - 全ての欄を出力する（空なら value は ""）。値の中の改行は \\n。`;
-  const text=`【販売契約 (COMPASS)】\n${contractTxt}\n\n${lcp.view}\n\n【L/C 原文 (0 復元後。Amend も含む)】\n${lcp.rawRestored.replace(/HEX/g,'#')}\n\n${priorTxt.join('\n\n')||'【直前 S/I なし】同じバイヤーの前の契約に S/I がない（初回）'}\n\n【マスター】\n${masterTxt}\n\n【関行 (検証済みの書き方)】\n${practices}\n\n【L/C 要件の種類 → S/I 欄 (カタログ要約)】\n${catalog}\n${instr}`;
+  const text=`【販売契約 (COMPASS)】\n${contractTxt}\n\n${lcp.view}\n\n【L/C 原文 (0 復元後。Amend も含む)】\n${A1C.hexToHash(lcp.rawRestored).text}\n\n${priorTxt.join('\n\n')||'【直前 S/I なし】同じバイヤーの前の契約に S/I がない（初回）'}\n\n【マスター】\n${masterTxt}\n\n【関行 (検証済みの書き方)】\n${practices}\n\n【L/C 要件の種類 → S/I 欄 (カタログ要約)】\n${catalog}\n${instr}`;
   const content=[];
   if(lcp.image){ for(const x of lcp._base.concat(lcp._amends)) if(x.image) content.push({type:'document',source:{type:'base64',media_type:'application/pdf',data:await b64(x.file)}}); }
   content.push({type:'text',text, cache_control:{type:'ephemeral'}});
   // 숫자 근거 원문: LC 원문 + 직전 S/I(같은 은행·참고) + 판매계약
   const grounding=[lcp.rawRestored, lcp.view, contractTxt, priorTxt.join('\n')].join('\n');
-  return {content, grounding, priors:{same:pr.same.map(p=>p.no), other:pr.other.map(p=>p.no)}, promptChars:text.length};
+  return {content, grounding, priors:{same:pr.same.map(p=>p.no), other:pr.other.map(p=>p.no)}, priorSame:pr.same, promptChars:text.length,
+    contract:{no:c.no,buyerName:c.buyerName,payDays:c.payDays,terms:c.terms,pod:c.pod,poNo:c.poNo,details:det.map(d=>({item:FV(d,'_cr49f_item_id_value'),quantity:d.cr49f_quantity,price:d.cr49f_price}))},
+    priorTxt:priorTxt.join('\n\n'), masterTxt, masterHs:hs, practices, catalog, fieldsSpec, priorSinos};
 }
 async function runR1(t, input, model, rep, opts){
   const rec={round:'R1', model, rep, calls:[], notes:[]};
   const body={model, max_tokens:opts.maxTokens, system:R1_SYSTEM, thinking:{type:'adaptive'}, output_config:{effort:opts.effort}, messages:[{role:'user',content:input.content}]};
-  const r=await callClaude(body, `${t.no} R1 ${model} #${rep}`);
-  rec.calls.push({step:'r1',usage:r.usage,ms:r.ms,stop:r.stop,attempts:r.attempts,servedModel:r.model});
-  if(r.stop==='refusal'){ const e=new Error('refusal '+JSON.stringify(r.stopDetails||{})); e.api={type:'refusal'}; throw e; }
-  if(r.stop==='max_tokens') rec.notes.push('max_tokens 에서 끊김');
-  const j=A1C.extractJson(r.text); if(!j){ rec.rawText=r.text.slice(0,20000); throw new Error('R1 JSON 해석 실패'); }
+  const cj=await callJson(body, `${t.no} R1 ${model} #${rep}`);
+  cj.calls.forEach(c=>rec.calls.push(Object.assign({step:'r1'},c)));
+  if(cj.retried) rec.notes.push('JSON 해석 실패 → 재시도로 성공');
+  if(cj.stop==='max_tokens') rec.notes.push('max_tokens 에서 끊김');
+  const j=cj.json;
   rec.sinos={}; rec.basis={}; rec.rejected=[];
   (j.sinos||[]).forEach(s=>{
     const sn=+s.sino; if(!(sn>=1&&sn<=4)) return; rec.sinos[sn]={}; rec.basis[sn]={};
@@ -1677,6 +1855,64 @@ async function runR1(t, input, model, rep, opts){
 }
 
 /* ============================================================
+   R2 — 3단계 분리 (설계서 v0.5 · 형님 결정 D2 · D3)
+   ① LC만 읽기 (×2) → ② 이중 판독 · 원문 검사 (코드) → ③ 대조표 (코드) + S/I 조립 (AI ×2) + 출처 검사 (코드)
+============================================================ */
+const R2_EXTRACT_SYSTEM=`あなたは信用状（L/C）の判読担当です。与えられた L/C の原文だけを根拠に項目を抜き出します。L/C 以外の情報（会社の記録・一般知識・推測）は使いません。出力は JSON のみ。`;
+const R2_ASSEMBLE_SYSTEM=`あなたは LEENEAR CORPORATION（日本の古紙輸出商社）の L/C 書類担当のベテランです。
+L/C から検証済みで抜き出した値・COMPASS との照合表・直前 S/I（形式と関行の参考）・マスターから、COMPASS の S/I（sino 1・2 の各欄と明細）を組み立てます。
+
+【優先順位】L/C 原文 > 直前 S/I の形式・関行 > マスター。Notify Party・住所は L/C :50 の原文を最優先（COMPASS のバイヤー名・住所で置き換えない）。
+【出典】欄ごとに source を必ず付ける: LC(loc) | PRIOR(契約番号) | MASTER | CONTRACT | PLACEHOLDER
+【番号】入力に無い番号は作らない。VO 番号が無いときは "XX"、Deposit 番号は S/I では常に "XX"（形式は直前 S/I に合わせる）。
+【差異】L/C と COMPASS（照合表で 差異）が違うときは選ばない: L/C の値を入れ、note に両方の値を書く。
+【形式】欄の使い方・区切り（***・#・改行）・sino の構成は直前 S/I に合わせる。値の中身は L/C から。前の契約の番号・日付・数量はコピーしない。
+出力は JSON のみ。`;
+function r2LcInput(lcp){   // ① 에 넘기는 것은 LC 원문 텍스트와 판독 구조뿐 (파일명 · COMPASS 없음)
+  return {view:lcp.view, files:lcp._base.map(x=>({text:x.text})), amends:lcp._amends.map(x=>({n:x.n,text:x.text}))};
+}
+function r2RawForCheck(lcp){ return lcp._base.map(x=>x.text).concat(lcp._amends.map(x=>x.text)).join('\n'); }
+async function runR2Extract(t, lcp, opts, rep){
+  const content=[];
+  if(lcp.image){ for(const x of lcp._base.concat(lcp._amends)) if(x.image) content.push({type:'document',source:{type:'base64',media_type:'application/pdf',data:await b64(x.file)}}); }
+  content.push({type:'text',text:A1C.r2ExtractPrompt(r2LcInput(lcp)),cache_control:{type:'ephemeral'}});
+  const body={model:opts.r2Model,max_tokens:opts.maxTokens,system:R2_EXTRACT_SYSTEM,thinking:{type:'adaptive'},output_config:{effort:opts.effort},messages:[{role:'user',content}]};
+  return callJson(body,`${t.no} R2① LC判読 #${rep}`);
+}
+function r2CompassFor(t, input, lcp){
+  const p=input.priorSame[0]; const sis=p?(S.siByContract[p.no]||[]):[];
+  return {contract:input.contract, prior:{no:p?p.no:'', s1:sis.find(h=>h.crcf9_sino===1)||null, s2:sis.find(h=>h.crcf9_sino===2)||null}, masterHs:input.masterHs, lcRaw:r2RawForCheck(lcp)};
+}
+async function runR2Assemble(t, r2, input, opts, rep){
+  const passed=r2.checks.filter(c=>c.pass).map(c=>({item:c.item,value:c.value1,loc:c.loc,quote:c.quote}));
+  const unsure=r2.checks.filter(c=>!c.pass && c.read!=='—').map(c=>({item:c.item,value1:c.value1,value2:c.value2,read:c.read,quote_check:c.quote1}));
+  const recon=r2.recon.map(r=>`${r.item} | LC: ${r.lc_value} (${r.lc_loc}) | ${r.compass_src}: ${r.compass_value} | ${r.result}`).join('\n');
+  const text=`【L/C から抜き出し・検証済みの値 (2回の判読が一致し、原文にそのままあるもの) — source=LC に使えるのはこれだけ】\n${JSON.stringify(passed,null,1)}\n\n`+
+    `【未確定 (判読不一致・原文なし) — LC の値として使わない。参考のみ】\n${JSON.stringify(unsure,null,1)}\n\n`+
+    `【照合表 (L/C 値 ↔ COMPASS) — コードで作成】\n${recon||'(なし)'}\n\n`+
+    `${input.priorTxt||'【直前 S/I なし】同じバイヤーの前の契約に S/I がない（初回）'}\n\n【マスター】\n${input.masterTxt}\n\n【関行 (検証済みの書き方)】\n${input.practices}\n\n【L/C 要件の種類 → S/I 欄 (カタログ要約)】\n${input.catalog}\n`+
+    `\n【作成する S/I】\n- sino: ${input.priorSinos.length?('直前 S/I と同じ構成 → sino '+input.priorSinos.join('・')):'直前 S/I がないため、ベトナム向けは sino 1+2、それ以外は sino 1 のみ'}\n- 各 sino の欄: ${input.fieldsSpec}\n- 明細: crcf9_productname, crcf9_hs_code\n\n`+
+    `【出力形式】JSON のみ\n{\n  "sinos": [ { "sino": 1, "fields": { "<欄名>": {"value": "...", "source": "LC(46A-2) | PRIOR(LRS-…) | MASTER | CONTRACT | PLACEHOLDER", "note": "差異・判断 (短く)"} } } ],\n  "details": [ { "crcf9_productname": {"value":"...","source":"...","note":""}, "crcf9_hs_code": {"value":"...","source":"...","note":""} } ],\n  "notes": "..."\n}\n- 全ての欄を出力する（空なら value は ""）。値の中の改行は \\n。`;
+  const body={model:opts.r2Model,max_tokens:opts.maxTokens,system:R2_ASSEMBLE_SYSTEM,thinking:{type:'adaptive'},output_config:{effort:opts.effort},messages:[{role:'user',content:[{type:'text',text,cache_control:{type:'ephemeral'}}]}]};
+  const cj=await callJson(body,`${t.no} R2③ 組立 #${rep}`);
+  const rec={round:'R2',model:opts.r2Model,rep,calls:cj.calls.map(c=>Object.assign({step:'r2_assemble'},c)),notes:cj.retried?['JSON 해석 실패 → 재시도로 성공']:[],sinos:{},basis:{},rejected:[],sourceIssues:[]};
+  const quotes=passed.map(x=>x.quote||x.value).filter(Boolean);
+  (cj.json.sinos||[]).forEach(sx=>{ const sn=+sx.sino; if(!(sn>=1&&sn<=4)) return; rec.sinos[sn]={}; rec.basis[sn]={};
+    Object.keys(sx.fields||{}).forEach(col=>{ const f=sx.fields[col]||{}; let v=f.value==null?'':String(f.value);
+      const sc=A1C.sourceCheck(v,f.source,quotes); const bad=A1C.ungroundedNumbers(v,input.grounding);
+      rec.basis[sn][col]={basis:[f.source,f.note].filter(Boolean).join(' / '),source:f.source||'',source_check:sc,confidence:''};
+      if(sc==='出典不一致') rec.sourceIssues.push({sino:sn,col,value:v,source:f.source||''});
+      if(bad.length){ rec.rejected.push({sino:sn,col,value:v,numbers:bad}); rec.basis[sn][col].rejected=bad; v=''; }
+      rec.sinos[sn][col]=v; }); });
+  rec.details=(cj.json.details||[]).map(d=>{ const o={}; A1C.DETAIL_FIELDS.forEach(([s2,col])=>{ const f=d[col]||{}; let v=f.value==null?'':String(f.value); const sc=A1C.sourceCheck(v,f.source,quotes);
+      if(sc==='出典不一致') rec.sourceIssues.push({sino:'detail',col,value:v,source:f.source||''});
+      const bad=A1C.ungroundedNumbers(v,input.grounding); if(bad.length){ rec.rejected.push({sino:'detail',col,value:v,numbers:bad}); v=''; }
+      o[col]=v; o[col+'__basis']=[f.source,f.note].filter(Boolean).join(' / '); o[col+'__source']=f.source||''; o[col+'__sc']=sc; }); return o; });
+  rec.aiNotes=cj.json.notes||'';
+  return rec;
+}
+
+/* ============================================================
    Step 4 — 비교 · 판정
 ============================================================ */
 function compareRun(t, answerSis, rec){
@@ -1689,17 +1925,19 @@ function compareRun(t, answerSis, rec){
       const a=ans[col]==null?'':String(ans[col]), r=recS?(recS[col]==null?'':String(recS[col])):'';
       const j=A1C.judgeField(a,r,s);
       const b=(rec.basis&&rec.basis[sn]&&rec.basis[sn][col])||{};
-      rows.push({contract:t.no,sino:+sn,field:s,col,important:A1C.IMPORTANT.indexOf(s)>=0,answer:a,rec:r,verdict:j.verdict,rules:j.rules.join('+'),basis:b.basis||'',confidence:b.confidence||'',rejected:(b.rejected||[]).join(' ')});
+      rows.push({contract:t.no,sino:+sn,field:s,col,important:A1C.IMPORTANT.indexOf(s)>=0,answer:a,rec:r,verdict:j.verdict,rules:j.rules.join('+'),basis:b.basis||'',confidence:b.confidence||'',rejected:(b.rejected||[]).join(' '),source:b.source||'',source_check:b.source_check||''});
     });
   });
-  // 명세: 정답 sino 1 의 명세 순서대로
+  // 명세: v0.3 — 줄 순서가 아니라 품목끼리 짝지어 비교 (등급 약호 · 품명 유사도)
   const ansD=((ansBySino[1]||ansBySino[2]||{})._details)||[];
-  ansD.forEach((d,i)=>{ const rd=(rec.details||[])[i]||{};
+  const pairs=A1C.pairDetails(ansD, rec.details||[]);
+  ansD.forEach((d,i)=>{ const pi=pairs[i].ri, rd=pi>=0?(rec.details[pi]||{}):{};
     A1C.DETAIL_FIELDS.forEach(([s,col])=>{ const a=d[col]==null?'':String(d[col]), r=rd[col]==null?'':String(rd[col]); const j=A1C.judgeField(a,r,s);
-      rows.push({contract:t.no,sino:'明細'+(i+1),field:s,col,important:A1C.IMPORTANT.indexOf(s)>=0,answer:a,rec:r,verdict:j.verdict,rules:j.rules.join('+'),basis:rd[col+'__basis']||'',confidence:'',rejected:''}); });
+      rows.push({contract:t.no,sino:'明細'+(i+1),field:s,col,important:A1C.IMPORTANT.indexOf(s)>=0,answer:a,rec:r,verdict:j.verdict,rules:j.rules.join('+'),basis:rd[col+'__basis']||'',confidence:'',rejected:'',source:rd[col+'__source']||'',source_check:rd[col+'__sc']||'',paired:pi>=0?('推奨'+(pi+1)+'行'):'対応なし'}); });
   });
   return rows;
 }
+function sumUsage(calls){ const u={}; (calls||[]).forEach(c=>Object.keys(c.usage||{}).forEach(k=>{ if(typeof c.usage[k]==='number') u[k]=(u[k]||0)+c.usage[k]; })); return u; }
 /* 규칙으로 정해지지 않은 차이 → AI 판정 (근거 문구 필수, 계약마다 1회 · 같은 쌍은 1번만) */
 async function aiJudge(t, pending, opts){
   if(!pending.length) return {};
@@ -1712,9 +1950,9 @@ async function aiJudge(t, pending, opts){
 出力は JSON のみ: {"results":[{"id":1,"verdict":"表記差|内容差","reason":"日本語1文","evidence":"違う部分をそれぞれ原文から引用（例: 正解『VIET NAM』 / 推奨『VIETNAM』）"}]}
 
 ${items.map(x=>`[${x.id}] 欄=${x.field}\n正解: ${JSON.stringify(x.answer)}\n推奨: ${JSON.stringify(x.rec)}`).join('\n\n')}`;
-  const r=await callClaude({model:opts.judgeModel,max_tokens:16000,thinking:{type:'adaptive'},output_config:{effort:'high'},messages:[{role:'user',content:prompt}]},t.no+' AI判定');
-  const j=A1C.extractJson(r.text)||{results:[]};
-  const out={_usage:r.usage,_ms:r.ms};
+  const cj=await callJson({model:opts.judgeModel,max_tokens:16000,thinking:{type:'adaptive'},output_config:{effort:'high'},messages:[{role:'user',content:prompt}]},t.no+' AI判定');
+  const j=cj.json||{results:[]}; const last=cj.calls[cj.calls.length-1];
+  const out={_usage:sumUsage(cj.calls),_ms:cj.calls.reduce((a,c)=>a+(c.ms||0),0)};
   (j.results||[]).forEach(x=>{ const it=items.find(y=>y.id===+x.id); if(it) out[it.key]=x; });
   return out;
 }
@@ -1733,24 +1971,45 @@ function applyJudge(rows, judged){
 ============================================================ */
 function readOpts(){
   const models=[$('a1M1').value,$('a1M2').value,$('a1M3').value].map(s=>s.trim()).filter(Boolean);
-  return {models, reps:2, effort:$('a1Effort').value, maxTokens:+$('a1MaxTok').value||32000, judgeModel:$('a1Judge').value.trim(),
+  const rounds=$('a1Rounds').value;   // v0.3: R1 / R2 / R1R2 (R0 제외)
+  return {models:/R1/.test(rounds)?models:[], useR2:/R2/.test(rounds), rounds, r2Model:$('a1R2Model').value.trim()||A1_DEFAULT_MODEL, withR0:false,
+    reps:2, effort:$('a1Effort').value, maxTokens:+$('a1MaxTok').value||32000, judgeModel:$('a1Judge').value.trim(),
     r0Source:$('a1R0Src').value, priorN:+$('a1PriorN').value||2, conc:+$('a1Conc').value||3};
+}
+/* v0.3: 페이지 안 확인 상자 (confirm()/alert() 는 탭을 멈춰 브라우저 자동화가 끊김) → 누른 버튼의 번호 */
+function askBox(html, buttons){
+  return new Promise(res=>{ const box=$('a1Ask'); $('a1AskBody').innerHTML=html; const bt=$('a1AskBtns'); bt.innerHTML='';
+    (buttons||['OK']).forEach((label,i)=>{ const b=document.createElement('button'); b.className='a1-btn'+(i?' ghost':''); b.id='a1AskBtn'+i; b.textContent=label;
+      b.onclick=()=>{ box.style.display='none'; res(i); }; bt.appendChild(b); });
+    box.style.display='flex'; });
+}
+/* 예상 호출 수 · 추정 비용 (파일럿 실측: Opus 5.5 R1 1회 약 US$0.14 — 입력 약 15천 · 출력 약 8천 토큰으로 가정) */
+function planOf(n, opts){
+  const plan=[]; opts.models.forEach(m=>plan.push({label:'R1 '+m,model:m,calls:n*opts.reps,inTok:15000,outTok:8000}));
+  if(opts.useR2){ plan.push({label:'R2① LC 판독 ×2',model:opts.r2Model,calls:n*2,inTok:12000,outTok:6000}); plan.push({label:'R2③ S/I 조립 ×2',model:opts.r2Model,calls:n*2,inTok:15000,outTok:8000}); }
+  if(opts.judgeModel) plan.push({label:'AI 판정',model:opts.judgeModel,calls:n,inTok:5000,outTok:3000});
+  return A1C.estimateCost(plan, A1_PRICE);
 }
 function runId(kind){ const d=new Date(), p=n=>String(n).padStart(2,'0'); return `A1_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}_${kind}`; }
 async function runBench(kind){
   if(S.running) return;
-  if(kind==='full' && !A1_FULL_RUN_UNLOCKED){ alert('전체 실행은 잠겨 있습니다 (지시서 범위: 파일럿까지 — 형님 결정 후 잠금 해제)'); return; }
-  if(!gk()){ alert('Anthropic API 키를 먼저 저장하세요.'); return; }
+  if(kind==='full' && !A1_FULL_RUN_UNLOCKED){ await askBox('전체 실행은 잠겨 있습니다 (형님 결정 후 잠금 해제)',['確認']); return; }
+  if(!gk()){ await askBox('Anthropic API 키를 먼저 저장하세요.',['確認']); return; }
   const nos=kind==='full'?S.targets.map(t=>t.no):$('a1PilotList').value.split(/[\s,]+/).map(s=>s.trim().toUpperCase()).filter(Boolean);
   const targets=nos.map(no=>S.targets.find(t=>t.no===no)).filter(Boolean);
   const missing=nos.filter(no=>!S.targets.find(t=>t.no===no));
-  if(!targets.length){ alert('대상이 없습니다. 먼저 「대상 목록」 을 만드세요.'); return; }
-  if(missing.length && !confirm('대상 목록에 없는 계약은 건너뜁니다: '+missing.join(', ')+'\n계속할까요?')) return;
+  if(!targets.length){ await askBox('대상이 없습니다. 먼저 「대상 목록」 을 만드세요.',['確認']); return; }
+  if(missing.length && (await askBox('대상 목록에 없는 계약은 건너뜁니다: '+escH(missing.join(', '))+'<br>계속할까요?',['계속','취소']))!==0) return;
   const opts=readOpts();
-  if(kind==='full'){ opts.models=[$('a1FullModel').value.trim()].filter(Boolean); opts.withR0=false; }   // v1.2: 전체 = 대상 전부(이미지 LC · Amend 포함) × R1 × 2회 (모델은 파일럿 후 형님 결정)
-  else opts.withR0=true;
-  const jobsPer=(opts.withR0?1:0)+opts.models.length*opts.reps;
-  if(!confirm(`${kind==='pilot'?'파일럿':'전체'} 실행: ${targets.length}건 × (${opts.withR0?'R0 1 + ':''}R1 ${opts.models.length}모델 × ${opts.reps}회) = 추천 ${targets.length*jobsPer}회 + AI 판정\nAPI 비용이 발생합니다. 실행할까요?`)) return;
+  if(kind==='full'){ const fm=$('a1FullModel').value.trim()||A1_DEFAULT_MODEL; if(opts.models.length) opts.models=[fm]; opts.r2Model=fm; }   // 전체 = 대상 전부(이미지 LC · Amend 포함) × 선택 회차 × 2회
+  const jobsPer=(opts.withR0?1:0)+opts.models.length*opts.reps+(opts.useR2?3:0);
+  if(!jobsPer){ await askBox('실행할 회차가 없습니다 (R1 모델 칸이 비어 있음).',['確認']); return; }
+  const est=planOf(targets.length,opts);
+  const ok=await askBox(`<b>${kind==='pilot'?'파일럿':'전체'} 실행</b> — ${targets.length}건 · 회차 ${escH(opts.rounds.replace('R1R2','R1+R2'))}<br>`+
+    `<table class="a1-t"><tr><th>회차</th><th>모델</th><th>예상 호출</th><th>추정 US$</th></tr>`+est.lines.map(l=>`<tr><td>${escH(l.label)}</td><td>${escH(l.model)}</td><td>${l.calls}</td><td>${l.priced?l.cost.toFixed(2):'단가 없음'}</td></tr>`).join('')+
+    `<tr><td colspan="2"><b>합계</b></td><td>${est.lines.reduce((a,l)=>a+l.calls,0)} (+JSON 재시도)</td><td><b>${est.total.toFixed(2)}</b></td></tr></table>`+
+    `<div class="a1-note">추정치 (가격표 ${A1_PRICE_DATE} · 1회 토큰 가정). 실제 청구는 Anthropic 콘솔.</div>`,['실행','취소']);
+  if(ok!==0) return;
   S.running=true; S.stop=false; $('a1Stop').disabled=false; $('a1RunPilot').disabled=true;
   const id=runId(kind), dir=A1_SP_OUT_DIR+'/'+id, started=new Date().toISOString();
   const run=S.run={run_id:id, kind, started, finished:null, version:a1Version(), settings:{...opts, r0Model:A1_R0_MODEL, r0MaxTokens:{lc_json:8000,transcribe:16000,si_improve:4000},
@@ -1781,8 +2040,27 @@ async function runBench(kind){
       try{ await spPut(dir+'/lc_text/'+t.no+'.txt','﻿'+lcp.view+'\n\n'+'='.repeat(60)+'\n'+lcp.rawRestored,'text/plain;charset=utf-8'); }catch(e){ logLine(t.no+' 판독 원문 저장 실패: '+e.message,'warn'); }
       const input=await buildR1Input(t,lcp,opts); cr.priors=input.priors; cr.promptChars=input.promptChars;
       cr.branch=Object.assign({target:(t.branch||{}).key||'',targetSource:(t.branch||{}).source||''},branchState(t));   // 대상 지점 vs 직전 S/I 지점
-      const jobs=opts.withR0?[{kind:'R0'}]:[]; opts.models.forEach(m=>{ jobs.push({kind:'R1',model:m,chain:[1,2]}); });
+      const jobs=opts.withR0?[{kind:'R0'}]:[]; opts.models.forEach(m=>{ jobs.push({kind:'R1',model:m,chain:[1,2]}); }); if(opts.useR2) jobs.push({kind:'R2'});
       await Promise.all(jobs.map(async j=>{
+        if(j.kind==='R2'){
+          let stage=0;
+          try{
+            const [x1,x2]=await Promise.all([runR2Extract(t,lcp,opts,1),runR2Extract(t,lcp,opts,2)]);   // ① 독립 2회
+            const checks=A1C.r2Check(x1.json,x2.json,r2RawForCheck(lcp),lcp.image);                         // ② 이중 판독 · 원문 검사
+            const recon=A1C.r2Reconcile(checks,r2CompassFor(t,input,lcp));                                  // ③-1 대조표 (코드)
+            cr.r2={extract:[x1.json,x2.json],checks,recon,image:!!lcp.image,retried:[x1.retried,x2.retried]};
+            stage=1; doneJobs++; prog();
+            for(const rep of [1,2]){
+              if(S.stop) return;
+              try{ const rec=await runR2Assemble(t,cr.r2,input,opts,rep);
+                if(rep===1) [x1,x2].forEach((x,i)=>x.calls.forEach(c=>rec.calls.unshift(Object.assign({step:'r2_extract#'+(i+1)},c))));   // ① 비용은 1회차 실행에 합산
+                cr.runs.push(rec); }
+              catch(e){ cr.failures.push({round:'R2',model:opts.r2Model,rep,error:e.message,api:e.api||null}); logLine(`${t.no} R2 조립 #${rep} 실패: ${e.message}`,'danger'); }
+              doneJobs++; prog();
+            }
+          }catch(e){ cr.failures.push({round:'R2',model:opts.r2Model,rep:'①',error:e.message,api:e.api||null}); logLine(`${t.no} R2① 판독 실패: ${e.message}`,'danger'); doneJobs+=3-stage; prog(); }
+          return;
+        }
         if(j.kind==='R0'){
           try{ const rec=await runR0(t,lcp,opts); cr.runs.push(rec); }
           catch(e){ cr.failures.push({round:'R0',model:A1_R0_MODEL,rep:1,error:e.message,api:e.api||null}); }
@@ -1804,9 +2082,12 @@ async function runBench(kind){
       let judged={};
       if(pending.length && opts.judgeModel){ try{ judged=await aiJudge(t,pending,opts); cr.judgeUsage={usage:judged._usage,ms:judged._ms}; }catch(e){ cr.failures.push({round:'JUDGE',model:opts.judgeModel,error:e.message}); } }
       cr.runs.forEach(rec=>applyJudge(rec.rows,judged));
+      // v0.3: 内容差 자동 분류 (E5 입력 밖 번호 · E4 직전 유지 · ETD 후 수정)
+      const pSame=input.priorSame[0]; const pSis=pSame?(S.siByContract[pSame.no]||[]):[];
+      cr.runs.forEach(rec=>rec.rows.forEach(r=>{ const ph=typeof r.sino==='number'?pSis.find(h=>h.crcf9_sino===r.sino):null; r.auto_cat=A1C.autoCat(r,input.grounding,ph?ph[r.col]:null); }));
       // 2회 일치 (불안정)
-      opts.models.forEach(m=>{
-        const a=cr.runs.find(r=>r.round==='R1'&&r.model===m&&r.rep===1), b=cr.runs.find(r=>r.round==='R1'&&r.model===m&&r.rep===2);
+      opts.models.map(m=>['R1',m]).concat(opts.useR2?[['R2',opts.r2Model]]:[]).forEach(([rd,m])=>{
+        const a=cr.runs.find(r=>r.round===rd&&r.model===m&&r.rep===1), b=cr.runs.find(r=>r.round===rd&&r.model===m&&r.rep===2);
         if(!a||!b) return;
         a.rows.forEach((ra,i)=>{ const rb=b.rows.find(x=>x.sino===ra.sino&&x.col===ra.col); const st=rb?(A1C.normV(ra.rec)===A1C.normV(rb.rec)?'安定':'不安定'):''; ra.stable=st; if(rb) rb.stable=st; });
       });
@@ -1825,8 +2106,10 @@ async function runBench(kind){
     await spPut(dir+'/summary.md',out.md,'text/markdown;charset=utf-8');
     await spPut(dir+'/si_changes.csv',out.siChangesCsv,'text/csv;charset=utf-8');
     await spPut(dir+'/lcjson_diff.csv',out.lcJsonDiffCsv,'text/csv;charset=utf-8');
+    if(out.r2Extract) await spPut(dir+'/r2_lc_extract.json',JSON.stringify(out.r2Extract,null,1),'application/json');
+    if(out.r2ReconcileCsv) await spPut(dir+'/r2_reconcile.csv',out.r2ReconcileCsv,'text/csv;charset=utf-8');
     await spPut(dir+'/run_config.json',JSON.stringify(Object.assign({},run,{contracts:undefined,targets:run.targets}),null,2),'application/json');
-    logLine(`저장 완료 → SharePoint ${dir}/ (results.json · results.csv · summary.md · si_changes.csv · lcjson_diff.csv · lc_text/ · run_config.json)`,'ok');
+    logLine(`저장 완료 → SharePoint ${dir}/ (results.json · results.csv · summary.md · si_changes.csv · lcjson_diff.csv · r2_lc_extract.json · r2_reconcile.csv · lc_text/ · run_config.json)`,'ok');
     $('a1SaveNote').textContent='저장 위치: '+dir;
   }catch(e){ logLine('결과 저장 실패: '+e.message+' — 아래 「내려받기」 로 보관하세요','danger'); }
   S.lastOut=out; renderSummary(out);
@@ -1859,7 +2142,7 @@ async function computeLcJsonDiff(){
 
 /* ── 산출물 (설계서 §6) ── */
 function costOf(model, u){ const p=A1_PRICE[model]; if(!p||!u) return 0; const inTok=(u.input_tokens||0)+(u.cache_creation_input_tokens||0)*1.25+(u.cache_read_input_tokens||0)*0.1; return (inTok*p[0]+(u.output_tokens||0)*p[1])/1e6; }
-function runLabel(r){ return r.round==='R0'?'R0 (D-01 v3.2)':`R1 ${r.model}`; }
+function runLabel(r){ return r.round==='R0'?'R0 (D-01 v3.2)':`${r.round} ${r.model}`; }
 function buildOutputs(run){
   const rows=[]; const perRun={};
   run.contracts.forEach(c=>c.runs.forEach(r=>{
@@ -1868,7 +2151,7 @@ function buildOutputs(run){
       tokens_in:u.in,tokens_out:u.out,ms:u.ms},x)));
     const k=runLabel(r); perRun[k]=perRun[k]||{calls:0,in:0,out:0,ms:0,cost:0,runs:0}; perRun[k].runs++; perRun[k].calls+=r.calls.length; perRun[k].in+=u.in; perRun[k].out+=u.out; perRun[k].ms+=u.ms; perRun[k].cost+=u.cost;
   }));
-  const header=['run_id','contract','group','buyer','bank_key','layer','formats','round','model','rep','sino','field','col','important','answer','rec','verdict','rules','aiReason','aiEvidence','basis','confidence','stable','rejected','branch_flag','answer_modified','after_etd','tokens_in','tokens_out','ms'];
+  const header=['run_id','contract','group','buyer','bank_key','layer','formats','round','model','rep','sino','field','col','important','answer','rec','verdict','rules','aiReason','aiEvidence','basis','confidence','stable','rejected','branch_flag','auto_cat','source','source_check','paired','answer_modified','after_etd','tokens_in','tokens_out','ms'];
   const csv=A1C.toCsv(header,rows);
   // summary.md
   const pct=x=>(100*x).toFixed(1)+'%';
@@ -1877,8 +2160,8 @@ function buildOutputs(run){
     let s=`\n### ${title}\n\n| 구분 | 비교 칸 | 一致率 | 完全一致 | 表記差 | 内容差 | 推奨なし | 正解なし |\n|---|---|---|---|---|---|---|---|\n`;
     Object.keys(g).sort().forEach(k=>{ const a=A1C.accuracy(g[k]); s+=`| ${k} | ${a.n} | ${pct(a.match)} | ${a.完全一致} | ${a.表記差} | ${a.内容差} | ${a.推奨なし} | ${a.正解なし} |\n`; }); return s;
   };
-  const vr=r=>`${r.round==='R0'?'R0 D-01':'R1 '+r.model}`;
-  let md=`# A1 「契約/LC → S/I」 推奨精度試験 — ${run.run_id}\n\n- 실행: ${run.started} ~ ${run.finished}${run.stopped?' (중지됨)':''}\n- 대상: ${run.targets.length}건 (${run.kind==='pilot'?'파일럿':'전체'})\n- 설정: R0 = ${A1_R0_MODEL} (D-01 v3.2 경로) / R1 = ${run.settings.models.join(' · ')} × ${run.settings.reps}회, thinking adaptive · effort ${run.settings.effort} · max_tokens ${run.settings.maxTokens} · temperature 미지정 / AI 판정 = ${run.settings.judgeModel}\n- 직전 S/I 규칙: ${run.settings.priorRule}\n- 정답: COMPASS S/I (검증 = 2609 이전 계약)\n`;
+  const vr=r=>`${r.round==='R0'?'R0 D-01':r.round+' '+r.model}`;
+  let md=`# A1 「契約/LC → S/I」 推奨精度試験 — ${run.run_id}\n\n- 실행: ${run.started} ~ ${run.finished}${run.stopped?' (중지됨)':''}\n- 대상: ${run.targets.length}건 (${run.kind==='pilot'?'파일럿':'전체'})\n- 설정: 회차 ${run.settings.rounds||''} / R1 = ${run.settings.models.join(' · ')||'—'} × ${run.settings.reps}회 / R2 = ${run.settings.useR2?(run.settings.r2Model+' (① ×2 → ② 검사 → ③ 조립 ×2)'):'—'}, thinking adaptive · effort ${run.settings.effort} · max_tokens ${run.settings.maxTokens} · temperature 미지정 / AI 판정 = ${run.settings.judgeModel}\n- 직전 S/I 규칙: ${run.settings.priorRule}\n- 정답: COMPASS S/I (검증 = 2609 이전 계약)\n`;
   md+=`\n## 1. 대상\n\n| 계약 | 그룹 | 층 · 형식 | 바이어 | 은행 키 | LC 번호 | 직전 S/I (같은 은행) | 참고 (다른 은행) | 이미지 LC | Amend |\n|---|---|---|---|---|---|---|---|---|---|\n`;
   run.contracts.slice().sort((a,b)=>a.no.localeCompare(b.no)).forEach(c=>{ const t=run.targets.find(x=>x.no===c.no)||{}; md+=`| ${c.no} | ${c.group} | ${(c.formats||[]).join('+')} | ${c.buyer} | ${c.bankKey} | ${t.lcNo||''} | ${(c.priors&&c.priors.same||[]).join(', ')||'없음'} | ${(c.priors&&c.priors.other||[]).join(', ')} | ${t.image?'○':''} | ${t.amends||0} |\n`; });
   md+=`\n## 2. 정확도 (正解なし 제외. 一致率 = (完全一致+表記差)/비교 칸)\n`;
@@ -1907,6 +2190,27 @@ function buildOutputs(run){
   // 안정성
   const stab={}; rows.filter(r=>r.round==='R1'&&r.rep===1&&r.stable).forEach(r=>{ const k=r.model; stab[k]=stab[k]||{安定:0,不安定:0}; stab[k][r.stable]++; });
   md+=`\n### 2회 실행 안정성 (R1, 칸 단위)\n\n| 모델 | 安定 | 不安定 |\n|---|---|---|\n`+Object.keys(stab).map(k=>`| ${k} | ${stab[k].安定} | ${stab[k].不安定} |`).join('\n')+'\n';
+  // v0.3 内容差 자동 분류
+  const cat={}; rows.filter(r=>r.verdict==='内容差').forEach(r=>{ const k=vr(r); cat[k]=cat[k]||{n:0,E5:0,E4:0,ETD:0,none:0}; cat[k].n++; const a=r.auto_cat||''; if(/E5/.test(a)) cat[k].E5++; if(/E4/.test(a)) cat[k].E4++; if(/ETD/.test(a)) cat[k].ETD++; if(!a) cat[k].none++; });
+  md+=`\n## 2-4. 内容差 자동 분류 (auto_cat — 겹치면 각각 셈)\n\n| 회차 · 모델 | 内容差 | E5_入力外番号 | E4_前回維持 | ETD後修正 | 분류 없음 |\n|---|---|---|---|---|---|\n`+Object.keys(cat).sort().map(k=>`| ${k} | ${cat[k].n} | ${cat[k].E5} | ${cat[k].E4} | ${cat[k].ETD} | ${cat[k].none} |`).join('\n')+'\n';
+  // v0.3 R1 vs R2 (같은 계약 · 같은 모델)
+  const r2m=run.settings.r2Model, hasR2=rows.some(r=>r.round==='R2');
+  if(hasR2){
+    const both=new Set(run.contracts.filter(c=>c.runs.some(r=>r.round==='R1'&&r.model===r2m)&&c.runs.some(r=>r.round==='R2')).map(c=>c.no));
+    const pick=rd=>rows.filter(r=>r.round===rd&&r.model===r2m&&(both.size?both.has(r.contract):true));
+    const line=(lbl,rs)=>{ const a=A1C.accuracy(rs), ai=A1C.accuracy(rs.filter(r=>r.important)); const un=rs.filter(r=>r.rep===1&&r.stable==='不安定').length; return `| ${lbl} | ${new Set(rs.map(r=>r.contract)).size} | ${a.n} | ${pct(a.match)} | ${pct(ai.match)} | ${a.内容差} | ${ai.内容差} | ${a.推奨なし} | ${un} |`; };
+    md+=`\n## 12. R1 vs R2 (${r2m} · 같은 ${both.size}건 · 각 2회)\n\n| 회차 | 계약 | 비교 칸 | 一致率 | 중요 칸 一致率 | 内容差 | 중요 칸 内容差 | 推奨なし | 不安定 칸 |\n|---|---|---|---|---|---|---|---|---|\n`+line('R1',pick('R1'))+'\n'+line('R2',pick('R2'))+'\n';
+    const ck=[]; run.contracts.forEach(c=>{ if(c.r2) c.r2.checks.forEach(x=>ck.push(Object.assign({no:c.no,image:c.r2.image},x))); });
+    const rd=ck.filter(x=>x.read==='判読不一致'), qn=ck.filter(x=>x.value1!=null&&(x.quote1==='原文なし'));
+    const si=[]; run.contracts.forEach(c=>c.runs.filter(r=>r.round==='R2').forEach(r=>(r.sourceIssues||[]).forEach(x=>si.push(Object.assign({no:c.no,rep:r.rep},x)))));
+    const cellx=v=>String(v==null?'':v).replace(/\|/g,'\\|').replace(/\r?\n/g,' ⏎ ').slice(0,200);
+    md+=`\n### R2 검사 — 判読不一致 ${rd.length} · 原文なし ${qn.length} · 出典不一致 ${si.length} (이미지 LC 는 원문 검사 대신 「イメージLC」)\n`;
+    md+=`\n**判読不一致** (①의 두 번 판독이 다름)\n\n| 계약 | 항목 | 1회 | 2회 |\n|---|---|---|---|\n`+(rd.map(x=>`| ${x.no} | ${x.item} | ${cellx(x.value1)} | ${cellx(x.value2)} |`).join('\n')||'| — | | | |')+'\n';
+    md+=`\n**原文なし** (quote 가 LC 원문에 그대로 없음 → LC 출처로 쓰지 않음)\n\n| 계약 | 항목 | 값 | quote |\n|---|---|---|---|\n`+(qn.map(x=>`| ${x.no} | ${x.item} | ${cellx(x.value1)} | ${cellx(x.quote)} |`).join('\n')||'| — | | | |')+'\n';
+    md+=`\n**出典不一致** (source=LC 인데 값이 검증된 quote 안에 없음)\n\n| 계약 | 회 | sino | 칸 | 값 | source |\n|---|---|---|---|---|---|\n`+(si.map(x=>`| ${x.no} | ${x.rep} | ${x.sino} | ${x.col} | ${cellx(x.value)} | ${cellx(x.source)} |`).join('\n')||'| — | | | | | |')+'\n';
+    const cas=rows.filter(r=>r.contract==='LRS-2608CA1'&&(r.field==='notify_party'||r.field==='address'));
+    md+=`\n### CAS 2608CA1 — notify_party · address (파일럿 E2 실례: LC :50 이 최우선)\n\n`+(cas.length?`| 회차 · 모델 | 회 | sino | 칸 | 정답 | 추천 | 판정 | source |\n|---|---|---|---|---|---|---|---|\n`+cas.map(r=>`| ${vr(r)} | ${r.rep} | ${r.sino} | ${r.field} | ${cellx(r.answer)} | ${cellx(r.rec)} | ${r.verdict} | ${cellx(r.source)} |`).join('\n'):'이번 실행 대상에 LRS-2608CA1 이 없음')+'\n';
+  }
   md+=`\n## 3. 토큰 · 시간 · 비용 (추정)\n\n| 회차 · 모델 | 실행 수 | API 호출 | 입력 토큰 | 출력 토큰 | 합계 시간 | 실행당 평균 시간 | 추정 비용 US$ |\n|---|---|---|---|---|---|---|---|\n`;
   Object.keys(perRun).sort().forEach(k=>{ const p=perRun[k]; md+=`| ${k} | ${p.runs} | ${p.calls} | ${p.in.toLocaleString()} | ${p.out.toLocaleString()} | ${(p.ms/1000).toFixed(0)}초 | ${(p.ms/1000/Math.max(1,p.runs)).toFixed(1)}초 | ${p.cost.toFixed(2)} |\n`; });
   const jt=run.contracts.reduce((a,c)=>{ const u=(c.judgeUsage||{}).usage||{}; return {in:a.in+(u.input_tokens||0),out:a.out+(u.output_tokens||0),ms:a.ms+((c.judgeUsage||{}).ms||0)}; },{in:0,out:0,ms:0});
@@ -1944,7 +2248,11 @@ function buildOutputs(run){
   json.lcJsonDiff=run.lcJsonDiff||[];
   const siChangesCsv=A1C.toCsv(['layer','prev_contract','contract','sino','field','change','prev','cur'],run.siChanges||[]);
   const lcJsonDiffCsv=A1C.toCsv(['contract','layer','file','schemaVersion','rawTextSource','item','d01','new_read','same'],run.lcJsonDiff||[]);
-  return {json,csv,md,rows,perRun,siChangesCsv,lcJsonDiffCsv};
+  const r2c=run.contracts.filter(c=>c.r2);
+  const r2Extract=r2c.length?r2c.map(c=>({no:c.no,image:c.r2.image,retried:c.r2.retried,extract:c.r2.extract,checks:c.r2.checks})):null;
+  const r2ReconcileCsv=r2c.length?A1C.toCsv(['contract','item','lc_value','lc_loc','compass_src','compass_value','result'],[].concat(...r2c.map(c=>c.r2.recon.map(r=>Object.assign({contract:c.no},r))))):null;
+  json.r2=r2c.map(c=>({no:c.no,checks:c.r2.checks,recon:c.r2.recon}));
+  return {json,csv,md,rows,perRun,siChangesCsv,lcJsonDiffCsv,r2Extract,r2ReconcileCsv};
 }
 
 /* ============================================================
@@ -1973,7 +2281,7 @@ function renderPilotPreview(){
 }
 function renderSummary(out){
   $('a1Step4').style.display='';
-  const g={}; out.rows.forEach(r=>{ const k=r.round==='R0'?'R0 D-01 v3.2':'R1 '+r.model; (g[k]=g[k]||[]).push(r); });
+  const g={}; out.rows.forEach(r=>{ const k=r.round==='R0'?'R0 D-01 v3.2':r.round+' '+r.model; (g[k]=g[k]||[]).push(r); });
   $('a1Result').innerHTML='<table class="a1-t"><thead><tr><th>회차 · 모델</th><th>비교 칸</th><th>一致率</th><th>중요 칸 一致率</th><th>内容差 (중요)</th><th>推奨なし</th><th>토큰 (입력/출력)</th><th>시간</th><th>추정 US$</th></tr></thead><tbody>'+
     Object.keys(g).sort().map(k=>{ const a=A1C.accuracy(g[k]), ai=A1C.accuracy(g[k].filter(r=>r.important)); const p=out.perRun[k.replace('R0 D-01 v3.2','R0 (D-01 v3.2)')]||{};
       return `<tr><td>${escH(k)}</td><td>${a.n}</td><td>${(100*a.match).toFixed(1)}%</td><td>${(100*ai.match).toFixed(1)}%</td><td>${a.内容差} (${ai.内容差})</td><td>${a.推奨なし}</td><td>${(p.in||0).toLocaleString()} / ${(p.out||0).toLocaleString()}</td><td>${((p.ms||0)/1000).toFixed(0)}초</td><td>${(p.cost||0).toFixed(2)}</td></tr>`; }).join('')+'</tbody></table>';
@@ -1988,7 +2296,8 @@ function startBench(){
   $('a1Main').style.display='';
   updKey();
   $('a1Price').value=JSON.stringify(A1_PRICE);
-  $('a1Price').addEventListener('change',()=>{ try{ Object.assign(A1_PRICE,JSON.parse($('a1Price').value)); }catch(e){ alert('단가표 JSON 형식이 아닙니다'); } });
+  $('a1Price').addEventListener('change',()=>{ try{ Object.assign(A1_PRICE,JSON.parse($('a1Price').value)); }catch(e){ askBox('단가표 JSON 형식이 아닙니다',['確認']); } });
+  $('a1PriceNote').textContent='가격표 기준일 '+A1_PRICE_DATE+' · 추정치입니다. 실제 청구는 Anthropic 콘솔에서 확인';
   $('a1BtnTargets').onclick=async()=>{ $('a1BtnTargets').disabled=true; try{ await buildTargets(); }catch(e){ $('a1TargetStatus').textContent='오류: '+e.message; logLine('대상 목록 오류: '+e.message,'danger'); } $('a1BtnTargets').disabled=false; };
   $('a1PilotList').addEventListener('input',renderPilotPreview);
   $('a1PriorN').addEventListener('change',renderPilotPreview);
@@ -2003,7 +2312,7 @@ function startBench(){
 }
 
 LEENAI.init({
-  sys:'D-00', name:'A1 SI推奨精度試験', version:'0.2', date:'2026-11-15',
+  sys:'D-00', name:'A1 SI推奨精度試験', version:'0.3', date:'2026-11-15',
   desc:'契約/LC → S/I 推奨を COMPASS S/I と欄ごとに比較 (読み取り専用・結果は SharePoint へ)',
   graphScopes:['Sites.ReadWrite.All'],
   redirectUri:'https://mhlee205.github.io/CONTRACT_SEND/a1_bench.html',
