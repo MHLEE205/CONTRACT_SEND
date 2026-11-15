@@ -110,7 +110,7 @@ textarea.a1-in{width:100%;min-height:90px}
 <script id="a1-core">
 /* ============================================================
    A1 bench — 순수 로직 (DOM·통신 없음, node 단위 시험 대상)
-   설계: D-00_A1_SI추천정확도시험_설계_v0.1 / 지시서 v1.1
+   설계: D-00_A1_SI추천정확도시험_설계_v0.2 / 지시서 v1.2 (+ 리나이 지시 2026-11-15: 지점 · PUNCT · HEX)
 ============================================================ */
 var A1C=(function(){
 'use strict';
@@ -168,7 +168,10 @@ var CATALOG_SUMMARY=[
 ];
 
 /* ── 정규화 · 판정 (설계서 §3) ── */
-var HEX_RE=/\bHEX(?![A-Za-z])/g;
+/* HEX → # (R2) — 모든 「HEX」 를 # 로. 영어 단어 안의 HEX (HEXAGON · HEXANE 등 예외 목록) 만 제외.
+   SAIGON MUFG LC(2611SG1)는 # 를 HEX 로 보내고 pdf.js 에서 「3500813231HEX156」 처럼 붙어 나온다 (리나이 지시 2026-11-15 — v0.1 의 단어 경계 규칙은 철회) */
+var HEX_EXCEPT=['HEXAGONAL','HEXAGONS','HEXAGON','HEXANES','HEXANE','HEXADECIMAL','HEXAMINE','HEXAVALENT','HEXAHEDRON','HEXAMETER','HEXAPOD','HEXOSE','HEXYL','HEXENE'];
+var HEX_RE=new RegExp('HEX(?!'+HEX_EXCEPT.map(function(w){return w.slice(3);}).join('|')+')','g');
 function normV(s){
   var t=String(s==null?'':s);
   try{t=t.normalize('NFKC');}catch(e){}
@@ -218,7 +221,7 @@ function judgeField(ans, rec, field){
     var a2=R.f(a), r2=R.f(r);
     if(R.guard && (a2!==a || r2!==r) && R.guard(a,r)) punctNum=true;   // 숫자 옆 구두점 차이 (80,800 / 80800 · 1.5 / 15)
     if(a2!==a || r2!==r){ used.push(R.id); a=a2; r=r2; }
-    if(a===r) return punctNum?{verdict:'内容差', rules:['PUNCT-NUM']}:{verdict:'表記差', rules:['N'].concat(used)};   // → 表記差로 보지 않음 (형님 지시)
+    if(a===r) return punctNum?{verdict:'内容差', rules:['PUNCT-NUM']}:{verdict:'表記差', rules:['N'].concat(used)};   // → 表記差로 보지 않음 (리나이 지시 2026-11-15)
   }
   return {verdict:'内容差?', rules:[]};
 }
@@ -272,8 +275,7 @@ var TAG_SET={}; SWIFT_TAGS.forEach(function(t){TAG_SET[t]=1;});
 var MSG_HDR_RE=/^\s{0,3}(700|701|705|707|708|710|711|720|721|730|740|760|799)\s{2,}([A-Z].*)$/;
 var TAG_LINE_RE=/^ {0,3}([A-Z0-9][A-Z0-9 .,'\/()&\-]*?)\s*:(\d{2}[A-Z]?)(?:\s+(.*))?$/;
 
-/* HEX → # (R2) — 독립된 HEX 만: 앞이 단어 경계(공백·기호·줄 첫머리), 뒤가 영문자가 아님.
-   「HEX13-05」→「#13-05」 · 「#」 자리의 「 HEX 」 는 바꿈 / 「3500813231HEX156」 「SAIGONHEXPAPER」 「HEXAGON」 은 그대로 (형님 지시 2026-11-15) */
+/* HEX → # (R2) — 규칙은 위 HEX_RE. 바꾼 곳은 전부 log (앞뒤 문맥 포함) → summary.md 에 목록 */
 function hexToHash(text){
   var log=[]; var out=String(text||'').replace(HEX_RE,function(m,off,s){log.push(s.slice(Math.max(0,off-15),off+18).replace(/\n/g,' '));return '#';});
   return {text:out, log:log};
@@ -355,7 +357,7 @@ function findForwarding(tagMap){
 /* 은행 키 (지시서 Step1-4: 발행은행 BIC 우선, 없으면 정규화 이름) */
 function bicOf(s){ var m=String(s||'').match(/\b([A-Z]{4}[A-Z]{2}[A-Z0-9]{2})([A-Z0-9]{3})?\b/); return m?{bic8:m[1],branch:m[2]||''}:null; }
 function normBankName(s){ return String(s||'').toUpperCase().replace(/\(H\.?O\.?\)/g,' HO ').replace(/[^A-Z0-9 ]/g,' ').replace(/\s+/g,' ').trim(); }
-/* 지점 키 (형님 지시 2026-11-15): BIC 11자리(:52A·:52D·:51A) → 1쪽 「ISSUING BANK」 이름(지점명 포함) → 보낸 은행 BIC 11자리 */
+/* 지점 키 (리나이 지시 2026-11-15): BIC 11자리(:52A·:52D·:51A) → 1쪽 「ISSUING BANK」 이름(지점명 포함) → 보낸 은행 BIC 11자리 */
 function branchKeyOf(msgs, rawText){
   var base=msgs.filter(function(m){return /^(700|710|720)$/.test(m.type);})[0];
   var tagOf=function(m,t){var x=m&&m.tags.filter(function(y){return y.tag===t;})[0];return x?x.value:'';};
@@ -443,9 +445,9 @@ function buildLcView(lc){
 /* 판독 텍스트(파일별) → lc 구조 */
 function analyzeLcTexts(baseFiles, amendFiles){
   var hexLog=[], msgs=[];
-  baseFiles.forEach(function(f){ var h=hexToHash(f.text); hexLog=hexLog.concat(h.log); msgs=msgs.concat(parseSwiftMessages(h.text)); });
+  baseFiles.forEach(function(f){ var h=hexToHash(f.text); hexLog=hexLog.concat(h.log.map(function(c){return {file:f.name,ctx:c};})); msgs=msgs.concat(parseSwiftMessages(h.text)); });
   var ordered=orderMessages(msgs), merged=mergeTags(ordered);
-  var amends=amendFiles.map(function(f){ var h=hexToHash(f.text); hexLog=hexLog.concat(h.log); return {n:f.n, name:f.name, msgs:parseSwiftMessages(h.text)}; });
+  var amends=amendFiles.map(function(f){ var h=hexToHash(f.text); hexLog=hexLog.concat(h.log.map(function(c){return {file:f.name,ctx:c};})); return {n:f.n, name:f.name, msgs:parseSwiftMessages(h.text)}; });
   var ap=applyAmends(merged.map, amends);
   var lc={msgTypes:ordered.map(function(m){return m.type+(m.seq?('('+m.seq.n+'/'+m.seq.of+')'):'');}), order:merged.order, original:merged.map,
     current:ap.tags, amendLog:ap.log, amends:amends.map(function(a){return {n:a.n,name:a.name};}), hexLog:hexLog,
@@ -1226,6 +1228,7 @@ const A1_SP_D01_DIR  = '古紙/-. AI 活用/D-01-LC_FD_CHECKER';
 const A1_DV_API      = 'https://orgde512c6f.crm7.dynamics.com/api/data/v9.2';
 const A1_GRAPH       = 'https://graph.microsoft.com/v1.0/';
 const A1_AKEY        = 'leenai_apikey_v1';           // D-01 と同じ保存場所 (同じ origin のブラウザ保存領域のみ)
+const a1Version = () => (document.title.match(/v([\d.]+)\s*$/)||[])[1]||'';   // 버전은 LEENAI.init 1곳 (공통 파일이 title 에 넣는다 — 실행 시점에 읽음)
 const A1_FULL_RUN_UNLOCKED = false;                   // 지시서 범위: 파일럿까지. 전체 실행은 형님 결정 후
 const A1_R0_MODEL    = 'claude-sonnet-4-6';           // D-01 v3.2 _callApiCore 의 모델
 const A1_DEFAULT_MODELS = ['claude-sonnet-4-6','claude-opus-5-5','claude-fable-5-2'];
@@ -1750,7 +1753,7 @@ async function runBench(kind){
   if(!confirm(`${kind==='pilot'?'파일럿':'전체'} 실행: ${targets.length}건 × (${opts.withR0?'R0 1 + ':''}R1 ${opts.models.length}모델 × ${opts.reps}회) = 추천 ${targets.length*jobsPer}회 + AI 판정\nAPI 비용이 발생합니다. 실행할까요?`)) return;
   S.running=true; S.stop=false; $('a1Stop').disabled=false; $('a1RunPilot').disabled=true;
   const id=runId(kind), dir=A1_SP_OUT_DIR+'/'+id, started=new Date().toISOString();
-  const run=S.run={run_id:id, kind, started, finished:null, version:'0.1', settings:{...opts, r0Model:A1_R0_MODEL, r0MaxTokens:{lc_json:8000,transcribe:16000,si_improve:4000},
+  const run=S.run={run_id:id, kind, started, finished:null, version:a1Version(), settings:{...opts, r0Model:A1_R0_MODEL, r0MaxTokens:{lc_json:8000,transcribe:16000,si_improve:4000},
       r1:{thinking:'adaptive',effort:opts.effort,max_tokens:opts.maxTokens,temperature:'未指定 (Opus 5.5・Fable は temperature 指定不可のため全モデル既定値)',stream:true},
       priorRule:'同じバイヤー(COMPASS buyer id) × 同じ発行銀行(BIC8) の、対象より前の契約(契約番号の年月・契約日)の S/I を最新から '+opts.priorN+' 件。無ければ同じバイヤー別銀行 1 件を「参考」',
       fieldCheck:S.fieldCheck}, targets:targets.map(t=>({no:t.no,group:t.group,buyer:t.buyer,bankKey:t.bankKey,bankSource:t.bank.source,lcNo:t.lcNo,image:t.image,amends:t.amends,layer:t.layer,formats:t.formats})),
@@ -1895,7 +1898,7 @@ function buildOutputs(run){
   md+=layerTable(rows,r=>r.layer||(r.buyer+' × '+r.bank_key),'바이어 × 은행');
   const fRows=[]; rows.forEach(r=>String(r.formats||'').split('+').filter(Boolean).forEach(f=>fRows.push(Object.assign({},r,{_fmt:f}))));
   md+=layerTable(fRows,r=>r._fmt,'LC 형식 (SMBC_MT700 · SMBC_MT700_701 · SMBC_MT710 · IMAGE · AMEND있음)');
-  // 支店違い (형님 지시 2026-11-15) — consignee · notify_party 를 따로 집계
+  // 支店違い (리나이 지시 2026-11-15) — consignee · notify_party 를 따로 집계
   const brRows=rows.filter(r=>r.branch_flag==='支店違い');
   md+=`\n## 2-3. 支店違い — 대상과 직전 S/I(같은 은행)의 지점(BIC 11자리 또는 지점명)이 다른 계약의 consignee · notify_party\n`;
   md+=brRows.length?accTable(r=>vr(r)+' · '+r.field,'회차 · 모델 · 칸 (支店違い 행만)',brRows):'\n해당 행 없음\n';
@@ -1930,8 +1933,11 @@ function buildOutputs(run){
   md+=`\n## 9. D-01 기존 LC JSON 과 신규 판독 비교 (v1.2 — 대상 ${new Set(lj.map(x=>x.contract)).size}건, D-01 JSON 없음 ${lj.filter(x=>!x.same).length}건 → lcjson_diff.csv)\n\n| 항목 | 一致 | 差異 |\n|---|---|---|\n`+Object.keys(ljAgg).map(k=>`| ${k} | ${ljAgg[k].一致} | ${ljAgg[k].差異} |`).join('\n')+'\n';
   md+=`\n## 10. R0 재현 메모 (D-01 과 다른 점)\n\n- 과거 S/I: D-01 fetchPastSIs 규칙(계약번호 바이어 코드 × LC 번호 모양 · LC · sino 1 · 최신 3건) + **대상보다 앞선 계약만** (D-01 은 이후 계약도 포함 — 시험의 누설 금지)\n- LC JSON: 설정 「${run.settings.r0Source==='sp'?'SharePoint 기존 D-01 JSON 우선':'D-01 v3.2 analyzeLc 프롬프트로 새로 생성'}」. Amend 는 D-01 runAmend(AI) 대신 같은 분석 호출에 Amend PDF 를 함께 입력\n- 화면 조작(담당자 수정·버튼) 없이 autoMap → runSiRefImprove → applyAiSiValues 결과를 그대로 비교\n`;
   run.contracts.forEach(c=>c.runs.filter(r=>r.round==='R0').forEach(r=>{ md+=`- ${c.no}: ${r.notes.join(' / ')} / 과거 S/I ${r.pastSi&&r.pastSi.length?r.pastSi.join(', '):'없음'} (${r.pastReason})${r.applyRes?(' / AI 보완 적용 '+r.applyRes.applied.join(',')+(r.applyRes.rejected.length?(' / 근거 없음 불채택 '+r.applyRes.rejected.join(',')):'')):''}\n`; }));
+  // HEX → # 변환 목록 (리나이 지시 2026-11-15)
+  const hx=[]; run.contracts.forEach(c=>((c.lc&&c.lc.hexLog)||[]).forEach(h=>hx.push({no:c.no,file:h.file||'',ctx:h.ctx||h})));
+  md+=`\n## 11. HEX → # 변환 목록 (${hx.length}곳 — 판독 원문 · Amend 포함, 예외 단어 HEXAGON · HEXANE 등은 제외)\n\n`+(hx.length?`| 계약 | 파일 | 바꾼 곳 (앞뒤 문맥, 바꾸기 전) |\n|---|---|---|\n`+hx.map(h=>`| ${h.no} | ${h.file} | ${String(h.ctx).replace(/\|/g,'\\|')} |`).join('\n'):'없음')+'\n';
   md+=`\n---\n✦ Powered by LEENAI Automation System\n`;
-  const json={run_id:run.run_id, kind:run.kind, started:run.started, finished:run.finished, stopped:!!run.stopped, version:'a1_bench v0.1', settings:run.settings, targets:run.targets,
+  const json={run_id:run.run_id, kind:run.kind, started:run.started, finished:run.finished, stopped:!!run.stopped, version:'a1_bench v'+a1Version(), settings:run.settings, targets:run.targets,
     perRun, failures:run.failures, contracts:run.contracts.map(c=>({no:c.no,group:c.group,buyer:c.buyer,bankKey:c.bankKey,branch:c.branch,priors:c.priors,promptChars:c.promptChars,answerSinos:c.answerSinos,lc:c.lc,judgeUsage:c.judgeUsage,failures:c.failures,
       runs:c.runs.map(r=>({round:r.round,model:r.round==='R0'?A1_R0_MODEL:r.model,rep:r.rep,calls:r.calls,notes:r.notes,pastSi:r.pastSi,pastReason:r.pastReason,applyRes:r.applyRes,rejected:r.rejected,aiNotes:r.aiNotes,sinos:r.sinos,details:r.details,basis:r.basis,lcJson:r.lcJson,rows:r.rows}))}))};
   json.siHistory=run.contracts.map(c=>({no:c.no,siHistory:c.siHistory,layer:c.layer,formats:c.formats}));
@@ -1997,7 +2003,7 @@ function startBench(){
 }
 
 LEENAI.init({
-  sys:'D-00', name:'A1 SI推奨精度試験', version:'0.1', date:'2026-11-15',
+  sys:'D-00', name:'A1 SI推奨精度試験', version:'0.2', date:'2026-11-15',
   desc:'契約/LC → S/I 推奨を COMPASS S/I と欄ごとに比較 (読み取り専用・結果は SharePoint へ)',
   graphScopes:['Sites.ReadWrite.All'],
   redirectUri:'https://mhlee205.github.io/CONTRACT_SEND/a1_bench.html',
