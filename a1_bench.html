@@ -39,7 +39,7 @@ textarea.a1-in{width:100%;min-height:90px}
 <main id="a1Main" style="display:none;max-width:1200px;margin:0 auto;padding:20px 16px">
 
   <div class="a1-card">
-    <h3>A1 「契約/LC → S/I」 추천 정확도 시험 (설계서 v0.5 · 지시서 시험도구 v0.4 R2 보정)</h3>
+    <h3>A1 「契約/LC → S/I」 추천 정확도 시험 (설계서 v0.5 · 지시서 시험도구 v0.5 판독일치 · 주소누락)</h3>
     <div class="a1-note">정답 = COMPASS S/I (2609 이전 = 검증). 이 페이지는 COMPASS · LC 원본 · 마스터를 <b>읽기만</b> 하고, 결과는 SharePoint <code>古紙/-. AI 活用/D-00/A1_bench/{run_id}/</code> 에만 저장합니다.<br>
     「몇 건 맞았다」 로 결론 내지 않습니다 — 파일럿은 모델 · 비용을 고르기 위한 것 (설계서 v0.2 §7).</div>
   </div>
@@ -639,6 +639,7 @@ function flattenExtract(e){
    (b) 항목 종류별 코드 정규화 후 같음 → 一致 (normalized)   (c) 그 밖 → 判読不一致 (value)
    image=true(이미지 LC)는 원문 검사 대신 「イメージLC」, 판정은 (b) 까지, 통과 값에 image_confirm='要確認' */
 var DATE_ITEMS={issue_date:1,latest_shipment:1};
+var NORM_ITEM_RE=/^(issue_date|latest_shipment|expiry|tolerance|goods\.quantity)$/;   // readNorm 이 전용 정규화를 쓰는 항목
 function genericNorm(s){
   var t=normV(s);
   t=t.replace(/[（(][^()（）]*[)）]/g,' ').replace(/[぀-ヿ㐀-鿿ｦ-ﾟ]+/g,' ').replace(/\bTHE\b/g,' ').replace(/\s+OR\s+/g,'/').replace(/\s*\/\s*/g,'/').replace(/\s+/g,' ').trim();
@@ -673,8 +674,8 @@ function r2Check(e1, e2, lcRaw, image){
     var q1=x.value==null?'—':(image?'イメージLC':quoteCheck(x.quote,lcRaw)), q2=y.value==null?'—':(image?'イメージLC':quoteCheck(y.quote,lcRaw));
     var basis='', agree=false;
     if(x.value!=null && y.value!=null){
-      var nq1=normQuote(x.quote), nq2=normQuote(y.quote);
-      if(!image && q1==='OK' && q2==='OK' && nq1 && nq2 && (nq1===nq2 || nq1.indexOf(nq2)>=0 || nq2.indexOf(nq1)>=0)){ agree=true; basis='quote'; }
+      // v0.5 (리나이 지시서 v0.5 Step 1): 一致는 값으로만. quote 겹침으로는 一致로 보지 않음 (quote 는 어느 회차 값을 쓸지 고르는 데만)
+      if(normV(x.value)===normV(y.value)){ agree=true; basis='same'; }
       else if(readNorm(k,x.value)===readNorm(k,y.value)){ agree=true; basis='normalized'; }
       else basis='value';
     } else if(x.value==null && y.value==null) basis='';
@@ -684,6 +685,8 @@ function r2Check(e1, e2, lcRaw, image){
     var r={item:k, kind:kind, value1:x.value, value2:y.value, loc:use.loc||x.loc||y.loc||'', quote:use.quote==null?null:use.quote, passValue:pass?use.value:null,
       read:x.value==null&&y.value==null?'—':(agree?'一致':'判読不一致'), read_basis:basis, quote1:q1, quote2:q2, pass:pass};
     if(pass && image) r.image_confirm='要確認';
+    // v0.5 표시만: 텍스트 LC 에서 쓰는 값이 자기 quote 안에 없으면 NG (날짜 · 유효기한 · 과부족 · 수량 등 정규화 항목은 제외)
+    if(pass && !image && !NORM_ITEM_RE.test(String(k).replace(/\[\d+\]/g,'')) && normQuote(use.quote).indexOf(normQuote(use.value))<0) r.value_in_quote='NG';
     return r;
   });
 }
@@ -751,7 +754,7 @@ function wordSet(list){ var o={}; (list||[]).forEach(function(v){ wordsOf(v).for
 /* Step 4: 칸별 · 양방향 · 표시만. source 와 무관. allowList = 허용 낱말(나중에 바이어 × 은행 마스터) */
 var FIELD_LC_MAP={notify_party:['applicant_name','applicant_address','bl_notify'], address:['applicant_address','applicant_name'],
   consignee:['bl_consignee','applicant_name','applicant_address'], lc_no:['lc_no','issue_date'], po_vo:['po']};
-var FIELD_LC_NAME={notify_party:'applicant_name', consignee:'bl_consignee'};
+var FIELD_LC_NAME={notify_party:'applicant_name', consignee:'bl_consignee', address:'applicant_address'};   // v0.5: address 도 LC :50 주소 낱말 누락 검사 (missing 에는 직전 S/I 허용을 쓰지 않음)
 function fieldLcCheck(field, value, lcItems, priorValue, contractValues, allowList){
   var map=FIELD_LC_MAP[field]; if(!map) return null;
   if(!normV(value)) return {result:'', extra:[], missing:[]};
@@ -2336,7 +2339,7 @@ function buildOutputs(run){
     // v0.4 Step 5 — 判読不一致 내역 · format_check · placeholder_removed · fieldLcCheck
     const rdItem=rd.filter(x=>x.kind!=='docs'&&!x.image), rdDocs=rd.filter(x=>x.kind==='docs'), rdImg=rd.filter(x=>x.kind!=='docs'&&x.image);
     const rb={}; ck.filter(x=>x.read==='一致'||x.read==='判読不一致').forEach(x=>{ const k=(x.read==='一致'?'一致 · ':'判読不一致 · ')+(x.read_basis||'-'); rb[k]=(rb[k]||0)+1; });
-    md+=`\n### 判読 내역 (v0.4)\n\n| 구분 | 건수 |\n|---|---|\n`+Object.keys(rb).sort().map(k=>`| ${k} | ${rb[k]} |`).join('\n')+`\n| 判読不一致 — 항목 (텍스트 LC) | ${rdItem.length} |\n| 判読不一致 — docs 배치 차이 (따로 셈) | ${rdDocs.length} |\n| 判読不一致 — 이미지 LC | ${rdImg.length} |\n| 이미지 LC 통과 값 (要確認) | ${ck.filter(x=>x.image_confirm).length} |\n`;
+    md+=`\n### 判読 내역 (v0.4)\n\n| 구분 | 건수 |\n|---|---|\n`+Object.keys(rb).sort().map(k=>`| ${k} | ${rb[k]} |`).join('\n')+`\n| value_in_quote NG (통과 값이 자기 quote 안에 없음 · 표시만) | ${ck.filter(x=>x.value_in_quote==='NG').length} |\n| 判読不一致 — 항목 (텍스트 LC) | ${rdItem.length} |\n| 判読不一致 — docs 배치 차이 (따로 셈) | ${rdDocs.length} |\n| 判読不一致 — 이미지 LC | ${rdImg.length} |\n| 이미지 LC 통과 값 (要確認) | ${ck.filter(x=>x.image_confirm).length} |\n`;
     const fc={}; rows.filter(r=>r.round==='R2'&&r.format_check).forEach(r=>{ const k='R2 #'+r.rep; fc[k]=fc[k]||{}; fc[k][r.format_check]=(fc[k][r.format_check]||0)+1; });
     const FCK=['SAME_AS_PRIOR','CONTENT_UPDATED','FORMAT_CHANGED','LC_REQUIRED_WORDING','NO_PRIOR'];
     md+=`\n### format_check (R2 · 칸 수)\n\n| 회 | ${FCK.join(' | ')} |\n|---${'|---'.repeat(FCK.length)}|\n`+Object.keys(fc).sort().map(k=>`| ${k} | ${FCK.map(f=>fc[k][f]||0).join(' | ')} |`).join('\n')+'\n';
@@ -2455,7 +2458,7 @@ function startBench(){
 }
 
 LEENAI.init({
-  sys:'D-00', name:'A1 SI推奨精度試験', version:'0.4', date:'2026-11-15',
+  sys:'D-00', name:'A1 SI推奨精度試験', version:'0.5', date:'2026-11-15',
   desc:'契約/LC → S/I 推奨を COMPASS S/I と欄ごとに比較 (読み取り専用・結果は SharePoint へ)',
   graphScopes:['Sites.ReadWrite.All'],
   redirectUri:'https://mhlee205.github.io/CONTRACT_SEND/a1_bench.html',
