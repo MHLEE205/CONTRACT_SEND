@@ -32,6 +32,10 @@
 #a1Log{font-family:var(--mono);font-size:11.5px;max-height:240px;overflow:auto;line-height:1.6}
 #a1Log .ok{color:var(--ok)}#a1Log .warn{color:var(--warn)}#a1Log .danger{color:var(--danger)}
 textarea.a1-in{width:100%;min-height:90px}
+.a1-ph{color:var(--accent);font-weight:700}
+.a1-tpl{font-family:var(--mono);white-space:pre-wrap;word-break:break-all}
+.a1-mk{cursor:pointer}.a1-mk:hover td{background:var(--surface2)}
+.a1-st-確実{color:var(--ok)}.a1-st-確認要{color:var(--warn);font-weight:700}.a1-st-単発{color:var(--text2)}
 </style>
 </head>
 <body>
@@ -39,7 +43,7 @@ textarea.a1-in{width:100%;min-height:90px}
 <main id="a1Main" style="display:none;max-width:1200px;margin:0 auto;padding:20px 16px">
 
   <div class="a1-card">
-    <h3>A1 「契約/LC → S/I」 추천 정확도 시험 (설계서 v0.5 · 지시서 시험도구 v0.5 판독일치 · 주소누락)</h3>
+    <h3>A1 「契約/LC → S/I」 추천 정확도 시험 (설계서 v0.5 · 지시서 시험도구 v0.6 マスター草案 자동 생성)</h3>
     <div class="a1-note">정답 = COMPASS S/I (2609 이전 = 검증). 이 페이지는 COMPASS · LC 원본 · 마스터를 <b>읽기만</b> 하고, 결과는 SharePoint <code>古紙/-. AI 活用/D-00/A1_bench/{run_id}/</code> 에만 저장합니다.<br>
     「몇 건 맞았다」 로 결론 내지 않습니다 — 파일럿은 모델 · 비용을 고르기 위한 것 (설계서 v0.2 §7).</div>
   </div>
@@ -77,6 +81,15 @@ textarea.a1-in{width:100%;min-height:90px}
     <div id="a1TargetSummary"></div>
     <div class="a1-scroll" id="a1TargetTable"></div>
     <details style="margin-top:8px"><summary class="a1-note">제외 · 파일명 문제</summary><div class="a1-scroll" id="a1ExclTable"></div></details>
+  </div>
+
+  <div class="a1-card" id="a1MasterCard">
+    <h3>②-2 マスター草案 — 바이어 × 은행 × 신청 회사 (v0.6 · 코드만 · AI 호출 없음)</h3>
+    <div class="a1-note">「대상 목록」 으로 읽은 LC 판독 · COMPASS S/I 로 S/I 칸마다의 <b>틀</b>(LC 에서 오는 값은 <code>{…}</code> 자리)과 관행값을 뽑습니다. COMPASS 에는 쓰지 않습니다.<br>
+    저장은 따로 — SharePoint <code>古紙/-. AI 活用/D-00/A1_bench/master_draft/</code> 에만 (공통 마스터 위치에는 쓰지 않음). 줄을 누르면 칸별 틀이 펼쳐집니다.</div>
+    <div class="a1-row"><button id="a1BtnMaster" class="a1-btn" disabled title="먼저 「대상 목록」">マスター草案</button><button id="a1BtnMasterSave" class="a1-btn ghost" disabled>草案 保存 (SharePoint)</button><span id="a1MasterStatus" class="a1-note"></span></div>
+    <div id="a1MasterSummary"></div>
+    <div class="a1-scroll" id="a1MasterTable" style="max-height:640px"></div>
   </div>
 
   <div class="a1-card" id="a1Step2" style="display:none">
@@ -1479,6 +1492,255 @@ ${siSummary}
 }`;}
 
 </script>
+<script id="a1-master">
+/* ============================================================
+   v0.6 — 바이어 × 은행 마스터 초안 (코드만 · AI 호출 없음 · 읽기만 · DOM·통신 없음 → node 단위 시험 대상)
+   지시서 D00_A1_시험도구v0.6_마스터초안자동생성 v1.0 / D-00_바이어은행마스터_초안_v0.1 §3 (형님 결정 D5 · D6)
+   마스터 = S/I 칸마다의 「틀」 + 관행값. 틀 안의 매번 바뀌는 값은 {…} 자리 — 값은 매번 LC 에서 (형님 결정 D1)
+============================================================ */
+var A1M=(function(){
+'use strict';
+var FIELDS=['consignee','notify_party','address','tel','fax','bl_text1','bl_text2','all','invoicetext','bencert_text','po_vo','vo_no','remark',
+  'place_of_delivery_1','place_of_delivery_2','place_of_delivery_3','port_of_discharge','shipping_mark','lc_no'].map(function(f){return [f,A1C.COL[f]];});
+var PH_NAMES=['APPLICANT_NAME','APPLICANT_ADDR','LC_NO','LC_DATE','PO','HS','VO'];
+var BANK_UNKNOWN='銀行不明';
+function nfkc(s){ var t=String(s==null?'':s); try{t=t.normalize('NFKC');}catch(e){} return t; }
+function escRe(s){ return String(s).replace(/[.*+?^${}()|[\]\\\/]/g,'\\$&'); }
+function alnumKey(s){ return nfkc(s).toUpperCase().replace(/[^A-Z0-9]/g,''); }
+/* 자리 표시 — 처리 중에는 사용자 영역 문자(ASCII 없음)로 두어 다음 바꾸기에 걸리지 않게 한다 */
+function sentinel(name){ return ''+String.fromCharCode(0xE100+PH_NAMES.indexOf(name))+''; }
+function unSentinel(s){ return String(s).replace(/([-])/g,function(m,c){ return '{'+PH_NAMES[c.charCodeAt(0)-0xE100]+'}'; }); }
+var SEP='[\\s.,\\-]*';
+/* 대소문자 · 공백 · 줄바꿈 · 구두점(. , -) 무시, 낱말 순서가 이어지는 구간 */
+function looseRe(needle){
+  var t=nfkc(needle).toUpperCase().trim(); var words=t.split(/[\s.,\-]+/).filter(Boolean);
+  if(!words.length) return null;
+  var lead=/^[.,\-]/.test(t)?'[.,\\-]*':'', tail=/[.,\-]$/.test(t)?'[.,\\-]*':'';
+  return new RegExp('(?<![A-Z0-9])'+lead+words.map(escRe).join(SEP)+tail+'(?![A-Z0-9])','gi');
+}
+function replaceLoose(value, needle, name){
+  var re=looseRe(needle); if(!re) return {text:value, hit:false};
+  var hit=false, out=String(value).replace(re,function(){ hit=true; return sentinel(name); });
+  return {text:out, hit:hit};
+}
+/* HS 숫자 — 점 · 공백이 섞여도, 끝에 0 이 더 붙어도 (4707.10 ↔ 47071000) */
+function replaceHs(value, digits){
+  if(!/^\d{4,}$/.test(digits)) return {text:value, hit:false};
+  var re=new RegExp('(?<!\\d)'+digits.split('').join('[\\s.]?')+'(?:[\\s.]?0)*(?!\\d)','g'), hit=false;
+  return {text:String(value).replace(re,function(){ hit=true; return sentinel('HS'); }), hit:hit};
+}
+/* :31C → 여러 날짜 형식으로 찾아 바꾸고, 찾은 형식 이름을 기록 */
+var MONS=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+var MONTHS=['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER'];
+function dateForms(iso){
+  var m=String(iso||'').match(/^(\d{4})-(\d{2})-(\d{2})$/); if(!m) return [];
+  var Y=m[1], YY=m[1].slice(2), MM=m[2], DD=m[3], mi=+MM-1, d=String(+DD), mo=String(+MM);
+  var dRe='(0?'+d+')(?:ST|ND|RD|TH)?', ddName=function(x){return x.length===2?'DD':'D';};
+  var F=[];
+  if(MONTHS[mi]!==MONS[mi]) F.push({re:'\\b'+MONTHS[mi]+'\\.?\\s+'+dRe+'\\s*(,?)\\s*'+Y+'\\b', name:function(g){return 'MONTH '+ddName(g[1])+(g[2]?',':'')+' YYYY';}});   // MAY 는 약칭과 같음 → MON
+  F.push({re:'\\b'+MONS[mi]+'\\.?\\s+'+dRe+'\\s*(,?)\\s*'+Y+'\\b', name:function(g){return 'MON '+ddName(g[1])+(g[2]?',':'')+' YYYY';}});
+  F.push({re:'\\b'+dRe+'([\\s\\-\\/.]*)('+MONTHS[mi]+'|'+MONS[mi]+')\\.?([\\s\\-\\/.,]*)'+Y+'\\b', name:function(g){return ddName(g[1])+(g[2].trim()||' ')+(g[3].length>3?'MONTH':'MON')+(g[4].trim()||' ')+'YYYY';}});
+  F.push({re:'\\b'+Y+'([\\-\\/.])0?'+mo+'\\1(0?'+d+')\\b', name:function(g){return 'YYYY'+g[1]+'MM'+g[1]+'DD';}});
+  F.push({re:'\\b(0?'+d+')([\\/.\\-])0?'+mo+'(?:\\2)'+Y+'\\b', name:function(g){return 'DD'+g[2]+'MM'+g[2]+'YYYY';}});   // (?:\2) — 뒤 연도 숫자와 붙어 \22026 이 되지 않게
+  if(d!==mo) F.push({re:'\\b0?'+mo+'([\\/.\\-])(0?'+d+')(?:\\1)'+Y+'\\b', name:function(g){return 'MM'+g[1]+'DD'+g[1]+'YYYY';}});
+  F.push({re:'\\b'+Y+MM+DD+'\\b', name:function(){return 'YYYYMMDD';}});
+  F.push({re:'\\b'+YY+MM+DD+'\\b', name:function(){return 'YYMMDD';}});
+  return F;
+}
+function replaceDates(value, iso){
+  var out=String(value), names=[];
+  dateForms(iso).forEach(function(f){ out=out.replace(new RegExp(f.re,'gi'),function(){ var g=[].slice.call(arguments,0,-2); names.push(f.name(g)); return sentinel('LC_DATE'); }); });
+  return {text:out, formats:names};
+}
+/* LC 에서 PO 번호 (45A · 47A). 판매계약 PO(COMPASS) 는 LC 원문에 있을 때만 더한다 */
+function lcPos(tags, lcText, contractPo){
+  var t=nfkc([tags['45A'],tags['45B'],tags['47A'],tags['47B']].filter(Boolean).join('\n')).toUpperCase(), out={};
+  var re=/\b(?:P\.?\s*O\.?|PURCHASE\s+ORDER|ORDER)\s*(?:NO\.?|NOS\.?|NUMBER|#)?\s*[:.\-]?\s*([A-Z0-9][A-Z0-9\-\/.]*\d[A-Z0-9\-\/]*)/g, m;
+  while((m=re.exec(t))){ var v=m[1].replace(/[.\-\/]+$/,''); if(v.length>=4) out[v]=1; }
+  if(contractPo){ String(contractPo).split(/[\s,;]+/).forEach(function(p){ p=p.trim().toUpperCase(); if(p.length>=4 && /\d/.test(p) && looseRe(p).test(nfkc(lcText).toUpperCase())) out[p]=1; }); }
+  return Object.keys(out);
+}
+function lcHs(tags){
+  var t=nfkc([tags['45A'],tags['45B']].filter(Boolean).join('\n')).toUpperCase(), out={}, m;
+  var re=/\bH\.?\s*S\.?\s*(?:CODE|NO\.?|NUMBER)?\s*(?:NO\.?)?\s*[:.#]?\s*(\d[\d .]{2,}\d)/g;
+  while((m=re.exec(t))){ var d=m[1].replace(/[^\d]/g,''); if(d.length>=4) out[d]=1; }
+  return Object.keys(out);
+}
+/* LC 문맥: :50 첫 줄(신청 회사) · 나머지 줄(주소) · :20 · :31C · PO · HS */
+function lcContext(lc, contractPo){
+  lc=lc||{}; var tags=lc.tags||{};
+  var lines=nfkc(tags['50']||'').replace(/\r/g,'').split('\n').map(function(s){return s.trim();}).filter(Boolean);
+  return {applicantName:lines[0]||'', addrLines:lines.slice(1), lcNo:lc.lcNo||String(tags['20']||'').split('\n')[0].trim(),
+    issueDate:A1C.swiftDate(tags['31C']||''), pos:lcPos(tags, lc.text||'', contractPo), hs:lcHs(tags)};
+}
+/* 값 → 틀. {template, formats, used[], addrLines} */
+function toTemplate(value, ctx){
+  var v=nfkc(value).replace(/\r\n?/g,'\n'), used={}, formats=[], addrUsed=[];
+  if(!v.trim()) return {template:'', formats:[], used:[], addrLines:''};
+  // VO — 값 안의 「VO NUMBER : …」 번호 (LC 에 없음 — 메일 출처). XX 자리표시는 그대로
+  v=v.replace(/(\bV\.?O\.?\s*(?:NUMBER|NO\.?)\s*:?\s*)([^\s#*]+)/gi,function(m,a,num){ if(/^X+$/i.test(num)) return m; used.VO=1; return a+sentinel('VO'); });
+  // 긴 것부터 (:50 첫 줄 · 주소 전체 · 주소 줄 · :20 · PO)
+  var cand=[];
+  if(ctx.applicantName) cand.push({name:'APPLICANT_NAME', text:ctx.applicantName});
+  if(ctx.addrLines.length>1) cand.push({name:'APPLICANT_ADDR', text:ctx.addrLines.join(' '), line:'all'});
+  ctx.addrLines.forEach(function(l,i){ if(alnumKey(l).length>=10 && l.trim().split(/\s+/).length>=2) cand.push({name:'APPLICANT_ADDR', text:l, line:i+1}); });   // 줄 단위 (나라 이름 한 줄 등 짧은 줄은 안 찾음)
+  if(ctx.lcNo) cand.push({name:'LC_NO', text:ctx.lcNo});
+  (ctx.pos||[]).forEach(function(p){ cand.push({name:'PO', text:p}); });
+  cand.sort(function(a,b){ return alnumKey(b.text).length-alnumKey(a.text).length; });
+  cand.forEach(function(c){
+    if(c.name==='APPLICANT_ADDR' && c.line!=='all' && addrUsed.indexOf('all')>=0) return;
+    var r=replaceLoose(v,c.text,c.name); if(r.hit){ v=r.text; used[c.name]=1; if(c.name==='APPLICANT_ADDR') addrUsed.push(c.line); }
+  });
+  (ctx.hs||[]).forEach(function(d){ var r=replaceHs(v,d); if(r.hit){ v=r.text; used.HS=1; } });
+  if(ctx.issueDate){ var rd=replaceDates(v,ctx.issueDate); v=rd.text; if(rd.formats.length){ used.LC_DATE=1; formats=rd.formats; } }
+  // 주소 줄이 이어지면 {APPLICANT_ADDR} 하나로 (어느 줄을 썼는지는 addrLines 에)
+  var A=sentinel('APPLICANT_ADDR'); v=v.replace(new RegExp(escRe(A)+'(?:[\\s.,\\-]*'+escRe(A)+')+','g'),A);
+  var al=addrUsed.indexOf('all')>=0?'all':addrUsed.sort(function(a,b){return a-b;}).join(',');
+  return {template:unSentinel(v), formats:formats, used:PH_NAMES.filter(function(n){return used[n];}), addrLines:al?(al==='all'?'all':al+'/'+ctx.addrLines.length):''};
+}
+/* 구두점 · 공백만 다른 틀은 같은 틀 */
+function tplKey(t){ return nfkc(t).toUpperCase().replace(/[\s.,\-;:]+/g,''); }
+
+/* ── Step 3 관행값 · 지시문 ── */
+var PRACTICE_RES={
+  tax:[/\b(?:NPWP|TAX\s*(?:CODE|ID|NO\.?|NUMBER)?|MST|ENTERPRISE\s+CODE)\s*(?:NO\.?|NUMBER)?\s*[:.#]?\s*([0-9][0-9.\-]{5,}[0-9])/gi, /(?:^|\n)(\d{10,13})#/g],
+  permit:[/\b(\d+\/[A-Z]{2,6}-BTNMT)\b/gi, /\b(?:PERMIT|LICEN[CS]E)\s*(?:NO\.?|NUMBER)?\s*[:.#]?\s*([A-Z0-9][A-Z0-9\/\-.]*\d[A-Z0-9\/\-]*)/gi],
+  email:[/([A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,})/gi],
+  tel:[/(\bTEL(?:EPHONE)?[ \t]*(?:NO\.?)?[ \t]*[:.]?[ \t]*\+?\d[\d \t\-()\/.]{5,}\d)/gi],
+  fax:[/(\bFAX[ \t]*(?:NO\.?)?[ \t]*[:.]?[ \t]*\+?\d[\d \t\-()\/.]{5,}\d)/gi],
+  deposit:[/(#?(?:SECURITY[ \t]+)?DEPOSIT(?:[ \t]*(?:NUMBER|NO\.?))?(?:[ \t]*:[ \t]*(?:X+|\d+))?#?)/gi]
+};
+var PRACTICE_LABEL={tax:'税番号',permit:'許可番号',email:'EMAIL',tel:'TEL',fax:'FAX',deposit:'DEPOSIT表記'};
+function practiceNorm(kind, v){ v=nfkc(v).toUpperCase().trim(); if(kind==='tax') return v.replace(/[^0-9]/g,''); if(kind==='permit') return v.replace(/\s+/g,''); if(kind==='tel'||kind==='fax') return v.replace(/[ \t]+/g,' '); return v; }
+function findPractices(text){
+  var out={}, t=nfkc(text);
+  Object.keys(PRACTICE_RES).forEach(function(k){ var seen={}; PRACTICE_RES[k].forEach(function(re){ re.lastIndex=0; var m; while((m=re.exec(t))){ var v=practiceNorm(k,m[1]); if(v&&!seen[v]){ seen[v]=1; (out[k]=out[k]||[]).push(v); } if(!m[0]) re.lastIndex++; } }); });
+  return out;
+}
+/* LC 46A B/L 조항의 「(MADE OUT )TO (THE )ORDER OF …」 (최대 120자) */
+function consigneeWording(tags){
+  var cl=A1C.splitClauses(nfkc(tags['46A']||'')).filter(function(c){return /BILLS?\s+OF\s+LADING|\bB\/L\b|SEA\s*WAY\s*BILL|OCEAN|MARINE/i.test(c.text);});
+  var src=(cl.length?cl.map(function(c){return c.text;}):[String(tags['46A']||'')]).join(' ').toUpperCase().replace(/\s+/g,' ');
+  var m=src.match(/(?:MADE\s+OUT\s+)?(TO\s+(?:THE\s+)?ORDER\s+OF\s+.*?)(?=\s+(?:AND\s+)?(?:MARKED|NOTIFY(?:ING)?|SHOWING|INDICATING|ENDORSED|FREIGHT)\b|[,;]|\.\s|\.$|$)/);
+  return m?m[1].trim().slice(0,120):'';
+}
+function poKind(value, pos, template){
+  var v=nfkc(value).trim(); if(!v) return null;
+  var shape=v.toUpperCase().replace(/[0-9]/g,'9').replace(/[A-Z]/g,'A');
+  if(/^LRS-/i.test(v)) return {kind:'LRS番号', shape:shape};
+  var k=alnumKey(v); if((pos||[]).some(function(p){return alnumKey(p)===k;}) || template==='{PO}') return {kind:'バイヤーPO', shape:shape};
+  return {kind:'その他', shape:shape};
+}
+function bankLabel(bankKey){ var b=String(bankKey||''); return b?b.replace(/^BIC:/,'').replace(/^NAME:/,''):BANK_UNKNOWN; }
+function keyOf(it, ctx){ return [it.buyer||'?', bankLabel(it.bankKey), alnumKey(ctx.applicantName)].join('|'); }
+function byNo(a,b){ return String(a.no).localeCompare(String(b.no)); }
+
+/* items: [{no, date, buyer, bankKey, contractPo, lc:{tags:{tag:value}, lcNo, text}, sis:[{crcf9_sino, <col>…}]}] → 마스터 초안 */
+function buildMasterDraft(items){
+  var groups={};
+  (items||[]).slice().sort(byNo).forEach(function(it){
+    var ctx=lcContext(it.lc, it.contractPo), k=keyOf(it,ctx);
+    var g=groups[k]=groups[k]||{buyer:it.buyer||'?', bank:bankLabel(it.bankKey), bankKey:it.bankKey||'', bankUnknown:!it.bankKey, applicant:ctx.applicantName, applicantKey:alnumKey(ctx.applicantName), items:[]};
+    g.items.push({it:it, ctx:ctx});
+  });
+  var keys=Object.keys(groups).sort(function(a,b){ var x=groups[a], y=groups[b]; return x.buyer.localeCompare(y.buyer)||x.bank.localeCompare(y.bank)||x.applicant.localeCompare(y.applicant); }).map(function(k){
+    var g=groups[k], list=g.items, sinoSet={}, fields=[], unused=[], practices={}, cw={}, pk={};
+    list.forEach(function(x){ (x.it.sis||[]).forEach(function(h){ var sn=+h.crcf9_sino; if(sn>=1&&sn<=4) sinoSet[sn]=1; }); });
+    var sinos=Object.keys(sinoSet).map(Number).sort();
+    var sinoComp={}; list.forEach(function(x){ var s=(x.it.sis||[]).map(function(h){return +h.crcf9_sino;}).filter(function(n){return n>=1&&n<=4;}).sort().join('+')||'—'; (sinoComp[s]=sinoComp[s]||[]).push(x.it.no); });
+    var tplOf={};   // no|sino|field → template (지시문 짝 · po_vo 종류용)
+    sinos.forEach(function(sn){
+      FIELDS.forEach(function(fc){
+        var f=fc[0], col=fc[1], rows=[];
+        list.forEach(function(x){ var h=(x.it.sis||[]).filter(function(y){return +y.crcf9_sino===sn;})[0]; if(!h) return;
+          var raw=h[col]==null?'':String(h[col]), t=toTemplate(raw,x.ctx); tplOf[x.it.no+'|'+sn+'|'+f]=t.template;
+          rows.push({no:x.it.no, raw:raw, t:t}); });
+        if(!rows.length) return;
+        if(rows.every(function(r){return !r.raw.trim();})){ unused.push({sino:sn, field:f}); return; }
+        var tg={}, order=[];
+        rows.forEach(function(r){ var kk=r.t.template?tplKey(r.t.template):'\u0000EMPTY'; if(!tg[kk]){ tg[kk]={template:r.t.template, contracts:[], formats:{}, used:{}, addrLines:{}}; order.push(kk); }
+          var o=tg[kk]; o.contracts.push(r.no); o.template=r.t.template; o.example=r.raw; r.t.formats.forEach(function(n){o.formats[n]=1;}); r.t.used.forEach(function(n){o.used[n]=1;}); if(r.t.addrLines) o.addrLines[r.t.addrLines]=1; });   // 틀 = 가장 최근 계약의 표기
+        var latest=rows[rows.length-1].no;
+        var templates=order.map(function(kk){ var o=tg[kk]; return {template:o.template, empty:!o.template, contracts:o.contracts, latest:o.contracts[o.contracts.length-1], recommended:o.contracts.indexOf(latest)>=0,
+          date_formats:Object.keys(o.formats), placeholders:Object.keys(o.used), addr_lines:Object.keys(o.addrLines).join(' '), example:o.example}; });
+        var status=rows.length===1?'単発':(templates.length===1?'確実':'確認要');
+        fields.push({sino:sn, field:f, col:col, status:status, n:rows.length, templates:templates, recommended:templates.filter(function(t){return t.recommended;})[0].template});
+      });
+    });
+    // 관행값 — 틀의 고정 부분에서 (값 + 처음/마지막으로 본 계약)
+    fields.forEach(function(fd){ fd.templates.forEach(function(t){ if(!t.template) return;
+      var found=findPractices(t.template);
+      Object.keys(found).forEach(function(kind){ found[kind].forEach(function(v){
+        var arr=practices[kind]=practices[kind]||[], e=arr.filter(function(x){return x.value===v;})[0];
+        if(!e){ e={value:v, first:'', last:'', contracts:{}, where:{}}; arr.push(e); }
+        t.contracts.forEach(function(no){ e.contracts[no]=1; }); e.where[fd.sino+':'+fd.field]=1; }); }); }); });
+    var allNos=list.map(function(x){return x.it.no;});
+    Object.keys(practices).forEach(function(kind){ practices[kind].forEach(function(e){ var ns=allNos.filter(function(n){return e.contracts[n];}); e.first=ns[0]||''; e.last=ns[ns.length-1]||''; e.count=ns.length; e.where=Object.keys(e.where); delete e.contracts; });
+      practices[kind].sort(function(a,b){ return allNos.indexOf(b.last)-allNos.indexOf(a.last); }); });
+    // 허가번호 · 세금코드 ↔ 가장 최근 LC 원문 (LC 우선 — 사람 확인)
+    var last=list[list.length-1], lcText=(last.it.lc&&last.it.lc.text)||'', lcF=findPractices(lcText), lcDiff=[];
+    ['permit','tax'].forEach(function(kind){
+      var lv=lcF[kind]||[], mv=practices[kind]||[]; if(!lv.length||!mv.length) return;
+      var newest=mv.filter(function(e){return e.last===mv[0].last;});
+      newest.forEach(function(e){ if(lv.indexOf(e.value)<0) lcDiff.push({kind:kind, label:PRACTICE_LABEL[kind], master:e.value, master_last:e.last, lc:lv.join(' / '), lc_contract:last.it.no}); });
+    });
+    // consignee 지시문 → S/I 틀 (sino 1)
+    list.forEach(function(x){ var w=consigneeWording((x.it.lc||{}).tags||{}); var tpl=tplOf[x.it.no+'|1|consignee']; if(!w||tpl==null) return;
+      var kk=tplKey(w)+'\u0001'+tplKey(tpl); (cw[kk]=cw[kk]||{lc_wording:w, si_template:tpl, contracts:[]}).contracts.push(x.it.no); });
+    // po_vo 종류 (sino 1)
+    list.forEach(function(x){ var h=(x.it.sis||[]).filter(function(y){return +y.crcf9_sino===1;})[0]; if(!h) return; var r=poKind(h.crcf9_po_vo, x.ctx.pos, tplOf[x.it.no+'|1|po_vo']); if(!r) return;
+      var kk=r.kind+'\u0001'+r.shape; (pk[kk]=pk[kk]||{kind:r.kind, shape:r.shape, contracts:[]}).contracts.push(x.it.no); });
+    var counts={確実:0,確認要:0,単発:0}; fields.forEach(function(fd){ counts[fd.status]++; });
+    return {buyer:g.buyer, bank:g.bank, bank_key:g.bankKey, bank_unknown:g.bankUnknown, bank_note:g.bankUnknown?'銀行 人入力必要':'', applicant:g.applicant, applicant_key:g.applicantKey,
+      contracts:allNos, n:allNos.length, sinos:sinos, sino_composition:sinoComp, counts:counts, fields:fields, unused_fields:unused, practices:practices, lc_diff:lcDiff,
+      consignee_wording:Object.keys(cw).map(function(k){return cw[k];}), po_vo_kind:Object.keys(pk).map(function(k){return pk[k];})};
+  });
+  return {keys:keys, pairs:Object.keys(keys.reduce(function(o,k){o[k.buyer+'|'+k.bank]=1;return o;},{})).length, contracts:(items||[]).length};
+}
+function practiceSummary(p){ return Object.keys(PRACTICE_LABEL).filter(function(k){return p[k]&&p[k].length;}).map(function(k){ return PRACTICE_LABEL[k]+' '+p[k].map(function(e){return e.value;}).join(' / '); }).join(' · '); }
+/* 사람용 CSV (한 줄 = 키 × sino × 칸) */
+var CSV_HEAD=['buyer','bank','applicant','contracts','sino','field','col','status','n','recommended_template','template_count','templates','date_formats','addr_lines','practices','lc_diff','bank_note'];
+function toCsvRows(draft){
+  var rows=[];
+  draft.keys.forEach(function(k){ k.fields.forEach(function(fd){ rows.push({buyer:k.buyer, bank:k.bank, applicant:k.applicant, contracts:k.n, sino:fd.sino, field:fd.field, col:fd.col, status:fd.status, n:fd.n,
+    recommended_template:fd.recommended, template_count:fd.templates.length,
+    templates:fd.templates.map(function(t){return (t.empty?'(空欄)':t.template)+' ['+t.contracts.join(' ')+']';}).join(' || '),
+    date_formats:[].concat.apply([],fd.templates.map(function(t){return t.date_formats;})).filter(function(v,i,a){return a.indexOf(v)===i;}).join(' '),
+    addr_lines:fd.templates.map(function(t){return t.addr_lines;}).filter(Boolean).join(' '),
+    practices:practiceSummary(k.practices), lc_diff:k.lc_diff.map(function(d){return d.label+' '+d.master+'≠LC '+d.lc;}).join(' / '), bank_note:k.bank_note}); }); });
+  return rows;
+}
+function toSummaryMd(draft, meta){
+  meta=meta||{}; var tot={確実:0,確認要:0,単発:0}, L=[];
+  draft.keys.forEach(function(k){ Object.keys(tot).forEach(function(s){ tot[s]+=k.counts[s]; }); });
+  L.push('# バイヤー × 銀行 マスター草案 (自動生成 — 草案)','');
+  L.push('| 項目 | 内容 |','|---|---|');
+  L.push('| 作成 | '+(meta.generated_at||'')+' · a1_bench v'+(meta.version||'')+' (コードのみ · AI 呼び出しなし · COMPASS 読み取りのみ) |');
+  L.push('| 対象 | 契約 '+draft.contracts+' 件 · バイヤー × 銀行 '+draft.pairs+' 組 · キー (バイヤー × 銀行 × 申請会社) '+draft.keys.length+' |');
+  L.push('| 欄の状態 | 確実 '+tot.確実+' · 確認要 '+tot.確認要+' · 単発 '+tot.単発+' |');
+  L.push('| 保存先 | '+(meta.dir||'')+' (共通マスター位置 DOC-Z-07 には書かない) |','');
+  L.push('## キー一覧','','| バイヤー | 銀行 | 申請会社 | 契約 | sino | 確実 | 確認要 | 単発 | LCと違い |','|---|---|---|---|---|---|---|---|---|');
+  draft.keys.forEach(function(k){ L.push('| '+[k.buyer,k.bank+(k.bank_unknown?' ⚠':''),k.applicant||'(申請会社不明)',k.n,k.sinos.join('+'),k.counts.確実,k.counts.確認要,k.counts.単発,k.lc_diff.length].map(mdc).join(' | ')+' |'); });
+  L.push('','## 確認要 一覧','');
+  var any=false; draft.keys.forEach(function(k){ k.fields.filter(function(f){return f.status==='確認要';}).forEach(function(f){ any=true;
+    L.push('- **'+mdc(k.buyer+' × '+k.bank+' × '+(k.applicant||'?'))+'** sino '+f.sino+' `'+f.field+'` — 틀 '+f.templates.length+'개');
+    f.templates.forEach(function(t){ L.push('  - '+(t.recommended?'⭐推奨 ':'')+'`'+mdc(t.empty?'(空欄)':t.template).replace(/\n/g,'⏎')+'` ← '+t.contracts.join(', ')); }); }); });
+  if(!any) L.push('(なし)');
+  L.push('','## LC と違う (許可番号 · 税番号 — LC 優先 · 人確認)','');
+  var d=[]; draft.keys.forEach(function(k){ k.lc_diff.forEach(function(x){ d.push('- '+mdc(k.buyer+' × '+k.bank+' × '+(k.applicant||'?'))+' — '+x.label+' マスター `'+x.master+'` (最終 '+x.master_last+') ≠ 最新 LC '+x.lc_contract+' `'+x.lc+'`'); }); });
+  L.push(d.length?d.join('\n'):'(なし)');
+  var bu=draft.keys.filter(function(k){return k.bank_unknown;});
+  L.push('','## 銀行 人入力必要 (イメージ LC 等)','',bu.length?bu.map(function(k){return '- '+mdc(k.buyer)+' — '+k.contracts.join(', ');}).join('\n'):'(なし)');
+  L.push('','---','✦ Powered by LEENAI Automation System','');
+  return L.join('\n');
+}
+function mdc(s){ return String(s==null?'':s).replace(/\|/g,'\\|'); }
+
+return {FIELDS:FIELDS, PH_NAMES:PH_NAMES, BANK_UNKNOWN:BANK_UNKNOWN, alnumKey:alnumKey, looseRe:looseRe, replaceLoose:replaceLoose, replaceDates:replaceDates, dateForms:dateForms,
+  lcPos:lcPos, lcHs:lcHs, lcContext:lcContext, toTemplate:toTemplate, tplKey:tplKey, findPractices:findPractices, consigneeWording:consigneeWording, poKind:poKind,
+  buildMasterDraft:buildMasterDraft, practiceSummary:practiceSummary, toCsvRows:toCsvRows, CSV_HEAD:CSV_HEAD, toSummaryMd:toSummaryMd, PRACTICE_LABEL:PRACTICE_LABEL};
+})();
+</script>
 <script id="a1-app">
 /* ============================================================
    A1 bench — 통신 · 실행 · 화면
@@ -2432,6 +2694,78 @@ function renderSummary(out){
     Object.keys(g).sort().map(k=>{ const a=A1C.accuracy(g[k]), ai=A1C.accuracy(g[k].filter(r=>r.important)); const p=out.perRun[k.replace('R0 D-01 v3.2','R0 (D-01 v3.2)')]||{};
       return `<tr><td>${escH(k)}</td><td>${a.n}</td><td>${(100*a.match).toFixed(1)}%</td><td>${(100*ai.match).toFixed(1)}%</td><td>${a.内容差} (${ai.内容差})</td><td>${a.推奨なし}</td><td>${(p.in||0).toLocaleString()} / ${(p.out||0).toLocaleString()}</td><td>${((p.ms||0)/1000).toFixed(0)}초</td><td>${(p.cost||0).toFixed(2)}</td></tr>`; }).join('')+'</tbody></table>';
 }
+/* ============================================================
+   v0.6 — マスター草案 (코드만 · 읽기만). 쓰기는 「保存」 을 눌러 확인한 뒤 master_draft/ 에만
+============================================================ */
+const A1_SP_MASTER_DIR = A1_SP_OUT_DIR+'/master_draft';
+function masterItems(){
+  return S.targets.slice().sort((a,b)=>a.no.localeCompare(b.no)).map(t=>{
+    const lc=S.lcParsed[t.no]||{}, cur=lc.current||{}, tags={};
+    Object.keys(cur).forEach(k=>{ tags[k]=(cur[k]&&cur[k].value)||''; });
+    const text=Object.keys(cur).map(k=>':'+k+': '+tags[k]).join('\n');   // 가장 최근 LC = Amend 적용 후 태그
+    return {no:t.no, date:t.date, buyer:t.buyer, bankKey:t.bankKey||'', contractPo:(S.byNo[t.no]||{}).poNo||'', lc:{tags, lcNo:lc.lcNo||'', text}, sis:S.siByContract[t.no]||[]};
+  });
+}
+function runMasterDraft(){
+  if(!S.targets.length){ $('a1MasterStatus').textContent='먼저 「대상 목록」'; return; }
+  const t0=performance.now();
+  S.master=A1M.buildMasterDraft(masterItems());
+  S.master.generated_at=new Date().toISOString(); S.master.version=a1Version();
+  renderMaster();
+  $('a1BtnMasterSave').disabled=false;
+  const msg=`マスター草案 — 키 ${S.master.keys.length} · 바이어×은행 ${S.master.pairs} · 계약 ${S.master.contracts} (${Math.round(performance.now()-t0)}ms)`;
+  $('a1MasterStatus').textContent=msg; logLine(msg,'ok');
+}
+const phHtml = s => escH(s).replace(/\{(APPLICANT_NAME|APPLICANT_ADDR|LC_NO|LC_DATE|PO|HS|VO)\}/g,'<span class="a1-ph">{$1}</span>');
+function renderMaster(){
+  const d=S.master, tot={確実:0,確認要:0,単発:0}; d.keys.forEach(k=>Object.keys(tot).forEach(s=>{ tot[s]+=k.counts[s]; }));
+  const nDiff=d.keys.reduce((n,k)=>n+k.lc_diff.length,0), nUnk=d.keys.filter(k=>k.bank_unknown).length;
+  $('a1MasterSummary').innerHTML=`<div class="a1-kpis"><div><b>키 (바이어×은행×신청회사)</b>${d.keys.length}</div><div><b>바이어 × 은행</b>${d.pairs}</div><div><b>계약</b>${d.contracts}</div><div><b>確実 칸</b>${tot.確実}</div><div><b>確認要 칸</b>${tot.確認要}</div><div><b>単発 칸</b>${tot.単発}</div><div><b>LC와 다름</b>${nDiff}</div><div><b>은행 사람 입력</b>${nUnk}</div></div>`;
+  $('a1MasterTable').innerHTML='<table class="a1-t"><thead><tr><th>바이어</th><th>은행</th><th>신청 회사 (:50 첫 줄)</th><th>계약</th><th>sino</th><th>確実</th><th>確認要</th><th>単発</th><th>관행값</th><th>LC와 다름</th></tr></thead><tbody>'+
+    d.keys.map((k,i)=>`<tr class="a1-mk" data-mk="${i}"><td>${escH(k.buyer)}</td><td>${escH(k.bank)}${k.bank_unknown?' <span class="a1-warn">은행 사람 입력 필요</span>':''}</td><td>${escH(k.applicant||'(申請会社不明)')}</td><td>${k.n}</td><td>${escH(Object.keys(k.sino_composition).join(' / '))}</td>`+
+      `<td class="a1-st-確実">${k.counts.確実}</td><td class="a1-st-確認要">${k.counts.確認要||''}</td><td class="a1-st-単発">${k.counts.単発||''}</td><td>${escH(A1M.practiceSummary(k.practices))}</td><td>${k.lc_diff.length?'<span class="a1-warn">'+k.lc_diff.length+'</span>':''}</td></tr>`+
+      `<tr id="a1MkD${i}" style="display:none"><td colspan="10"></td></tr>`).join('')+'</tbody></table>';
+}
+function masterDetailHtml(k){
+  const rows=k.fields.map(f=>`<tr><td>${f.sino}</td><td>${escH(f.field)}</td><td class="a1-st-${f.status}">${f.status}</td><td>${f.n}</td><td>`+
+    f.templates.map(t=>`<div class="a1-tpl">${f.templates.length>1?(t.recommended?'⭐推奨 ':'· '):''}${t.empty?'<i>(空欄)</i>':phHtml(t.template)}</div>`+
+      (f.templates.length>1||t.date_formats.length||t.addr_lines?`<div class="a1-note" style="margin:0 0 6px">${f.templates.length>1?escH(t.contracts.join(', ')):''}${t.date_formats.length?' · 日付 '+escH(t.date_formats.join(' / ')):''}${t.addr_lines?' · 住所行 '+escH(t.addr_lines):''}</div>`:'')).join('')+'</td></tr>').join('');
+  const pr=Object.keys(A1M.PRACTICE_LABEL).filter(x=>k.practices[x]&&k.practices[x].length).map(x=>k.practices[x].map(e=>`<tr><td>${escH(A1M.PRACTICE_LABEL[x])}</td><td class="a1-tpl">${escH(e.value)}</td><td>${escH(e.first)} → ${escH(e.last)} (${e.count})</td><td>${escH(e.where.join(' '))}</td></tr>`).join('')).join('');
+  return `<div class="a1-note">계약: ${escH(k.contracts.join(', '))}${k.unused_fields.length?' · 使わない: '+escH(k.unused_fields.map(u=>u.sino+':'+u.field).join(' ')):''}</div>`+
+    `<table class="a1-t"><thead><tr><th>sino</th><th>칸</th><th>상태</th><th>계약</th><th>틀 (자리 = 색)</th></tr></thead><tbody>${rows}</tbody></table>`+
+    (pr?`<table class="a1-t"><thead><tr><th>관행값</th><th>값</th><th>처음 → 마지막 (계약 수)</th><th>칸</th></tr></thead><tbody>${pr}</tbody></table>`:'')+
+    (k.lc_diff.length?`<div class="a1-warn">LC와 다름 (LC 우선 — 사람 확인): ${k.lc_diff.map(x=>escH(x.label+' 마스터 '+x.master+' ≠ '+x.lc_contract+' LC '+x.lc)).join(' / ')}</div>`:'')+
+    (k.consignee_wording.length?`<table class="a1-t"><thead><tr><th>LC 46A 지시문</th><th>→ S/I consignee 틀 (sino 1)</th><th>계약</th></tr></thead><tbody>${k.consignee_wording.map(w=>`<tr><td class="a1-tpl">${escH(w.lc_wording)}</td><td class="a1-tpl">${phHtml(w.si_template)}</td><td>${escH(w.contracts.join(', '))}</td></tr>`).join('')}</tbody></table>`:'')+
+    (k.po_vo_kind.length?`<div class="a1-note">po_vo 종류: ${k.po_vo_kind.map(p=>escH(p.kind+' ('+p.shape+') '+p.contracts.length+'건')).join(' · ')}</div>`:'');
+}
+function toggleMasterRow(i){
+  const tr=$('a1MkD'+i); if(!tr) return;
+  if(tr.style.display==='none'){ if(!tr.dataset.done){ tr.firstChild.innerHTML=masterDetailHtml(S.master.keys[i]); tr.dataset.done='1'; } tr.style.display=''; } else tr.style.display='none';
+}
+function masterStamp(){ const d=new Date(), p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`; }
+function masterOutputs(stamp){
+  const d=S.master, dir=A1_SP_MASTER_DIR;
+  const json={schema:'a1_master_buyer_bank_draft/0.1', status:'草案 (DOC-Z-07 共通マスターには未登録)', generated_at:d.generated_at, version:d.version,
+    placeholders:{APPLICANT_NAME:':50 1行目',APPLICANT_ADDR:':50 残りの行 (addr_lines = 使った行)',LC_NO:':20',LC_DATE:':31C (date_formats = 見つけた形式)',PO:'LC 45A/47A の PO 番号',HS:'LC 45A の HS コード',VO:'値の中の VO NUMBER (メール出所)'},
+    status_rule:{確実:'契約 2 件以上 · 틀 1つ',確認要:'틀 2つ以上 (recommended = 最新契約の틀)',単発:'契約 1 件'},
+    contracts:d.contracts, pairs:d.pairs, keys:d.keys};
+  return {dir, json:JSON.stringify(json,null,1), csv:A1C.toCsv(A1M.CSV_HEAD,A1M.toCsvRows(d)), md:A1M.toSummaryMd(d,{generated_at:d.generated_at,version:d.version,dir}),
+    names:[`master_buyer_bank_draft_${stamp}.json`,`master_buyer_bank_draft_${stamp}.csv`,'summary.md']};
+}
+async function saveMasterDraft(){
+  if(!S.master) return;
+  const stamp=masterStamp(), o=masterOutputs(stamp);
+  const ok=await askBox(`<b>マスター草案 保存</b><br>SharePoint <code>${escH(o.dir)}/</code> 에 3파일을 씁니다 (공통 마스터 위치에는 쓰지 않음).<br>`+o.names.map(n=>'· '+escH(n)).join('<br>'),['저장','취소']);
+  if(ok!==0){ logLine('マスター草案 保存 취소'); return; }
+  $('a1BtnMasterSave').disabled=true;
+  try{
+    await spPut(o.dir+'/'+o.names[0],o.json,'application/json');
+    await spPut(o.dir+'/'+o.names[1],o.csv,'text/csv;charset=utf-8');
+    await spPut(o.dir+'/'+o.names[2],o.md,'text/markdown;charset=utf-8');
+    const msg='マスター草案 저장 완료 → '+o.dir+'/ ('+o.names.join(' · ')+')'; $('a1MasterStatus').textContent=msg; logLine(msg,'ok');
+  }catch(e){ $('a1MasterStatus').textContent='저장 실패: '+e.message; logLine('マスター草案 저장 실패: '+e.message,'danger'); }
+  $('a1BtnMasterSave').disabled=false;
+}
 function download(name, text, type){ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([text],{type})); a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),5000); }
 function saveKey(){ const v=$('a1Key').value.trim(); if(!v) return; try{ localStorage.setItem(A1_AKEY,v); }catch(e){} $('a1Key').value=''; updKey(); }
 function clearKey(){ try{ localStorage.removeItem(A1_AKEY); }catch(e){} updKey(); }
@@ -2444,7 +2778,10 @@ function startBench(){
   $('a1Price').value=JSON.stringify(A1_PRICE);
   $('a1Price').addEventListener('change',()=>{ try{ Object.assign(A1_PRICE,JSON.parse($('a1Price').value)); }catch(e){ askBox('단가표 JSON 형식이 아닙니다',['確認']); } });
   $('a1PriceNote').textContent='가격표 기준일 '+A1_PRICE_DATE+' · 추정치입니다. 실제 청구는 Anthropic 콘솔에서 확인';
-  $('a1BtnTargets').onclick=async()=>{ $('a1BtnTargets').disabled=true; try{ await buildTargets(); }catch(e){ $('a1TargetStatus').textContent='오류: '+e.message; logLine('대상 목록 오류: '+e.message,'danger'); } $('a1BtnTargets').disabled=false; };
+  $('a1BtnTargets').onclick=async()=>{ $('a1BtnTargets').disabled=true; try{ await buildTargets(); }catch(e){ $('a1TargetStatus').textContent='오류: '+e.message; logLine('대상 목록 오류: '+e.message,'danger'); } $('a1BtnTargets').disabled=false; $('a1BtnMaster').disabled=!S.targets.length; };
+  $('a1BtnMaster').onclick=()=>{ try{ runMasterDraft(); }catch(e){ $('a1MasterStatus').textContent='오류: '+e.message; logLine('マスター草案 오류: '+e.message,'danger'); } };   // v0.6
+  $('a1BtnMasterSave').onclick=()=>saveMasterDraft();
+  $('a1MasterTable').addEventListener('click',ev=>{ const tr=ev.target.closest('tr.a1-mk'); if(tr) toggleMasterRow(+tr.dataset.mk); });
   $('a1PilotList').addEventListener('input',renderPilotPreview);
   $('a1PriorN').addEventListener('change',renderPilotPreview);
   $('a1RunPilot').onclick=()=>runBench('pilot');
@@ -2458,7 +2795,7 @@ function startBench(){
 }
 
 LEENAI.init({
-  sys:'D-00', name:'A1 SI推奨精度試験', version:'0.5', date:'2026-11-15',
+  sys:'D-00', name:'A1 SI推奨精度試験', version:'0.6', date:'2026-11-16',
   desc:'契約/LC → S/I 推奨を COMPASS S/I と欄ごとに比較 (読み取り専用・結果は SharePoint へ)',
   graphScopes:['Sites.ReadWrite.All'],
   redirectUri:'https://mhlee205.github.io/CONTRACT_SEND/a1_bench.html',
