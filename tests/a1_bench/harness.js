@@ -46,7 +46,7 @@ function siOf(no){ const x=LCS[no], sg=/SG/.test(no), mill=/MILL/.test(x.app||''
 }
 const NOS=Object.keys(LCS);
 const BUYERS=[{cr49f_buyerid:'b-sg',cr49f_buyer:'DELTA',cr49f_buyer_name:'DELTA PAPER CORPORATION',cr49f_buyer_code:'SG',crcf9_country:'VIETNAM'},{cr49f_buyerid:'b-ca',cr49f_buyer:'CAS',cr49f_buyer_name:'A.B.C. PAPER MILL CO., LTD.',cr49f_buyer_code:'CA',crcf9_country:'THAILAND'}];
-const SC=NOS.map(no=>({cr49f_sale_contractid:'c-'+no, cr49f_sale_contract_no:no, cr49f_sale_contract_date:'2026-0'+no.slice(7,8)+'-01', cr49f_pay_cls:'LC', cr49f_pay_days:'AT SIGHT', cr49f_terms_conditions:'CIF', cr49f_po_no:LCS[no].po, _cr49f_buyer_id_value:/SG/.test(no)?'b-sg':'b-ca'}));
+const SC=NOS.map(no=>({cr49f_sale_contractid:'c-'+no, cr49f_sale_contract_no:no, cr49f_sale_contract_date:'2026-0'+no.slice(7,8)+'-01', cr49f_pay_cls:'LC', cr49f_pay_days:'AT SIGHT', cr49f_terms_conditions:'CIF', cr49f_po_no:LCS[no].po, _cr49f_buyer_id_value:/SG/.test(no)?'b-sg':'b-ca', _cr49f_pod1_value:/SG/.test(no)?'r-cl':'r-bk'}));   // v0.9: POD lookup (표시값 주석 없음 → R1 의 「POD:」 는 이전과 같이 빈칸)
 
 /* ── fetch mock ── */
 const writes=[], calls={dv:0,graph:0,claude:0};
@@ -79,7 +79,8 @@ async function mockFetch(url, opts){
     let m=u.match(/\/cr49f_s_is\?\$filter=_cr49f_sale_contract_id_value eq c-([A-Z0-9-]+)/); if(m) return J({value:siOf(m[1])});
     if(/\/crcf9_s_i_details\?/.test(u)) return J({value:[{crcf9_productname:'OCC',crcf9_hs_code:'HS CODE: 47071000',modifiedon:'2026-03-16T00:00:00Z'}]});
     if(/\/cr49f_sale_details\?/.test(u)) return J({value:[{cr49f_price:200,cr49f_quantity:500,'_cr49f_item_id_value@OData.Community.Display.V1.FormattedValue':'OCC'}]});
-    if(/\/cr49f_bookings\?/.test(u)) return J({value:[]});
+    if(/\/cr49f_bookings\?/.test(u)) return J({value:/c-LRS-2605SG1/.test(u)?[{cr49f_invoice_no:'IV-1',cr49f_etd:'2026-05-20',_cr49f_region_id_value:'r-cl'}]:[]});   // v0.9: 부킹 POD (2605SG1 만)
+    if(/\/cr49f_regions\?/.test(u)) return J({value:[{cr49f_regionid:'r-cl',cr49f_pod:'CAT LAI'},{cr49f_regionid:'r-bk',cr49f_pod:'BANGKOK'}]});   // v0.9: 항구명 (가짜)
     return J({error:{message:'unmocked '+u}},404);
   }
   if(url.includes('graph.microsoft.com')){ calls.graph++;
@@ -150,6 +151,7 @@ const clickAsk=async(pg,matchFn,label)=>{ await until(()=>pg.$('a1Ask').style.di
     await until(()=>ev('S.lastOut')&&!ev('S.running'),60000,'run');
     out.bench=writes.filter(x=>/A1_bench\/A1_/.test(x.path)).map(x=>({file:x.path.replace(/^.*A1_bench\/A1_[^/]+\//,''),text:x.text}));
     // R0 (UI 에서는 withR0:false) — 함수 직접 호출로 같은 mock 비교
+    out.otherPrompts=prompts.filter(p=>p.kind!=='r2_extract'&&!/^【L\/C から抜き出し/.test(p.txt)&&!/^次は COMPASS S\/I の欄ごとの「正解/.test(p.txt)).map(p=>p.txt).sort();   // v0.9: R1 · R0 입력 (R2 ①③ · AI 판정(R2 결과가 들어감) 제외 — 문자 단위 불변 확인용 · 순서 무관하게 정렬)
     out.r0=JSON.parse(await ev(`(async()=>{ const t=S.targets.find(x=>x.no==='LRS-2605SG1'); const lcp=await parseContractLc(t.no); await ensureBuyerSis(t); const rec=await runR0(t,lcp,{r0Source:'new',maxTokens:32000}); rec.rows=compareRun(t,S.siByContract[t.no],rec); return JSON.stringify(rec); })()`));
   }
   if(mode==='r2'){

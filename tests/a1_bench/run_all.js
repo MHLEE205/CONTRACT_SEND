@@ -1,11 +1,11 @@
 /* a1_bench 시험 전부 — node tests/a1_bench/run_all.js [--old <비교할 이전 버전 html>] [--skip-old]
    ① 문법 · 버전 · 공통 파일 · confirm/alert · 보안  ② 단위 v0.6 · v0.7  ③ 통합 (jsdom · mock — 네트워크 없음)
-   ④ 이전 버전과 문자 단위 비교 (--old 없으면 git show 1191185:a1_bench.html = v0.7)
+   ④ 이전 버전과 문자 단위 비교 (--old 없으면 git show 188ba74:a1_bench.html = v0.8 · v0.9 에서 바꿈)
    필요: node 18 이상 · 이 폴더에서 npm install (jsdom 30.1.2 고정) */
 const fs=require('fs'),path=require('path'),os=require('os'),cp=require('child_process');
 const here=__dirname, repo=path.join(here,'../..'), html=path.join(repo,'a1_bench.html');
 const args=process.argv.slice(2), opt=k=>{ const i=args.indexOf(k); return i>=0?args[i+1]:null; };
-const OLD_COMMIT='1191185', out=fs.mkdtempSync(path.join(os.tmpdir(),'a1_bench_tests_'));
+const OLD_COMMIT='188ba74', out=fs.mkdtempSync(path.join(os.tmpdir(),'a1_bench_tests_'));   // v0.9: 비교 기준 = v0.8 (이전: 1191185 = v0.7)
 const ver=(fs.readFileSync(html,'utf8').match(/version:'(\d+\.\d+)'/)||[])[1];
 let fails=0; const results=[];
 const node=(script,argv,label)=>{ try{ const s=cp.execFileSync(process.execPath,[path.join(here,script)].concat(argv),{encoding:'utf8',stdio:['ignore','pipe','pipe'],maxBuffer:1<<26}); results.push(['PASS',label,s.trim().split('\n').pop()]); return s; }
@@ -18,6 +18,7 @@ node('check.js',[html,ver],'① 문법 · 버전 '+ver+' · 보안');
 node('unit_v06.js',[html],'② 단위 v0.6 (42)');
 node('unit_v07.js',[html],'② 단위 v0.7');
 node('unit_v08.js',[html],'② 단위 v0.8 (지급 조건 · HS 前回値 · 예상 시간 · 설정 비교)');
+node('unit_v09.js',[html],'② 단위 v0.9 (실제 항구 · po_vo 종류 · LC 지정 문구 · 나라 기본 · 새 업체 빌려 쓰기)');
 // legacy (v0.3 ~ v0.5, 집 Mac 에서 옮김 · 가짜 데이터) — 2026-11-16
 node('legacy_v03_v05_unit.js',[html],'② legacy 단위 v0.3~v0.5 (154)');
 node('legacy_v03_v05_pdf.js',[html],'② legacy PDF 0 복원 · NET/SET (합성 PDF)');
@@ -34,6 +35,7 @@ node('legacy_v03_v05_e2e.js',[html,'full'],'③ legacy 통합 v0.3~v0.5 — 전�
 if(node('harness.js',[html,'integ',path.join(out,'integ.json')],'③ 하네스 integ')){
   const o=J(path.join(out,'integ.json'));
   assert('③ 표 줄 수 = 키 수',o.rows===o.keys&&o.keys>0,[o.rows,o.keys]);
+  assert('③ v0.9 マスター草案 — 키마다 나라 · 国の基本と違う 계산 · CSV 열',o.master.keys.every(k=>k.country&&k.country_diff)&&/,country,country_diff\r?\n/.test(o.files[Object.keys(o.files).find(n=>/\.csv$/.test(n))]||''),o.master.keys.map(k=>[k.country,k.country_diff]));
   assert('③ 초안 만들기 통신 0회',o.masterCalls.dv===0&&o.masterCalls.graph===0&&o.masterCalls.claude===0,o.masterCalls);
   assert('③ 저장 취소 → 쓰기 0 · 저장 → 3파일',o.writesAfterCancel===0&&o.writesAfterSave.length===3,[o.writesAfterCancel,o.writesAfterSave.length]);
 }
@@ -52,6 +54,11 @@ if(node('harness.js',[html,'r2',r2on,'on'],'③ 하네스 r2 (마스터 켬)') &
   const md=on.bench.find(b=>b.file==='summary.md').text;
   assert('③ summary §12 master_check 표 · MASTER_DIFF 목록',/### master_check/.test(md)&&/\*\*MASTER_DIFF 목록\*\*/.test(md));
   const rc=JSON.parse(on.bench.filter(b=>b.file==='run_config.json').pop().text), rcOff=JSON.parse(off.bench.filter(b=>b.file==='run_config.json').pop().text);
+  // v0.9: ③ 입력 — 실제 항구 · バイヤー契約番号 · L/C 지정 문구 (켬 · 끔 모두) / 初回取引 줄 (켬만)
+  const allA=o=>o.assemblePrompts.map(p=>p.txt);
+  assert('③ v0.9 ③ 입력에 【実際の仕向港】 계약 POD CAT LAI · 부킹 POD (2605SG1) · 【バイヤー契約番号】 · 【L/C 指定文言】 (켬 · 끔)',[on,off].every(o=>allA(o).every(t=>/【実際の仕向港 \(契約 \/ ブッキング\) — place_of_delivery 用】\n契約 POD: CAT LAI \//.test(t)&&/【バイヤー契約番号 \(販売契約 cr49f_po_no\)】\nPO\d+/.test(t)&&/【L\/C 指定文言 \(46A B\/L 条項 · コードで検出\)】/.test(t)))&&by(on,'ILC0003').every(b=>true)&&on.assemblePrompts.filter(p=>p.lcNo==='ILC0003').every(p=>/ブッキング POD: CAT LAI/.test(p.txt)));
+  const mdOff=off.bench.find(b=>b.file==='summary.md').text;
+  assert('③ v0.9 初回取引 — 全体確認 한 줄 (켬: 2603SG1 · 끔: 없음)',/\n- 初回取引 — 全体確認: LRS-2603SG1\n/.test(md)&&!/初回取引/.test(mdOff));
   assert('③ run_config 에 스위치 기록',rc.settings.r2Master===true&&rcOff.settings.r2Master===false);
   assert('③ 예상 비용 — 켬: 마스터 토큰 반영 · 끔: v0.6 과 같은 줄',/\+마스터 약 [\d,]+ 토큰\/회/.test(on.estHtml)&&!/마스터/.test(off.estHtml)&&on.est12.on.total>on.est12.off.total&&on.est12.tok>0,on.est12);
 }
@@ -77,8 +84,10 @@ if(args.indexOf('--skip-old')<0){
   if(old){
     const b0=path.join(out,'b_old.json'), bOff=path.join(out,'b_new_off.json'), bOn=path.join(out,'b_new_on.json');
     if(node('harness.js',[old,'bench',b0,'off'],'④ bench 이전 버전 (마스터 스위치가 있으면 끔)')&&node('harness.js',[html,'bench',bOff,'off'],'④ bench 새 버전 (마스터 끔)')&&node('harness.js',[html,'bench',bOn,'on'],'④ bench 새 버전 (마스터 켬)')){
-      node('cmp.js',[b0,bOff,'all'],'④ 스위치 끔 = 이전 버전 (산출물 전부 + R0)');
+      node('cmp.js',[b0,bOff,'allfc'],'④ 스위치 끔 = v0.8 (산출물 전부 + R0 · format_check 만 v0.9 규칙: 바뀐 것은 모두 LC_REQUIRED_WORDING 관련)');
       node('cmp.js',[b0,bOn,'r1r0'],'④ 스위치 켬 — R1 행 · R0 불변');
+      { const P=f=>J(f).otherPrompts||[], p0=P(b0), pOff=P(bOff), pOn=P(bOn);   // v0.9 Step 6-2: R1 · R0 입력 문자 단위
+        assert('④ R1 · R0 입력(프롬프트) v0.8 과 문자 단위로 같음 (끔 · 켬) — '+p0.length+'개',p0.length>0&&JSON.stringify(p0)===JSON.stringify(pOff)&&JSON.stringify(p0)===JSON.stringify(pOn),[p0.length,pOff.length,pOn.length]); }
     }
   }
 }

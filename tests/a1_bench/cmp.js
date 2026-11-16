@@ -1,4 +1,5 @@
-/* 두 버전의 bench 산출물을 문자 단위로 비교 — node cmp.js <old.json> <new.json> [all|r1r0]
+/* 두 버전의 bench 산출물을 문자 단위로 비교 — node cmp.js <old.json> <new.json> [all|allfc|r1r0]
+   allfc (v0.9): all 과 같되 format_check 값만 빼고 비교 — 바뀐 format_check 는 모두 LC_REQUIRED_WORDING 이 낀 변화여야 함 (v0.9 Step 3-3 규칙 변경)
    all  : 산출물 전부 + R0 (스위치 끈 v0.7 R2 = v0.6 R2 확인용)
    r1r0 : results.csv 의 R1 행 + R0 만 (스위치 켠 v0.7 에서도 R1 · R0 불변 확인용)
    맞추는 것: 실행 ID · 시각 · 소요 시간 · 버전 표기 · v0.7 에서 생긴 master_check 열 / r2Master 설정 키 (값이 없거나 false 일 때) */
@@ -27,7 +28,23 @@ function csvDrop(text, rowFilter){
 const prep=f=>norm(/\.csv$/.test(f.file)?csvDrop(f.text):f.text);
 let same=0,diff=0;
 const show=(n,x,y)=>{ if(x===y){ same++; console.log('SAME',n,x.length); return; } diff++; let i=0; while(x[i]===y[i]) i++; console.log('DIFF',n,'@',i,'\n  old:',JSON.stringify(x.slice(Math.max(0,i-80),i+120)),'\n  new:',JSON.stringify(y.slice(Math.max(0,i-80),i+120))); };
-if(mode==='all'){
+/* v0.9 allfc: format_check 값을 지운다 (CSV 열 · JSON 키 · summary 의 format_check 절) */
+const FC_RE=/"format_check": ?"[A-Z_]*"/g;
+function fcBlank(f){
+  if(/\.csv$/.test(f.file)){ const rows=parseCsv(csvDrop(f.text)), i=rows[0].indexOf('format_check'); if(i>=0) rows.slice(1).forEach(r=>{ if(r.length>i) r[i]=''; }); return norm(toCsv(rows)); }
+  let t=norm(f.text).replace(FC_RE,'"format_check":"FC"');
+  if(f.file==='summary.md'){ const a=t.indexOf('\n### format_check'); if(a>=0){ const b=t.slice(a+5).search(/\n#{2,3} /); t=t.slice(0,a)+'\n[format_check 절]'+(b>=0?t.slice(a+5+b):''); } }
+  return t;
+}
+function fcValues(o){ const f=o.bench.find(x=>x.file==='results.csv'); const rows=parseCsv(f.text), i=rows[0].indexOf('format_check'); return rows.slice(1).map(r=>r[i]||''); }
+if(mode==='allfc'){
+  const skip=f=>f==='progress.json'||/^partial\//.test(f);
+  const names=[...new Set(a.bench.map(x=>x.file).concat(b.bench.map(x=>x.file)))].filter(n=>!skip(n));
+  names.forEach(n=>show(n+' (format_check 제외)',a.bench.filter(f=>f.file===n).map(fcBlank).join('\n#\n'),b.bench.filter(f=>f.file===n).map(fcBlank).join('\n#\n')));
+  const x=fcValues(a), y=fcValues(b), tr={}; let bad=0;
+  x.forEach((v,i)=>{ if(v!==y[i]){ const k=v+'→'+y[i]; tr[k]=(tr[k]||0)+1; if(v!=='LC_REQUIRED_WORDING'&&y[i]!=='LC_REQUIRED_WORDING') bad++; } });
+  console.log('FC 변화',JSON.stringify(tr)); if(bad){ diff++; console.log('DIFF format_check 변화 중 LC_REQUIRED_WORDING 이 끼지 않은 것',bad); }
+}else if(mode==='all'){
   // v0.8: progress.json (이어서 실행용 형식) · partial/ (계약별 중간 저장) 은 실행 도중 기록이라 비교하지 않음
   const skip=f=>f==='progress.json'||/^partial\//.test(f);
   const names=[...new Set(a.bench.map(x=>x.file).concat(b.bench.map(x=>x.file)))].filter(n=>!skip(n));

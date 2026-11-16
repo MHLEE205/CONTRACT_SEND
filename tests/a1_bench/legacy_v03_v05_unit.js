@@ -279,7 +279,8 @@ console.log('v0.4 Step 2 — format_check · Step 3 자리표시');
   ok(FC('0300000002#999/GPMT-BTNMT#SECURITY DEPOSIT NUMBER#SAIGON','0300000002#999/GPMT-BTNMT#DEPOSIT#SAIGON',true,[],'')==='FORMAT_CHANGED', 'FORMAT_CHANGED (F4 실례 「#SECURITY DEPOSIT NUMBER#」 — 이번 LC 통과 값에 없는 낱말)');
   ok(FC('0300000002#999/GPMT-BTNMT#DEPOSIT : XX#SAIGON','0300000002#999/GPMT-BTNMT#DEPOSIT#SAIGON',true,[],'')==='FORMAT_CHANGED', 'FORMAT_CHANGED (파일럿 F4 실례형 「#DEPOSIT : XX#」 — 새 낱말이 LC 에 없음)');
   ok(FC('SAMPLE A, VIETNAM','SAMPLE A, VIETNAM EMAIL: SAMPLE@EXAMPLE.COM',true,[],'')==='FORMAT_CHANGED', 'FORMAT_CHANGED (주소 뒤 EMAIL 이 빠짐 — F4)');
-  ok(FC('ANY','PRIOR',true,[],'L/C指定文言')==='LC_REQUIRED_WORDING' && FC('ANY','',false,[],'')==='NO_PRIOR', 'LC_REQUIRED_WORDING · NO_PRIOR');
+  // v0.9 규칙 변경 (지시서 v0.9 Step 3-3): note 의 「L/C指定文言」 만으로는 LC_REQUIRED_WORDING 을 붙이지 않음 — 코드가 L/C 지시를 찾았을 때(6번째 인수 lcw.found)만
+  ok(FC('ANY','PRIOR',true,[],'L/C指定文言',{found:true,match:false})==='LC_REQUIRED_WORDING' && FC('ANY','PRIOR',true,[],'L/C指定文言')!=='LC_REQUIRED_WORDING' && FC('ANY','',false,[],'')==='NO_PRIOR', 'LC_REQUIRED_WORDING (L/C 지시 찾음 · v0.9) · note 만 → 붙이지 않음 · NO_PRIOR');
   const PR=A1C.applyPlaceholderRule;
   ok(PR('vo_no','XX',true,'').removed && PR('vo_no','XX',true,'').value==='', 'VO 안 쓰는 바이어 (직전 같은 칸 빈칸) → XX 넣지 않음');
   ok(PR('remark','VO NUMBER: XX',true,null).removed, '「VO NUMBER: XX」 처럼 자리표시뿐인 값도');
