@@ -1,5 +1,6 @@
 /* compass_write_test 통합 시험 — jsdom + 가짜 Dataverse (메타데이터 · GET · PATCH 기록) + 가짜 SharePoint. 네트워크 없음 · 실제 COMPASS 쓰기 없음.
-   node e2e.js [html] */
+   node e2e.js [html] [--load-only]
+   v0.2: 가짜 Dataverse 의 메타데이터 $select 를 실제처럼 엄격하게 (기본형에 없는 MaxLength 등 → 400) */
 const fs=require('fs'),path=require('path'),FX=require('./fixtures');
 const {JSDOM}=require('jsdom');
 const HTML=fs.readFileSync(process.argv[2]||path.join(__dirname,'../../compass_write_test.html'),'utf8');
@@ -13,7 +14,7 @@ function world(opt){
   const s=FX.snapshot(), o=FX.snapshotOther();
   const store={cr49f_s_is:s.s_i.concat(o.s_i), crcf9_s_i_details:s.s_i_detail.concat(o.s_i_detail)};
   const sp={[FX.SNAP_PATH]:JSON.stringify(s), [FX.SNAP_PATH_OTHER]:JSON.stringify(o)};
-  return {store, sp, patches:[], puts:[], gets:[], failPatchAt:opt.failPatchAt||0, tick:0};
+  return {store, sp, patches:[], puts:[], gets:[], failPatchAt:opt.failPatchAt||0, tick:0, noSourceType:!!opt.noSourceType, failMaxLen:!!opt.failMaxLen};
 }
 function fakeFetch(W){
   const json=(st,body)=>({ok:st>=200&&st<300, status:st, statusText:String(st), headers:{get:()=>null}, json:async()=>clone(body), text:async()=>JSON.stringify(body)});
@@ -36,8 +37,14 @@ function fakeFetch(W){
         const id={'LRS-2509CV1':FX.CID,'LRS-2509XX9':FX.CID_OTHER}[no]; return json(200,{value:id?[{cr49f_sale_contractid:id,cr49f_sale_contract_no:no}]:[]}); }
       let m=p.match(/^EntityDefinitions\(LogicalName='([^']+)'\)\/(Attributes|Keys)(\/Microsoft\.Dynamics\.CRM\.(\w+)AttributeMetadata)?/);
       if(m){ const ent=m[1]; if(m[2]==='Keys') return json(200,{value:[{KeyAttributes:FX.KEYS[ent]||[]}]});
-        if(m[4]){ const t=m[4], rg=FX.RANGES[ent]||{}; return json(200,{value:FX.META[ent].filter(a=>a.AttributeType===t).map(a=>({LogicalName:a.LogicalName,MinValue:(rg[a.LogicalName]||{}).min,MaxValue:(rg[a.LogicalName]||{}).max}))}); }
-        return json(200,{value:FX.META[ent]}); }
+        /* v0.2: 실제처럼 엄격 — $select 에 그 형에 없는 속성이 있으면 400 (실제 오류와 같은 문장) · 고른 속성만 돌려줌 */
+        const sel=((p.match(/\$select=([^&]+)/)||[])[1]||'').split(',').filter(Boolean), t=m[4]||'';
+        const own=!t?FX.BASE_PROPS.filter(x=>!(W.noSourceType&&x==='SourceType')):/^(String|Memo)$/.test(t)?['LogicalName','MaxLength']:['LogicalName','MinValue','MaxValue'];
+        const badp=sel.find(x=>own.indexOf(x)<0);
+        if(badp) return json(400,{error:{message:"Could not find a property named '"+badp+"' on type 'Microsoft.Dynamics.CRM."+(t?t+'AttributeMetadata':'AttributeMetadata')+"'."}});
+        if(t && /^(String|Memo)$/.test(t) && W.failMaxLen) return json(403,{error:{message:'가짜 403 (MaxLength 시험)'}});
+        const rg=FX.RANGES[ent]||{}, full=FX.META[ent].filter(a=>!t||a.AttributeType===t).map(a=>Object.assign({},a,{MinValue:(rg[a.LogicalName]||{}).min,MaxValue:(rg[a.LogicalName]||{}).max}));
+        return json(200,{value:full.map(a=>sel.reduce((o,k)=>(o[k]=a[k]===undefined?null:a[k],o),{}))}); }
       m=p.match(/^cr49f_s_is\?\$filter=_cr49f_sale_contract_id_value eq ([0-9a-f-]{36})/); if(m) return json(200,{value:W.store.cr49f_s_is.filter(r=>r._cr49f_sale_contract_id_value===m[1]).sort((a,b)=>a.crcf9_sino-b.crcf9_sino)});
       m=p.match(/^crcf9_s_i_details\?\$filter=_crcf9_s_i_id_value eq ([0-9a-f-]{36})/); if(m) return json(200,{value:W.store.crcf9_s_i_details.filter(r=>r._crcf9_s_i_id_value===m[1])});
       return json(404,{error:{message:'가짜 DV: 모르는 경로 '+p}});
@@ -72,9 +79,12 @@ const sameAsOriginal=W=>{ const o=original(), strip=r=>{ const x={}; Object.keys
 const btnState=w=>['cwS1','cwS2','cwS3','cwS4','cwS5','cwS6','cwRestoreOnly'].map(id=>$(w,id).disabled?0:1).join('');
 
 (async()=>{
+  if(process.argv[3]==='--load-only'){   // 회귀 확인용: 「읽기」 만 누르고 상태 줄 출력 (run_all 이 v0.1 = MaxLength 400 재현 확인에 씀)
+    const W=world(), w=await page(W); await load(w,'LRS-2509CV1'); console.log('LOAD:',$(w,'cwLoadSt').textContent); return; }
   console.log('기본');
   { const W=world(), w=await page(W);
-    ok(w.document.title==='LEENAI D-00 COMPASS S/I 書込試験 v0.1' && w.__cfg.redirectUri==='https://mhlee205.github.io/CONTRACT_SEND/compass_write_test.html', '제목 v0.1 · 리디렉션 URI = 이 페이지 주소');
+    const VER=(HTML.match(/version:'(\d+\.\d+)'/)||[])[1];
+    ok(w.document.title==='LEENAI D-00 COMPASS S/I 書込試験 v'+VER && w.__cfg.redirectUri==='https://mhlee205.github.io/CONTRACT_SEND/compass_write_test.html', '제목 v'+((HTML.match(/version:'(\d+\.\d+)'/)||[])[1])+' · 리디렉션 URI = 이 페이지 주소');
     ok(btnState(w)==='0000000', '읽기 전: 단계 버튼 · 되돌리기만 모두 잠김');
   }
   console.log('1. 허용 목록 밖 계약');
@@ -158,6 +168,31 @@ const btnState=w=>['cwS1','cwS2','cwS3','cwS4','cwS5','cwS6','cwRestoreOnly'].ma
     $(w,'cwRestoreOnly').click(); const dis2=await answer(w,'',0); await sleep(20); ok(dis2 && $(w,'cwAsk').style.display==='flex' && W.patches.length===0, '되돌리기만 → 빈 입력 → 「실행」 잠김 · PATCH 0');
     $(w,'cwAskBtn1').click(); await idle(w);
     await click(w,'cwRestoreOnly','LRS-2509CV1',1); ok(W.patches.length===0, '되돌리기만 → 취소 → PATCH 0');
+  }
+  console.log('9. v0.2 메타데이터 읽기 (엄격한 가짜 Dataverse)');
+  { const W=world(), w=await page(W); await load(w,'LRS-2509CV1');
+    const base=W.gets.filter(g=>/\/Attributes\?\$select=/.test(g));
+    ok(/쓸 칸/.test($(w,'cwFields').textContent) && !/DV 400/.test($(w,'cwLoadSt').textContent), '「읽기」 성공 — 실제 오류(MaxLength 400) 재현 환경에서 통과');
+    ok(base.length===2 && base.every(g=>!/MaxLength|MinValue|MaxValue|Format/.test(g)), '기본 목록 $select 에 형별 속성(MaxLength 등) 없음');
+    ok(W.gets.filter(g=>/(String|Memo)AttributeMetadata\?\$select=LogicalName,MaxLength$/.test(g)).length===4, 'MaxLength 는 String · Memo 형별 경로에서 (테이블 2 × 2)');
+    ok(/crcf9_zero/.test($(w,'cwFields').textContent) && /MaxLength 0/.test($(w,'cwFields').textContent), '형별로 읽은 MaxLength 가 칸 분류에 쓰임 (MaxLength 0 → 애매)');
+    ok(/모두 읽음/.test($(w,'cwFields').textContent), '결과 표: 메타데이터 모두 읽음');
+  }
+  { const W=world({noSourceType:true}), w=await page(W); await load(w,'LRS-2509CV1');
+    const base=W.gets.filter(g=>/\/Attributes\?\$select=/.test(g)), t=$(w,'cwFields').textContent;
+    ok(/쓸 칸/.test(t) && base.length===4 && base.filter(g=>!/SourceType/.test(g)).length===2, 'SourceType 없는 환경: 400 → SourceType 빼고 한 번 다시 읽어 계속 (테이블마다 1회)');
+    ok(/SourceType 못 읽음/.test(t), '결과 표에 「SourceType 못 읽음」');
+    ok(/AttributeOf/.test(base[1]), '다시 읽을 때 AttributeOf 는 남김 (오류에 이름이 나온 속성만 뺌)');
+    ok(!/정하지 않은 종류 Integer|애매 → 건너뜀: .*SourceType/.test(t), 'SourceType 모름 → 애매로 보지 않음');
+    await click(w,'cwS1'); await click(w,'cwS2','LRS-2509CV1',0); await click(w,'cwS3'); await click(w,'cwS4','LRS-2509CV1',0); await click(w,'cwS5');
+    ok(/완전히 같음 ✅/.test($(w,'cwStepSt').textContent) && sameAsOriginal(W), 'SourceType 없는 환경에서도 정상 흐름 → 확인 ② 완전히 같음');
+    const log=JSON.parse(W.sp[FX.SNAP_PATH.replace(/[^/]+$/,'')+w.eval('S.run.run_id')+'/log.json']);
+    ok(JSON.stringify(log.fields.cr49f_s_is.meta_missing)==='["SourceType"]', 'log.json 에 meta_missing: SourceType');
+  }
+  { const W=world({failMaxLen:true}), w=await page(W); await load(w,'LRS-2509CV1');
+    const t=$(w,'cwFields').textContent;
+    ok(/쓸 칸/.test(t) && /MaxLength\(String\) 못 읽음/.test(t) && /MaxLength 못 읽음/.test($(w,'cwLog').textContent), 'MaxLength 형별 읽기 실패 → 경고만 하고 계속 · 결과 표 표시');
+    ok(!/crcf9_zero[^]*?MaxLength 0/.test(t), 'MaxLength 모름 → MaxLength 검사 생략');
   }
   console.log('8. SharePoint 쓰기 경로');
   { const all=[]; for(const f of [0,2]){ const W=world({failPatchAt:f}), w=await page(W); await load(w,'LRS-2509CV1'); await click(w,'cwS1'); await click(w,'cwS2','LRS-2509CV1',0);

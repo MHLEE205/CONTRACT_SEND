@@ -206,8 +206,8 @@ const CW = (()=>{
     const L=['# COMPASS S/I 쓰기 시험 (변경) — '+log.run_id,'',
       '- 도구: compass_write_test v'+log.version+' (MAC-토르 제작)','- 계약: '+log.contract+' · 실행자: '+(log.user||'?')+' · 시작 '+log.started+(log.finished?' · 끝 '+log.finished:''),
       '- 저장본: '+log.snapshot_path,''];
-    L.push('## 칸','','| 테이블 | 쓴 칸 | 건너뛴 칸 |','|---|---|---|');
-    Object.keys(log.fields||{}).forEach(set=>{ const c=log.fields[set]; L.push('| '+set+' | '+c.write.length+' | '+(c.skip.length+c.unclear.length)+' |'); });
+    L.push('## 칸','','| 테이블 | 쓴 칸 | 건너뛴 칸 | 메타데이터 |','|---|---|---|---|');
+    Object.keys(log.fields||{}).forEach(set=>{ const c=log.fields[set]; L.push('| '+set+' | '+c.write.length+' | '+(c.skip.length+c.unclear.length)+' | '+((c.meta_missing||[]).length?c.meta_missing.join(' · ')+' 못 읽음':'모두 읽음')+' |'); });
     Object.keys(log.fields||{}).forEach(set=>{ const c=log.fields[set];
       L.push('','### '+set+' — 쓴 칸 '+c.write.length,'',c.write.map(f=>'`'+f.name+'` ('+f.type+')').join(' · ')||'(없음)');
       L.push('','### '+set+' — 건너뛴 칸 '+(c.skip.length+c.unclear.length),'');
@@ -282,16 +282,36 @@ async function dvPatch(set, id, body){
   let msg=''; if(!res.ok){ const e=await res.json().catch(()=>({})); msg=(e.error&&e.error.message)||res.statusText||''; }
   return {ok:res.ok, status:res.status, message:msg};
 }
+/* v0.2: 기본 목록은 기본형 AttributeMetadata 에 있는 속성만 (MaxLength 를 넣으면 DV 400 — 실제 오류 2026-11-16).
+   AttributeOf · SourceType 이 없는 환경이면 400 → 그 속성을 빼고 한 번만 다시 읽음 (빠진 속성 = 「모름」, 애매로 보지 않음) */
+const CW_META_BASE = ['LogicalName','AttributeType','IsValidForUpdate','AttributeOf','SourceType'];
+const CW_META_OPTIONAL = ['AttributeOf','SourceType'];
 async function readMeta(logical){
   const base="EntityDefinitions(LogicalName='"+logical+"')";
-  const a=await dvGet(base+'/Attributes?$select=LogicalName,AttributeType,IsValidForUpdate,MaxLength,AttributeOf,SourceType');
+  let props=CW_META_BASE.slice(), missing=[], a;
+  try{ a=await dvGet(base+'/Attributes?$select='+props.join(',')); }
+  catch(e){
+    if(!/^DV 400/.test(e.message)) throw e;
+    const named=(e.message.match(/property named '(\w+)'/)||[])[1];
+    missing=CW_META_OPTIONAL.indexOf(named)>=0?[named]:CW_META_OPTIONAL.slice();
+    props=props.filter(p=>missing.indexOf(p)<0);
+    logLine('메타데이터: '+missing.join(' · ')+' 못 읽음 → 빼고 다시 읽음 ('+e.message+')','warn');
+    a=await dvGet(base+'/Attributes?$select='+props.join(','));
+  }
+  /* MaxLength 는 형별 경로에서 (String · Memo). 실패하면 경고만 — MaxLength 검사 생략 */
+  const maxLen={};
+  for(const t of ['String','Memo']){
+    try{ const r=await dvGet(base+'/Attributes/Microsoft.Dynamics.CRM.'+t+'AttributeMetadata?$select=LogicalName,MaxLength');
+      (r.value||[]).forEach(x=>{ maxLen[x.LogicalName]=x.MaxLength==null?null:x.MaxLength; }); }catch(e){ missing.push('MaxLength('+t+')'); logLine('MaxLength 못 읽음 ('+t+'): '+e.message+' — MaxLength 검사 생략','warn'); }
+  }
+  const attrs=(a.value||[]).map(x=>Object.assign({},x,{MaxLength:maxLen[x.LogicalName]===undefined?null:maxLen[x.LogicalName]}));
   const ranges={};
   for(const t of ['Integer','BigInt','Decimal','Double','Money']){
     try{ const r=await dvGet(base+'/Attributes/Microsoft.Dynamics.CRM.'+t+'AttributeMetadata?$select=LogicalName,MinValue,MaxValue');
       (r.value||[]).forEach(x=>{ ranges[x.LogicalName]={min:x.MinValue==null?null:x.MinValue, max:x.MaxValue==null?null:x.MaxValue}; }); }catch(e){ logLine('범위 메타데이터 못 읽음 ('+t+'): '+e.message,'warn'); }
   }
   let keyAttrs=[]; try{ const k=await dvGet(base+'/Keys?$select=KeyAttributes'); keyAttrs=(k.value||[]).reduce((o,x)=>o.concat(x.KeyAttributes||[]),[]); }catch(e){ logLine('대체 키 메타데이터 못 읽음: '+e.message,'warn'); }
-  return {attrs:a.value||[], ranges, keyAttrs};
+  return {attrs, ranges, keyAttrs, missing};
 }
 /* 지금 COMPASS 값 (전 열) — 저장본과 같은 모양 */
 async function readNow(){
@@ -325,7 +345,7 @@ function newRun(){
   const d=new Date(), id=CW.runId(d);
   S.run={run_id:id, version:cwVersion(), contract:S.contract.no, contract_id:S.contract.id, user:(LEENAI.user&&LEENAI.user.email)||'', snapshot_path:S.snapPath,
     started:d.toISOString(), finished:null, fields:{}, steps:[]};
-  Object.keys(CW.TABLES).forEach(set=>{ const c=S.cls[set]; S.run.fields[set]={write:c.write.map(f=>({name:f.name,type:f.type})), skip:c.skip, unclear:c.unclear}; });
+  Object.keys(CW.TABLES).forEach(set=>{ const c=S.cls[set]; S.run.fields[set]={write:c.write.map(f=>({name:f.name,type:f.type})), skip:c.skip, unclear:c.unclear, meta_missing:c.metaMissing||[]}; });
   return S.run;
 }
 async function saveLog(){
@@ -360,9 +380,9 @@ function setStepButtons(){
   $('cwRestoreOnly').disabled=!allowed||S.busy;
 }
 function renderFields(){
-  let h='<table class="cw-t"><tr><th>테이블</th><th>행</th><th>쓸 칸</th><th>건너뛸 칸 (종류별)</th></tr>';
+  let h='<table class="cw-t"><tr><th>테이블</th><th>행</th><th>쓸 칸</th><th>건너뛸 칸 (종류별)</th><th>메타데이터</th></tr>';
   Object.keys(CW.TABLES).forEach(set=>{ const c=S.cls[set], k=CW.skipByKind(c);
-    h+='<tr><td>'+set+'</td><td>'+CW.snapRows(S.snap)[set].length+'</td><td>'+c.write.length+'</td><td>'+(c.skip.length+c.unclear.length)+' — '+Object.keys(k).map(x=>escH(x)+' '+k[x]).join(' · ')+'</td></tr>'; });
+    h+='<tr><td>'+set+'</td><td>'+CW.snapRows(S.snap)[set].length+'</td><td>'+c.write.length+'</td><td>'+(c.skip.length+c.unclear.length)+' — '+Object.keys(k).map(x=>escH(x)+' '+k[x]).join(' · ')+'</td><td>'+((c.metaMissing||[]).length?'<span class="cw-warn">'+c.metaMissing.map(x=>escH(x)+' 못 읽음').join(' · ')+'</span>':'모두 읽음')+'</td></tr>'; });
   h+='</table>';
   Object.keys(CW.TABLES).forEach(set=>{ const c=S.cls[set];
     h+='<details style="margin-top:6px"><summary class="cw-note">'+set+' 칸 목록 (쓸 칸 '+c.write.length+' · 건너뜀 '+(c.skip.length+c.unclear.length)+(c.unclear.length?' · 애매 '+c.unclear.length:'')+')</summary><div class="cw-scroll"><table class="cw-t"><tr><th>칸</th><th>종류</th><th>처리</th></tr>'+
@@ -391,7 +411,7 @@ async function loadContract(){
     for(const set of Object.keys(CW.TABLES)){
       const m=await readMeta(CW.TABLES[set].logical);
       const snapKeys=rows[set].length?Object.keys(rows[set][0]).filter(k=>rows[set].every(r=>k in r)):[];
-      S.cls[set]=CW.classify(m.attrs,{ranges:m.ranges, keyAttrs:m.keyAttrs, snapKeys});
+      S.cls[set]=CW.classify(m.attrs,{ranges:m.ranges, keyAttrs:m.keyAttrs, snapKeys}); S.cls[set].metaMissing=m.missing;
     }
     S.ctx={contract:no, ids:CW.snapIds(snap), write:Object.keys(CW.TABLES).reduce((o,set)=>(o[set]=S.cls[set].write.map(f=>f.name),o),{})};
     renderFields();
@@ -505,7 +525,7 @@ function startPage(){
 }
 
 LEENAI.init({
-  sys:'D-00', name:'COMPASS S/I 書込試験', version:'0.1', date:'2026-11-16',
+  sys:'D-00', name:'COMPASS S/I 書込試験', version:'0.2', date:'2026-11-16',
   desc:'COMPASS S/I を 1 契約だけ「1」に変更 → 保存本の値に戻して確認 (変更試験・新規作成なし)',
   graphScopes:['Sites.ReadWrite.All'],
   redirectUri:'https://mhlee205.github.io/CONTRACT_SEND/compass_write_test.html',

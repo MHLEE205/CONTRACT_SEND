@@ -21,7 +21,7 @@ const META={
     A('statecode','State'), A('statuscode','Status'), A('ownerid','Owner'), A('utcconversiontimezonecode','Integer'), A('timezoneruleversionnumber','Integer'),
     A('importsequencenumber','Integer',{IsValidForUpdate:false}), A('exchangerate','Decimal'), A('transactioncurrencyid','Lookup')],
   crcf9_s_i_detail:[A('crcf9_s_i_detailid','Uniqueidentifier',{IsValidForUpdate:false}), A('crcf9_name','String',{MaxLength:100}), A('crcf9_s_i_id','Lookup'),
-    A('crcf9_description','Memo',{MaxLength:4000}), A('crcf9_hs','String',{MaxLength:50}), A('crcf9_price','Money'), A('crcf9_price_base','Money',{IsValidForUpdate:false}),
+    A('crcf9_description','Memo',{MaxLength:4000}), A('crcf9_hs','String',{MaxLength:50}), A('crcf9_zero','String',{MaxLength:0}), A('crcf9_price','Money'), A('crcf9_price_base','Money',{IsValidForUpdate:false}),
     A('crcf9_weight','Decimal'), A('crcf9_qty','Double'), A('modifiedon','DateTime',{IsValidForUpdate:false}), A('versionnumber','BigInt',{IsValidForUpdate:false})]
 };
 const RANGES={cr49f_s_i:{crcf9_sino:{min:0,max:2147483647}, crcf9_bales:{min:0,max:100000}, crcf9_level:{min:5,max:9}, crcf9_gross_weight:{min:0,max:1e9}, crcf9_freight:{min:0,max:1e9}},
@@ -48,4 +48,6 @@ function snapshot(){ return {contract:'LRS-2509CV1', contract_id:CID, taken_at:'
 function snapshotOther(){ return {contract:'LRS-2509XX9', contract_id:CID_OTHER, taken_at:'2026-11-16T09:40:00Z', s_i:[head(0,CID_OTHER,HO[0])], s_i_detail:[detail(DO[0],HO[0])]}; }
 const SNAP_PATH='古紙/-. AI 活用/D-00/A1_bench/compass_write_test/LRS-2509CV1_before_20261116T0939.json';
 const SNAP_PATH_OTHER='古紙/-. AI 活用/D-00/A1_bench/compass_write_test/LRS-2509XX9_before_test.json';
-module.exports={CID,CID_OTHER,H,D,HO,DO,META,RANGES,KEYS,snapshot,snapshotOther,SNAP_PATH,SNAP_PATH_OTHER,FVK};
+/* 기본형 AttributeMetadata 에서 고를 수 있는 속성 (가짜 Dataverse 의 $select 검사용 — MaxLength · MinValue · MaxValue · Format 은 형별에만) */
+const BASE_PROPS=['LogicalName','AttributeType','IsValidForUpdate','AttributeOf','SourceType','SchemaName','IsCustomAttribute','IsPrimaryId','IsPrimaryName','IsValidForCreate','IsValidForRead','RequiredLevel','MetadataId'];
+module.exports={BASE_PROPS,CID,CID_OTHER,H,D,HO,DO,META,RANGES,KEYS,snapshot,snapshotOther,SNAP_PATH,SNAP_PATH_OTHER,FVK};
