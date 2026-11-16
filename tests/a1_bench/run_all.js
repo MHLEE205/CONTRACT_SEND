@@ -18,9 +18,18 @@ node('check.js',[html,ver],'① 문법 · 버전 '+ver+' · 보안');
 node('unit_v06.js',[html],'② 단위 v0.6 (42)');
 node('unit_v07.js',[html],'② 단위 v0.7');
 node('unit_v08.js',[html],'② 단위 v0.8 (지급 조건 · HS 前回値 · 예상 시간 · 설정 비교)');
+// legacy (v0.3 ~ v0.5, 집 Mac 에서 옮김 · 가짜 데이터) — 2026-11-16
+node('legacy_v03_v05_unit.js',[html],'② legacy 단위 v0.3~v0.5 (154)');
+node('legacy_v03_v05_pdf.js',[html],'② legacy PDF 0 복원 · NET/SET (합성 PDF)');
+node('legacy_v03_v05_e2e.js',[html,'pilot'],'③ legacy 통합 v0.3~v0.5 — 파일럿 R1+R2');
+node('legacy_v03_v05_e2e.js',[html,'full'],'③ legacy 통합 v0.3~v0.5 — 전체 실행');
 // v0.8 Step 3: 공개 레포 시험 파일에 실제 NPWP 없음 (리나이 지시서 v0.7 의 예 번호)
 { const bad=['00100056'+'68092000','00110942'+'16092000'], hits=fs.readdirSync(here).filter(f=>/\.(js|md|json)$/.test(f)).filter(f=>{ const t=fs.readFileSync(path.join(here,f),'utf8'); return bad.some(b=>t.indexOf(b)>=0); });
-  assert('① tests/ 에 실제 NPWP 0건',!hits.length,hits); }
+  assert('① tests/ 에 실제 NPWP 0건',!hits.length,hits);
+  // legacy 이관 때 바꾼 실제 값 (나눠 적어 이 파일 자신은 걸리지 않게) — 0건이어야 함
+  const real=['35008'+'13231','ILC26'+'03819','ILC91626'+'00063','SOP2026'+'0305','IP-PO00000'+'22020','MY X'+'UAN','PHU M'+'Y WARD','SAIGON P'+'APER','C.A'+'.S.','SINGB'+'URI','PHOKR'+'UAM','CHAROE'+'NRAT','PHAHOLY'+'OTHIN','OSO'+'NG','ASPEX K'+'UMBONG','OLS'+'@SAIGON'];
+  const hit2=fs.readdirSync(here).filter(f=>/\.(js|md|json)$/.test(f)&&f!=='package-lock.json').filter(f=>{ const t=fs.readFileSync(path.join(here,f),'utf8'); return real.some(b=>t.indexOf(b)>=0); }).map(f=>f+': '+real.filter(b=>fs.readFileSync(path.join(here,f),'utf8').indexOf(b)>=0).join(','));
+  assert('① tests/ 에 legacy 이관 전 실제 값 0건 ('+real.length+'종)',!hit2.length,hit2); }
 // ③ 통합 — マスター草案 화면 · 저장 확인 상자
 if(node('harness.js',[html,'integ',path.join(out,'integ.json')],'③ 하네스 integ')){
   const o=J(path.join(out,'integ.json'));
