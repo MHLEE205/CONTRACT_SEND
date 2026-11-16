@@ -27,18 +27,18 @@ eq('2c 다른 계약번호는 그대로',A1M.toTemplate('LRS-2602A1',ctxOf({},'L
 eq('2d 바이어 계약번호(HKB 모양)는 그대로',A1M.toTemplate('2025LN-HKB',ctxOf({},'LRS-2601HK1')).template,'2025LN-HKB');
 eq('2e 계약번호 모양',A1M.contractNoForms('LRS-2608NT1'),['LRS-2608NT1','2608NT1']);
 // 3 S/I SHIPPER TAX ID (당사) ↔ LC NPWP OF APPLICANT (바이어) → LC와 다름 없음
-const IKtags={'20':'LC-IK','50':'PT INDAH KIAT SAMPLE\nJL. SAMPLE 1, JAKARTA','47A':'1. ALL DOCUMENTS MUST SHOW NPWP OF APPLICANT 0010005668092000\n2. ALL DOCUMENTS MUST SHOW LC NUMBER'};
-const ik=(no,date)=>item(no,date,'INDAH KIAT','BIC:BMRIIDJA',IKtags,[{crcf9_sino:1,crcf9_bl_text1:'WASTE PAPER\nSHIPPER TAX ID: 8011101092439\nNPWP: 0010005668092000'}]);
+const IKtags={'20':'LC-IK','50':'PT INDAH KIAT SAMPLE\nJL. SAMPLE 1, JAKARTA','47A':'1. ALL DOCUMENTS MUST SHOW NPWP OF APPLICANT 0010000000000001\n2. ALL DOCUMENTS MUST SHOW LC NUMBER'};
+const ik=(no,date)=>item(no,date,'INDAH KIAT','BIC:BMRIIDJA',IKtags,[{crcf9_sino:1,crcf9_bl_text1:'WASTE PAPER\nSHIPPER TAX ID: 8011101092439\nNPWP: 0010000000000001'}]);
 const k3=A1M.buildMasterDraft([ik('LRS-2601IK1','2026-01-05'),ik('LRS-2602IK1','2026-02-05')]).keys[0];
-eq('3 S/I 번호 주인 (당사 · 바이어)',k3.practices.tax.map(e=>e.value+':'+e.owner),['8011101092439:own','0010005668092000:buyer']);
-eq('3 LC 번호 주인 = buyer',A1M.lcOwnedPractices(IKtags).tax.map(e=>e.value+':'+e.owner),['0010005668092000:buyer']);
+eq('3 S/I 번호 주인 (당사 · 바이어)',k3.practices.tax.map(e=>e.value+':'+e.owner),['8011101092439:own','0010000000000001:buyer']);
+eq('3 LC 번호 주인 = buyer',A1M.lcOwnedPractices(IKtags).tax.map(e=>e.value+':'+e.owner),['0010000000000001:buyer']);
 eq('3 LC와 다름 없음',k3.lc_diff.length,0);
 ok('3 표에 当社番号 따로',/当社番号 8011101092439/.test(A1M.practiceSummary(k3.practices)) && !/税番号 8011101092439/.test(A1M.practiceSummary(k3.practices)),A1M.practiceSummary(k3.practices));
 // 3b 상수 규칙 (표지 없음) · 3c 표지 없는 바이어 번호는 그대로 대조 (참 경고)
-const k3b=A1M.buildMasterDraft([item('LRS-2601TJ1','2026-01-05','TJIWI KIMIA','BIC:BMRIIDJA',{'50':'PT TJIWI KIMIA SAMPLE','47A':'1. NPWP OF APPLICANT 0011094216092000'},[{crcf9_sino:1,crcf9_notify_party:'8011101092439#PT TJIWI KIMIA SAMPLE'}])]).keys[0];
+const k3b=A1M.buildMasterDraft([item('LRS-2601TJ1','2026-01-05','TJIWI KIMIA','BIC:BMRIIDJA',{'50':'PT TJIWI KIMIA SAMPLE','47A':'1. NPWP OF APPLICANT 0010000000000002'},[{crcf9_sino:1,crcf9_notify_party:'8011101092439#PT TJIWI KIMIA SAMPLE'}])]).keys[0];
 eq('3b 당사 상수 = 첫 규칙',[k3b.practices.tax.map(e=>e.owner),k3b.lc_diff.length],[['own'],0]);
-const k3c=A1M.buildMasterDraft([item('LRS-2601TJ1','2026-01-05','TJIWI KIMIA','BIC:BMRIIDJA',{'50':'PT TJIWI KIMIA SAMPLE','47A':'1. NPWP OF APPLICANT 0011094216092000'},[{crcf9_sino:1,crcf9_notify_party:'NPWP: 0010005668092000#PT TJIWI KIMIA SAMPLE'}])]).keys[0];
-eq('3c 바이어끼리 다르면 LC와 다름 (참)',k3c.lc_diff.map(d=>[d.kind,d.master,d.lc]),[['tax','0010005668092000','0011094216092000']]);
+const k3c=A1M.buildMasterDraft([item('LRS-2601TJ1','2026-01-05','TJIWI KIMIA','BIC:BMRIIDJA',{'50':'PT TJIWI KIMIA SAMPLE','47A':'1. NPWP OF APPLICANT 0010000000000002'},[{crcf9_sino:1,crcf9_notify_party:'NPWP: 0010000000000001#PT TJIWI KIMIA SAMPLE'}])]).keys[0];
+eq('3c 바이어끼리 다르면 LC와 다름 (참)',k3c.lc_diff.map(d=>[d.kind,d.master,d.lc]),[['tax','0010000000000001','0010000000000002']]);
 // 3d LC :59 · 수익자 근처 = own / 신청 회사 근처 = buyer / 표지 없음 = unknown
 const lo=A1M.lcOwnedPractices({'59':'LEENEAR SAMPLE\nTAX ID 0300000077','47A':"1. BENEFICIARY'S TAX CODE 0300000088 AND APPLICANT'S TAX CODE 0300000099 MUST BE SHOWN\n2. IMPORT PERMIT NO. 156/GPMT-BTNMT"});
 eq('3d LC 주인',[lo.tax.map(e=>e.value+':'+e.owner),lo.permit.map(e=>e.value+':'+e.owner)],[['0300000077:own','0300000088:own','0300000099:buyer'],['156/GPMT-BTNMT:unknown']]);
@@ -78,7 +78,7 @@ eq('M4 틀과 다름 = MASTER_DIFF',A1M.masterCheck(mfB,1,'crcf9_address','LEAK 
 eq('M5 확실 틀 없음(参考) = NO_MASTER',A1M.masterCheck(mfB,1,'crcf9_remark','MEMO X'),'NO_MASTER');
 eq('M6 마스터 없음 = NO_MASTER',A1M.masterCheck(null,1,'crcf9_address','X'),'NO_MASTER');
 const mfIK=A1M.buildMasterFor(ik('LRS-2603IK1','2026-03-05'),[ik('LRS-2601IK1','2026-01-05'),ik('LRS-2602IK1','2026-02-05')]);
-eq('M7 허용 낱말 = 관행값',A1M.masterAllowWords(mfIK),['8011101092439','0010005668092000']);
-ok('M8 블록에 当社番号 · バイヤー 구분',/当社番号\(税番号\): 8011101092439/.test(A1M.masterPromptBlock(mfIK)) && /税番号\(バイヤー\): 0010005668092000/.test(A1M.masterPromptBlock(mfIK)));
+eq('M7 허용 낱말 = 관행값',A1M.masterAllowWords(mfIK),['8011101092439','0010000000000001']);
+ok('M8 블록에 当社番号 · バイヤー 구분',/当社番号\(税番号\): 8011101092439/.test(A1M.masterPromptBlock(mfIK)) && /税番号\(バイヤー\): 0010000000000001/.test(A1M.masterPromptBlock(mfIK)));
 eq('M9 {CONTRACT_NO} 로 확실 → 그 계약 번호로 MASTER_SAME',(()=>{ const t=n=>item(n,'2026-0'+n.slice(7,8)+'-01','ASPEX','BIC:BANKIDJA',A1tags,[{crcf9_sino:1,crcf9_po_vo:n}]); const mf=A1M.buildMasterFor(t('LRS-2603A1'),[t('LRS-2601A1'),t('LRS-2602A1')]); return [A1M.masterCheck(mf,1,'crcf9_po_vo','LRS-2603A1'),A1M.masterCheck(mf,1,'crcf9_po_vo','LRS-2602A1')]; })(),['MASTER_SAME','MASTER_DIFF']);
 console.log(`\nunit_v07 pass ${pass} fail ${fail}`); process.exitCode=fail?1:0;

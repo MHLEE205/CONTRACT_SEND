@@ -1,6 +1,7 @@
 /* a1_bench jsdom 하네스 — LEENAI 공통 · Dataverse · Graph · Anthropic 을 모두 mock (네트워크 없음 · 가짜 데이터만)
-   node harness.js <html> <mode: integ|bench|r2> <out.json> [R2 마스터 스위치: on|off (v0.7~, 기본 on)]
-   integ = マスター草案 화면 · 저장 확인 상자 / bench = 파일럿 R1+R2 2건 + R0 / r2 = R2만 3건 (v0.7 마스터 사용) */
+   node harness.js <html> <mode: integ|bench|r2|resume> <out.json> [R2 마스터 스위치: on|off (v0.7~, 기본 on)]
+   integ = マスター草案 화면 · 저장 확인 상자 / bench = 파일럿 R1+R2 2건 + R0 / r2 = R2만 3건 (v0.7 마스터 사용)
+   resume (v0.8~) = 전체 실행 6건: 끊김 없는 기준 실행 · 2건 뒤 강제 중단 → 새 페이지에서 「이어서 실행」 (가짜 SharePoint 저장소를 페이지끼리 공유) */
 const fs=require('fs'), path=require('path');
 let JSDOM; try{ ({JSDOM}=require('jsdom')); }catch(e){ ({JSDOM}=require(path.join(process.env.APPDATA||'','npm/node_modules/jsdom'))); }   // 이 폴더의 npm install 우선 · 없으면 전역(Windows)
 const [,,htmlPath,mode,outPath,masterSw]=process.argv;
@@ -49,6 +50,8 @@ const SC=NOS.map(no=>({cr49f_sale_contractid:'c-'+no, cr49f_sale_contract_no:no,
 
 /* ── fetch mock ── */
 const writes=[], calls={dv:0,graph:0,claude:0};
+const store={};   // v0.8: 가짜 SharePoint — PUT 은 저장, GET :/content 는 읽기, :/children 은 목록
+const pathOf=u=>u.replace(/^.*root:\//,'').replace(/:\/(content|children).*$/,'');
 const J=(o,st)=>new Response(JSON.stringify(o),{status:st||200,headers:{'Content-Type':'application/json'}});
 function sse(text){ const ev=[{type:'message_start',message:{model:'mock',usage:{input_tokens:100}}},{type:'content_block_delta',delta:{type:'text_delta',text}},{type:'message_delta',delta:{stop_reason:'end_turn'},usage:{output_tokens:50}}];
   return new Response(ev.map(e=>'data: '+JSON.stringify(e)+'\n\n').join(''),{status:200,headers:{'Content-Type':'text/event-stream'}}); }
@@ -65,8 +68,9 @@ function claudeReply(body){
   return {lcNo,applicant:'DELTA PAPER CORPORATION',applicantAddress:'SAMPLE A INDUSTRIAL PARK',country:'VIETNAM',notifyParty46A:'APPLICANT',consignee46A:'TO ORDER OF SAMPLE BANK TOKYO',commodity45A:'WASTE PAPER OCC HS CODE: 4707.10.00',term42C:'AT SIGHT',pod:'HO CHI MINH CITY, VIET NAM',lcDate:'2026-03-06',docs46A:['1. SIGNED COMMERCIAL INVOICE'],addCond47A:'1. ALL DOCUMENTS MUST SHOW LC NUMBER',consignee:'TO ORDER OF SAMPLE BANK TOKYO',blText1:'WASTE PAPER'};
 }
 async function mockFetch(url, opts){
+  if(this&&this.dead) return new Promise(()=>{});   // v0.8: 탭이 닫힌 것처럼 — 이 페이지의 통신은 끝나지 않음
   url=String(url); opts=opts||{}; const u=decodeURIComponent(url);
-  if(url.startsWith('https://api.anthropic.com/')){ calls.claude++; const body=JSON.parse(opts.body); return sse(JSON.stringify(claudeReply(body))); }
+  if(url.startsWith('https://api.anthropic.com/')){ calls.claude++; const body=JSON.parse(opts.body); if(this&&this.onClaude) this.onClaude(body); return sse(JSON.stringify(claudeReply(body))); }
   if(url.includes('dynamics.com')){ calls.dv++;
     if(/EntityDefinitions\(LogicalName='cr49f_s_i'\)/.test(u)) return J({value:['crcf9_consignee','crcf9_notify_party','crcf9_address','crcf9_tel','crcf9_fax','crcf9_all','crcf9_invoicetext','crcf9_bl_text1','crcf9_bl_text2','crcf9_bencert_text','crcf9_po_vo','crcf9_vo_no','crcf9_remark','cr49f_payment_terms','crcf9_payment_deadline','crcf9_payment_classification','crcf9_place_of_delivery_1','crcf9_place_of_delivery_2','crcf9_place_of_delivery_3','crcf9_port_of_discharge','crcf9_shipping_mark','cr49f_lc_no','crcf9_sino','cr49f_s_iid'].map(x=>({LogicalName:x}))});
     if(/EntityDefinitions\(LogicalName='crcf9_s_i_detail'\)/.test(u)) return J({value:['crcf9_productname','crcf9_hs_code','crcf9_s_i_detailid','crcf9_price','crcf9_weight'].map(x=>({LogicalName:x}))});
@@ -79,9 +83,12 @@ async function mockFetch(url, opts){
     return J({error:{message:'unmocked '+u}},404);
   }
   if(url.includes('graph.microsoft.com')){ calls.graph++;
-    if((opts.method||'GET')==='PUT'){ const b=opts.body; const text=b&&b.text?await b.text():String(b); writes.push({path:u.replace(/^.*root:\//,'').replace(/:\/content$/,''),text}); return J({id:'x'}); }
+    if((opts.method||'GET')==='PUT'){ const b=opts.body; const text=b&&b.text?await b.text():String(b); const pth=pathOf(u); writes.push({path:pth,text}); store[pth]=text; if(this&&this.onPut) this.onPut(pth,text); return J({id:'x'}); }
     if(/LC\/2026:\/children/.test(u)) return J({value:NOS.map(no=>({name:no+'_'+LCS[no].lcNo+'.pdf',size:1000,file:{}}))});
-    if(/:\/children/.test(u)) return J({value:[]});
+    if(/:\/children/.test(u)){ const pre=pathOf(u)+'/', seen={}, v=[];   // v0.8: 저장소에서 목록 (폴더 = file 없음)
+      Object.keys(store).filter(k=>k.startsWith(pre)).forEach(k=>{ const rest=k.slice(pre.length), nm=rest.split('/')[0]; if(seen[nm]) return; seen[nm]=1; v.push(rest.indexOf('/')<0?{name:nm,size:store[k].length,file:{}}:{name:nm}); });
+      return J({value:v}); }
+    if(/:\/content$/.test(u) && store[pathOf(u)]!=null) return new Response(store[pathOf(u)],{status:200,headers:{'Content-Type':/\.json$/.test(pathOf(u))?'application/json':'text/plain'}});
     return J({error:{message:'nf'}},404);
   }
   return J({error:{message:'unmocked '+url}},404);
@@ -89,18 +96,32 @@ async function mockFetch(url, opts){
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function until(fn,ms,label){ const t0=Date.now(); while(!fn()){ if(Date.now()-t0>(ms||20000)) throw new Error('timeout: '+label); await sleep(20); } }
 
-(async()=>{
+/* 페이지 1개 열기 → 대상 목록까지. pg.dead = true 면 그 페이지의 통신이 멈춘다 (v0.8 이어서 실행 시험) */
+async function openPage(){
+  const pg={dead:false};
   const dom=new JSDOM(html,{url:'https://mhlee205.github.io/CONTRACT_SEND/a1_bench.html',runScripts:'dangerously',pretendToBeVisual:true,
-    beforeParse(w){ w.fetch=mockFetch; w.TextDecoder=TextDecoder; w.TextEncoder=TextEncoder; w.confirm=()=>{throw new Error('confirm 호출');}; w.alert=()=>{throw new Error('alert 호출');}; w.URL.createObjectURL=()=>'blob:x'; w.URL.revokeObjectURL=()=>{}; }});
+    beforeParse(w){ w.fetch=mockFetch.bind(pg); w.TextDecoder=TextDecoder; w.TextEncoder=TextEncoder; w.confirm=()=>{throw new Error('confirm 호출');}; w.alert=()=>{throw new Error('alert 호출');}; w.URL.createObjectURL=()=>'blob:x'; w.URL.revokeObjectURL=()=>{}; }});
   const w=dom.window, $=id=>w.document.getElementById(id), ev=s=>w.eval(s);
+  Object.assign(pg,{dom,w,$,ev});
   await until(()=>$('a1Main').style.display==='',5000,'onReady');
   // LC 판독: PDF 대신 텍스트 (readLcFile 만 교체 — 그 뒤 판독 경로는 그대로)
   ev(`readLcFile=async function(name){ var no=name.split('_')[0]; var t=window.__lc(no); return {name:name,file:null,size:t.length,restore:{ok:true,text:t,textLen:t.length},text:t,image:false,zeros:0,failed:0,pages:1}; }`);
   w.__lc=lcText;
-  const out={title:w.document.title, mode};
-  out.masterBtnBefore=$('a1BtnMaster')?$('a1BtnMaster').disabled:null;
+  pg.masterBtnBefore=$('a1BtnMaster')?$('a1BtnMaster').disabled:null;
   $('a1BtnTargets').click();
   await until(()=>/완료|오류/.test($('a1TargetStatus').textContent),30000,'targets');
+  return pg;
+}
+/* 저장소에서 run 폴더의 최종 산출물 (partial/ · progress.json 제외) — cmp.js 입력 모양 */
+function runFiles(id){ const pre=Object.keys(store).find(k=>k.endsWith('/'+id+'/run_config.json')).replace(/run_config\.json$/,'');
+  return Object.keys(store).filter(k=>k.startsWith(pre)).map(k=>({file:k.slice(pre.length),text:store[k]})).filter(f=>!/^partial\//.test(f.file)&&f.file!=='progress.json').sort((a,b)=>a.file.localeCompare(b.file)); }
+const runIds=()=>[...new Set(Object.keys(store).map(k=>(k.match(/A1_bench\/(A1_\d{8}-\d{6}_(?:pilot|full))\//)||[])[1]).filter(Boolean))].sort();
+const clickAsk=async(pg,matchFn,label)=>{ await until(()=>pg.$('a1Ask').style.display==='flex',8000,'ask '+label); const html=pg.$('a1AskBody').innerHTML; const btns=[...pg.w.document.querySelectorAll('#a1AskBtns button')]; const b=btns.find(matchFn); if(!b) throw new Error('버튼 없음: '+label+' / '+btns.map(x=>x.textContent).join(',')); b.click(); await sleep(30); return html; };
+
+(async()=>{
+  const pg0=await openPage(), w=pg0.w, $=pg0.$, ev=pg0.ev;
+  const out={title:w.document.title, mode};
+  out.masterBtnBefore=pg0.masterBtnBefore;
   out.targetStatus=$('a1TargetStatus').textContent; out.targets=ev('S.targets.length');
   if(mode==='integ'){
     out.masterBtnAfter=$('a1BtnMaster').disabled; out.saveBtnBefore=$('a1BtnMasterSave').disabled;
@@ -141,6 +162,48 @@ async function until(fn,ms,label){ const t0=Date.now(); while(!fn()){ if(Date.no
     out.bench=writes.filter(x=>/A1_bench\/A1_/.test(x.path)).map(x=>({file:x.path.replace(/^.*A1_bench\/A1_[^/]+\//,''),text:x.text}));
     out.assemblePrompts=prompts.filter(p=>p.kind==='r2_assemble').map(p=>({lcNo:p.lcNo,txt:p.txt}));
     out.est12=JSON.parse(ev(`(()=>{ const o=readOpts(); o.useR2=true; o.models=[]; const tok=r2MasterTokens(S.targets,o); const off=Object.assign({},o,{r2Master:false}); return JSON.stringify({tok, on:planOf(12,o,tok), off:planOf(12,off,r2MasterTokens(S.targets,off))}); })()`));
+  }
+  if(mode==='resume'){
+    // v0.8 Step 4 — 전체 실행 6건 (동시 1건 · R1+R2). 기준(끊김 없음) A → 강제 중단 B → 새 페이지 C 에서 이어서 실행
+    const prep=pg=>{ try{ pg.w.localStorage.setItem('leenai_apikey_v1','sk-test'); }catch(e){} pg.$('a1Rounds').value='R1R2'; pg.$('a1Conc').value='1'; if(pg.$('a1R2Master')) pg.$('a1R2Master').checked=masterSw!=='off'; };
+    const NO_OF={}; NOS.forEach(no=>{ NO_OF[LCS[no].lcNo]=no; });
+    const who=body=>{ const m=body.messages[body.messages.length-1], t=typeof m.content==='string'?m.content:m.content.filter(c=>c.type==='text').map(c=>c.text).join('\n'); const c=t.match(/契約番号: (LRS-[A-Z0-9]+)/); if(c) return c[1]; const l=t.match(/ILC\d{4}|KB\d{4}/); return l?NO_OF[l[0]]:'?'; };
+    const tally=pg=>{ pg.byNo={}; pg.onClaude=b=>{ const k=who(b); pg.byNo[k]=(pg.byNo[k]||0)+1; }; };
+    out.order=ev('S.targets.map(t=>t.no)'); out.fullBtnDisabled=$('a1RunFull').disabled; out.fullBtnText=$('a1RunFull').textContent;
+    // A — 취소 → 호출 0 · 쓰기 0 / 실행 → 끝까지
+    prep(pg0); tally(pg0);
+    const c0=calls.claude, w0=writes.length;
+    $('a1RunFull').click(); out.estFull=await clickAsk(pg0,b=>b.textContent==='취소','cancel'); await sleep(300);
+    out.cancel={claude:calls.claude-c0, writes:writes.length-w0};
+    $('a1RunFull').click(); await clickAsk(pg0,b=>b.textContent==='실행','runA');
+    await until(()=>ev('S.lastOut')&&!ev('S.running'),120000,'runA');
+    const idA=runIds().slice(-1)[0]; out.idA=idA; out.byNoA=pg0.byNo; out.logA=[...w.document.querySelectorAll('#a1Log div')].map(d=>d.textContent).reverse();
+    out.progressA=JSON.parse(store[Object.keys(store).find(k=>k.endsWith(idA+'/progress.json'))]);
+    await sleep(1100);   // run_id 는 초 단위
+    // B — 2건 partial 저장 뒤 통신 멈춤 (3건째 도중)
+    const pgB=await openPage(); prep(pgB);
+    pgB.onPut=(pth,text)=>{ const m=pth.match(/(A1_\d{8}-\d{6}_full)\/progress\.json$/); if(m&&m[1]!==idA){ pgB.idB=m[1]; try{ if(JSON.parse(text).done.length>=2) pgB.dead=true; }catch(e){} } };   // 2건이 「끝남」 으로 저장된 직후 → 3건째 도중에 멈춤
+    pgB.$('a1RunFull').click(); await clickAsk(pgB,b=>b.textContent==='실행','runB');
+    await until(()=>pgB.dead,60000,'killB'); await sleep(500);
+    const idB=pgB.idB; out.idB=idB; out.killedProgress=JSON.parse(store[Object.keys(store).find(k=>k.endsWith(idB+'/progress.json'))]);
+    out.killedHasResults=Object.keys(store).some(k=>k.endsWith(idB+'/results.json'));
+    // C — 설정이 다르면 막힘 (회차 R1) → 맞추면 이어서 실행
+    const pgC=await openPage(); prep(pgC); tally(pgC);
+    pgC.$('a1Rounds').value='R1';
+    const c1=calls.claude; pgC.$('a1Resume').click();
+    out.resumeList=await clickAsk(pgC,b=>b.textContent===idB,'pick1');
+    out.blockedText=await clickAsk(pgC,b=>b.textContent==='確認','blocked');
+    out.blockedCalls=calls.claude-c1;
+    pgC.$('a1Rounds').value='R1R2';
+    pgC.$('a1Resume').click(); await clickAsk(pgC,b=>b.textContent===idB,'pick2');
+    out.resumeEst=await clickAsk(pgC,b=>b.textContent==='실행','resume');
+    await until(()=>pgC.ev('S.lastOut')&&!pgC.ev('S.running'),120000,'runC');
+    out.byNoC=pgC.byNo; out.logC=[...pgC.w.document.querySelectorAll('#a1Log div')].map(d=>d.textContent).reverse();
+    out.progressC=JSON.parse(store[Object.keys(store).find(k=>k.endsWith(idB+'/progress.json'))]);
+    out.partialsLeft=Object.keys(store).filter(k=>k.includes(idB+'/partial/')).length;
+    // 기준 A 와 이어서 실행한 B 의 최종 산출물 (cmp.js 입력)
+    fs.writeFileSync(outPath.replace(/\.json$/,'')+'.ref.json',JSON.stringify({bench:runFiles(idA),r0:{rows:[]}}));
+    fs.writeFileSync(outPath.replace(/\.json$/,'')+'.resumed.json',JSON.stringify({bench:runFiles(idB),r0:{rows:[]}}));
   }
   out.calls=calls;
   fs.writeFileSync(outPath,JSON.stringify(out,null,1)); console.log('ok',mode,outPath); process.exit(0);

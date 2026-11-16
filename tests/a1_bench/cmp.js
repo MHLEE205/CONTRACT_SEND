@@ -5,7 +5,7 @@
 const fs=require('fs');
 const [,,fa,fb,modeArg]=process.argv, mode=modeArg||'all';
 const [a,b]=[fa,fb].map(f=>JSON.parse(fs.readFileSync(f,'utf8')));
-const norm=s=>String(s).replace(/A1_\d{8}-\d{6}_pilot/g,'RUNID').replace(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z/g,'TS')
+const norm=s=>String(s).replace(/A1_\d{8}-\d{6}_(?:pilot|full)/g,'RUNID').replace(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z/g,'TS')
   .replace(/"(ms|_ms)": ?\d+/g,'"$1":0').replace(/,\d+\r?$/gm,',MS').replace(/v0\.\d\b/g,'vX').replace(/"version": ?"0\.\d"/g,'"version":"X"').replace(/\d+초/g,'N초').replace(/\| \d+ms/g,'| ms')
   .replace(/,\s*"r2Master": ?false/g,'');
 /* CSV: master_check 열이 모두 빈 값이면 열을 뺀다 (값이 있으면 그대로 두어 차이로 드러나게) */
@@ -28,7 +28,10 @@ const prep=f=>norm(/\.csv$/.test(f.file)?csvDrop(f.text):f.text);
 let same=0,diff=0;
 const show=(n,x,y)=>{ if(x===y){ same++; console.log('SAME',n,x.length); return; } diff++; let i=0; while(x[i]===y[i]) i++; console.log('DIFF',n,'@',i,'\n  old:',JSON.stringify(x.slice(Math.max(0,i-80),i+120)),'\n  new:',JSON.stringify(y.slice(Math.max(0,i-80),i+120))); };
 if(mode==='all'){
-  const names=[...new Set(a.bench.map(x=>x.file).concat(b.bench.map(x=>x.file)))];
+  // v0.8: progress.json (이어서 실행용 형식) · partial/ (계약별 중간 저장) 은 실행 도중 기록이라 비교하지 않음
+  const skip=f=>f==='progress.json'||/^partial\//.test(f);
+  const names=[...new Set(a.bench.map(x=>x.file).concat(b.bench.map(x=>x.file)))].filter(n=>!skip(n));
+  const sk=[...new Set(a.bench.concat(b.bench).map(x=>x.file).filter(skip))]; if(sk.length) console.log('SKIP',sk.join(' '));
   names.forEach(n=>show(n,a.bench.filter(f=>f.file===n).map(prep).join('\n#\n'),b.bench.filter(f=>f.file===n).map(prep).join('\n#\n')));
 }else{
   const r1=o=>csvDrop(o.bench.find(f=>f.file==='results.csv').text,(r,h)=>r[h.indexOf('round')]==='R1');

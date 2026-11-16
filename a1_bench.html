@@ -43,7 +43,7 @@ textarea.a1-in{width:100%;min-height:90px}
 <main id="a1Main" style="display:none;max-width:1200px;margin:0 auto;padding:20px 16px">
 
   <div class="a1-card">
-    <h3>A1 「契約/LC → S/I」 추천 정확도 시험 (설계서 v0.5 · 지시서 시험도구 v0.7 마스터 보정 · R2 마스터 사용)</h3>
+    <h3>A1 「契約/LC → S/I」 추천 정확도 시험 (설계서 v0.5 · 지시서 시험도구 v0.8 전체 실행 준비)</h3>
     <div class="a1-note">정답 = COMPASS S/I (2609 이전 = 검증). 이 페이지는 COMPASS · LC 원본 · 마스터를 <b>읽기만</b> 하고, 결과는 SharePoint <code>古紙/-. AI 活用/D-00/A1_bench/{run_id}/</code> 에만 저장합니다.<br>
     「몇 건 맞았다」 로 결론 내지 않습니다 — 파일럿은 모델 · 비용을 고르기 위한 것 (설계서 v0.2 §7).</div>
   </div>
@@ -84,7 +84,7 @@ textarea.a1-in{width:100%;min-height:90px}
   </div>
 
   <div class="a1-card" id="a1MasterCard">
-    <h3>②-2 マスター草案 — 바이어 × 은행 × 신청 회사 (v0.7 · 코드만 · AI 호출 없음)</h3>
+    <h3>②-2 マスター草案 — 바이어 × 은행 × 신청 회사 (v0.8 · 코드만 · AI 호출 없음)</h3>
     <div class="a1-note">「대상 목록」 으로 읽은 LC 판독 · COMPASS S/I 로 S/I 칸마다의 <b>틀</b>(LC 에서 오는 값은 <code>{…}</code> 자리)과 관행값을 뽑습니다. COMPASS 에는 쓰지 않습니다.<br>
     저장은 따로 — SharePoint <code>古紙/-. AI 活用/D-00/A1_bench/master_draft/</code> 에만 (공통 마스터 위치에는 쓰지 않음). 줄을 누르면 칸별 틀이 펼쳐집니다.</div>
     <div class="a1-row"><button id="a1BtnMaster" class="a1-btn" disabled title="먼저 「대상 목록」">マスター草案</button><button id="a1BtnMasterSave" class="a1-btn ghost" disabled>草案 保存 (SharePoint)</button><span id="a1MasterStatus" class="a1-note"></span></div>
@@ -108,7 +108,8 @@ textarea.a1-in{width:100%;min-height:90px}
       <button id="a1Stop" class="a1-btn ghost" disabled>중지</button>
       <span style="flex:1"></span>
       <label>전체 실행 모델 <input id="a1FullModel" class="a1-in" value="claude-opus-5-5" style="width:160px"></label>
-      <button id="a1RunFull" class="a1-btn ghost" disabled title="형님 결정 후 잠금 해제">🔒 전체 실행 (대상 전부 · 선택 회차 × 2회)</button>
+      <button id="a1RunFull" class="a1-btn ghost" title="형님 결정 D8 (2026-11-16) — 잠금 해제">전체 실행 (대상 전부 · 선택 회차 × 2회)</button>
+      <button id="a1Resume" class="a1-btn ghost" title="끊긴 실행(run_id)을 골라 남은 계약만 실행">이어서 실행…</button>
     </div>
     <div class="a1-bar"><div id="a1ProgBar"></div></div>
     <div id="a1Prog" class="a1-note"></div>
@@ -1502,7 +1503,9 @@ ${siSummary}
 var A1M=(function(){
 'use strict';
 var FIELDS=['consignee','notify_party','address','tel','fax','bl_text1','bl_text2','all','invoicetext','bencert_text','po_vo','vo_no','remark',
-  'place_of_delivery_1','place_of_delivery_2','place_of_delivery_3','port_of_discharge','shipping_mark','lc_no'].map(function(f){return [f,A1C.COL[f]];});
+  'place_of_delivery_1','place_of_delivery_2','place_of_delivery_3','port_of_discharge','shipping_mark','lc_no',
+  'payment_terms','payment_deadline','payment_classification'].map(function(f){return [f,A1C.COL[f]];});   // v0.8: 지급 조건 3칸 (cr49f_payment_terms · crcf9_payment_deadline · crcf9_payment_classification)
+var PAY_COLS=['cr49f_payment_terms','crcf9_payment_deadline','crcf9_payment_classification'];
 var PH_NAMES=['APPLICANT_NAME','APPLICANT_ADDR','LC_NO','LC_DATE','PO','HS','VO','CONTRACT_NO'];   // v0.7: CONTRACT_NO = 当社 販売契約番号 (LRS-… / LRS- を除いた形)
 var BANK_UNKNOWN='銀行不明';
 function nfkc(s){ var t=String(s==null?'':s); try{t=t.normalize('NFKC');}catch(e){} return t; }
@@ -1527,8 +1530,8 @@ function replaceLoose(value, needle, name){
 /* HS 숫자 — 점 · 공백이 섞여도, 끝에 0 이 더 붙어도 (4707.10 ↔ 47071000) */
 function replaceHs(value, digits){
   if(!/^\d{4,}$/.test(digits)) return {text:value, hit:false};
-  var re=new RegExp('(?<!\\d)'+digits.split('').join('[\\s.]?')+'(?:[\\s.]?0)*(?!\\d)','g'), hit=false;
-  return {text:String(value).replace(re,function(){ hit=true; return sentinel('HS'); }), hit:hit};
+  var re=new RegExp('(?<!\\d)'+digits.split('').join('[\\s.]?')+'(?:[\\s.]?0)*(?!\\d)','g'), hit=false, matched='';
+  return {text:String(value).replace(re,function(m){ hit=true; if(!matched) matched=m; return sentinel('HS'); }), hit:hit, matched:matched};   // v0.8: matched = S/I 에 쓰인 HS 표기 (前回値용)
 }
 /* :31C → 여러 날짜 형식으로 찾아 바꾸고, 찾은 형식 이름을 기록 */
 var MONS=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
@@ -1601,12 +1604,12 @@ function toTemplate(value, ctx){
     if(c.name==='APPLICANT_ADDR' && c.line!=='all' && addrUsed.indexOf('all')>=0) return;
     var r=replaceLoose(v,c.text,c.name); if(r.hit){ v=r.text; used[c.name]=1; if(c.name==='APPLICANT_ADDR') addrUsed.push(c.line); }
   });
-  (ctx.hs||[]).forEach(function(d){ var r=replaceHs(v,d); if(r.hit){ v=r.text; used.HS=1; } });
+  var hsText=''; (ctx.hs||[]).forEach(function(d){ var r=replaceHs(v,d); if(r.hit){ v=r.text; used.HS=1; if(!hsText) hsText=r.matched; } });
   if(ctx.issueDate){ var rd=replaceDates(v,ctx.issueDate); v=rd.text; if(rd.formats.length){ used.LC_DATE=1; formats=rd.formats; } }
   // 주소 줄이 이어지면 {APPLICANT_ADDR} 하나로 (어느 줄을 썼는지는 addrLines 에)
   var A=sentinel('APPLICANT_ADDR'); v=v.replace(new RegExp(escRe(A)+'(?:[\\s.,\\-]*'+escRe(A)+')+','g'),A);
   var al=addrUsed.indexOf('all')>=0?'all':addrUsed.sort(function(a,b){return a-b;}).join(',');
-  return {template:unSentinel(v), formats:formats, used:PH_NAMES.filter(function(n){return used[n];}), addrLines:al?(al==='all'?'all':al+'/'+ctx.addrLines.length):''};
+  return {template:unSentinel(v), formats:formats, used:PH_NAMES.filter(function(n){return used[n];}), addrLines:al?(al==='all'?'all':al+'/'+ctx.addrLines.length):'', hsText:hsText};
 }
 /* 구두점 · 공백만 다른 틀은 같은 틀 */
 function tplKey(t){ return nfkc(t).toUpperCase().replace(/[\s.,\-;:]+/g,''); }
@@ -1719,12 +1722,14 @@ function buildMasterDraft(items){
         if(rows.every(function(r){return !r.raw.trim();})){ unused.push({sino:sn, field:f}); return; }
         var tg={}, order=[];
         rows.forEach(function(r){ var kk=r.t.template?tplKey(r.t.template):'\u0000EMPTY'; if(!tg[kk]){ tg[kk]={template:r.t.template, contracts:[], formats:{}, used:{}, addrLines:{}}; order.push(kk); }
-          var o=tg[kk]; o.contracts.push(r.no); o.template=r.t.template; o.example=r.raw; r.t.formats.forEach(function(n){o.formats[n]=1;}); r.t.used.forEach(function(n){o.used[n]=1;}); if(r.t.addrLines) o.addrLines[r.t.addrLines]=1; });   // 틀 = 가장 최근 계약의 표기
+          var o=tg[kk]; o.contracts.push(r.no); o.template=r.t.template; o.example=r.raw; r.t.formats.forEach(function(n){o.formats[n]=1;}); r.t.used.forEach(function(n){o.used[n]=1;}); if(r.t.addrLines) o.addrLines[r.t.addrLines]=1; if(r.t.hsText) o.hsText=r.t.hsText; });   // 틀 = 가장 최근 계약의 표기 · v0.8 hsText = 가장 최근 계약의 HS 값
         var latest=rows[rows.length-1].no;
         var templates=order.map(function(kk){ var o=tg[kk]; return {template:o.template, empty:!o.template, contracts:o.contracts, latest:o.contracts[o.contracts.length-1], recommended:o.contracts.indexOf(latest)>=0,
-          date_formats:Object.keys(o.formats), placeholders:Object.keys(o.used), addr_lines:Object.keys(o.addrLines).join(' '), example:o.example}; });
+          date_formats:Object.keys(o.formats), placeholders:Object.keys(o.used), addr_lines:Object.keys(o.addrLines).join(' '), example:o.example, hs_last:o.hsText||undefined}; });
         var status=rows.length===1?'単発':(templates.length===1?'確実':'確認要');
-        fields.push({sino:sn, field:f, col:col, status:status, n:rows.length, templates:templates, recommended:templates.filter(function(t){return t.recommended;})[0].template});
+        var recT=templates.filter(function(t){return t.recommended;})[0], fdo={sino:sn, field:f, col:col, status:status, n:rows.length, templates:templates, recommended:recT.template};
+        if(recT.hs_last && recT.template.indexOf('{HS}')>=0) fdo.hs_prev=recT.hs_last;   // v0.8: {HS} 前回値 (출처 계약 중 가장 최근 계약의 HS)
+        fields.push(fdo);
       });
     });
     // 관행값 — 틀의 고정 부분에서 (값 + 처음/마지막으로 본 계약)
@@ -1769,7 +1774,7 @@ function buildMasterFor(target, items){
   var earlier=(items||[]).filter(function(it){ return String(it.no).toUpperCase()!==String(target.no).toUpperCase() && A1C.isEarlier(it,target) && keyOf(it, lcContext(it.lc,it.contractPo))===kT; });
   if(!earlier.length) return null;
   var k=buildMasterDraft(earlier).keys[0];
-  return {target:target.no, key:k, from:k.contracts.slice(), ctx:ctxT};
+  return {target:target.no, key:k, from:k.contracts.slice(), ctx:ctxT, hsMissing:!(ctxT.hs||[]).length};   // v0.8: 이번 LC 에 HS 없음 → {HS} 前回値
 }
 function sureTemplates(mf){ var o={}; if(mf) mf.key.fields.forEach(function(f){ if(f.status==='確実') o[f.sino+'|'+f.col]=f.recommended; }); return o; }
 /* ③ 조립 입력의 마스터 블록 (규칙 + 칸별 틀 + 관행값 + consignee 지시문 짝) */
@@ -1782,9 +1787,11 @@ function masterPromptBlock(mf){
   L.push('- ただし L/C が書類文言を指定している欄は L/C 文言(note に「L/C指定文言」)。');
   L.push('- テンプレ(参考・最新)・テンプレ(1件のみ)の欄は直前 S/I と同じ扱い。');
   L.push('- {APPLICANT_NAME}=:50 1行目 / {APPLICANT_ADDR}=:50 の残りの行 / {LC_NO}=:20 / {LC_DATE}=:31C (日付の形はテンプレの日付形式) / {PO}=L/C の PO 番号 / {HS}=L/C の HS コード / {VO}=VO 番号 (既存の規則どおり) / {CONTRACT_NO}=今回の契約番号');
+  L.push('- 支払条件の欄(cr49f_payment_terms・crcf9_payment_deadline・crcf9_payment_classification)は、テンプレの文言・順序を使い、日数・パーセント等の数字だけは今回の L/C(42C 等)と照合する。数字が違えば L/C の数字にし、note に「数字は L/C」。');
+  L.push('- {…} の値が今回の L/C に無く、前回値が示されている場合は前回値を使い、note に「前回値」と書く。前回値も無ければ XX。');
   L.push('欄:');
   k.fields.forEach(function(f){ var t=f.templates.filter(function(x){return x.recommended;})[0]||{};
-    L.push('  sino '+f.sino+' '+f.col+' '+lab[f.status]+': '+(t.empty?'(空欄)':JSON.stringify(f.recommended))+(t.date_formats&&t.date_formats.length?' (日付形式 '+t.date_formats.join(' / ')+')':'')+(f.status==='単発'?'':' ['+f.n+'件中 '+t.contracts.length+'件]')); });
+    L.push('  sino '+f.sino+' '+f.col+' '+lab[f.status]+': '+(t.empty?'(空欄)':JSON.stringify(f.recommended))+(t.date_formats&&t.date_formats.length?' (日付形式 '+t.date_formats.join(' / ')+')':'')+(hsPrevOf(mf,f)?' (前回値: '+hsPrevOf(mf,f)+' — 今回 L/C に HS なし)':'')+(f.status==='単発'?'':' ['+f.n+'件中 '+t.contracts.length+'件]')); });
   var pr=[]; Object.keys(PRACTICE_LABEL).forEach(function(kind){ (k.practices[kind]||[]).forEach(function(e){ pr.push((e.owner==='own'?'当社番号('+PRACTICE_LABEL[kind]+')':PRACTICE_LABEL[kind]+(e.owner==='buyer'?'(バイヤー)':''))+': '+e.value+' (最終 '+e.last+')'); }); });
   if(pr.length) L.push('慣行値 (固定部分の番号・書き方):','  '+pr.join('\n  '));
   if(k.consignee_wording.length) L.push('consignee 指示文の対応 (sino 1):','  '+k.consignee_wording.map(function(w){ return 'L/C 46A「'+w.lc_wording+'」→ S/I '+JSON.stringify(w.si_template)+' ('+w.contracts.join(', ')+')'; }).join('\n  '));
@@ -1794,8 +1801,11 @@ function masterPromptBlock(mf){
 function masterCheck(mf, sino, col, value){
   var f=mf&&mf.key.fields.filter(function(x){return x.sino===+sino && x.col===col;})[0];
   if(!f||f.status!=='確実') return 'NO_MASTER';
-  return tplKey(toTemplate(value, mf.ctx).template)===tplKey(f.recommended)?'MASTER_SAME':'MASTER_DIFF';
+  var c=mf.ctx, hp=hsPrevOf(mf,f); if(hp){ c=Object.assign({},mf.ctx,{hs:[hp.replace(/[^\d]/g,'')]}); }   // v0.8: 前回値 를 쓴 칸은 그 값을 {HS} 로 본다
+  return tplKey(toTemplate(value, c).template)===tplKey(f.recommended)?'MASTER_SAME':'MASTER_DIFF';
 }
+/* v0.8: {HS} 前回値 — 이번 LC 에 HS 가 없고 그 칸 틀에 {HS} 가 있을 때만 (이름 · 주소 · 번호 자리에는 쓰지 않음) */
+function hsPrevOf(mf, f){ return (mf && mf.hsMissing && f && f.hs_prev && String(f.recommended).indexOf('{HS}')>=0)?f.hs_prev:''; }
 /* 출처 검사 허용 낱말 (extra 에만) — 관행값 전부 */
 function masterAllowWords(mf){ var out=[]; if(mf) Object.keys(mf.key.practices).forEach(function(kind){ mf.key.practices[kind].forEach(function(e){ out.push(e.value); }); }); return out; }
 function practiceSummary(p){
@@ -1845,7 +1855,7 @@ function mdc(s){ return String(s==null?'':s).replace(/\|/g,'\\|'); }
 
 return {FIELDS:FIELDS, PH_NAMES:PH_NAMES, BANK_UNKNOWN:BANK_UNKNOWN, alnumKey:alnumKey, looseRe:looseRe, replaceLoose:replaceLoose, replaceDates:replaceDates, dateForms:dateForms,
   lcPos:lcPos, lcHs:lcHs, lcContext:lcContext, toTemplate:toTemplate, contractNoForms:contractNoForms, OWN_NUMBERS:OWN_NUMBERS, isOwnNumber:isOwnNumber, findPracticesAt:findPracticesAt,
-  joinLcBreaks:joinLcBreaks, lcOwnedPractices:lcOwnedPractices, buildMasterFor:buildMasterFor, masterPromptBlock:masterPromptBlock, masterCheck:masterCheck, masterAllowWords:masterAllowWords, sureTemplates:sureTemplates, ownNumbers:ownNumbers, tplKey:tplKey, findPractices:findPractices, consigneeWording:consigneeWording, poKind:poKind,
+  joinLcBreaks:joinLcBreaks, lcOwnedPractices:lcOwnedPractices, buildMasterFor:buildMasterFor, masterPromptBlock:masterPromptBlock, hsPrevOf:hsPrevOf, PAY_COLS:PAY_COLS, masterCheck:masterCheck, masterAllowWords:masterAllowWords, sureTemplates:sureTemplates, ownNumbers:ownNumbers, tplKey:tplKey, findPractices:findPractices, consigneeWording:consigneeWording, poKind:poKind,
   buildMasterDraft:buildMasterDraft, practiceSummary:practiceSummary, toCsvRows:toCsvRows, CSV_HEAD:CSV_HEAD, toSummaryMd:toSummaryMd, PRACTICE_LABEL:PRACTICE_LABEL};
 })();
 </script>
@@ -1862,7 +1872,8 @@ const A1_DV_API      = 'https://orgde512c6f.crm7.dynamics.com/api/data/v9.2';
 const A1_GRAPH       = 'https://graph.microsoft.com/v1.0/';
 const A1_AKEY        = 'leenai_apikey_v1';           // D-01 と同じ保存場所 (同じ origin のブラウザ保存領域のみ)
 const a1Version = () => (document.title.match(/v([\d.]+)\s*$/)||[])[1]||'';   // 버전은 LEENAI.init 1곳 (공통 파일이 title 에 넣는다 — 실행 시점에 읽음)
-const A1_FULL_RUN_UNLOCKED = false;                   // 지시서 범위: 파일럿까지. 전체 실행은 형님 결정 후
+const A1_FULL_RUN_UNLOCKED = true;                    // v0.8: 형님 결정 D8 (2026-11-16) — 전체 실행 잠금 해제
+const A1_SEC_PER_RUN = {R1:40, R2:130};               // v0.8: 예상 시간 — 파일럿 실측 평균 (R1 1회 약 40초 · R2 1회 약 130초)
 const A1_R0_MODEL    = 'claude-sonnet-4-6';           // D-01 v3.2 _callApiCore 의 모델
 const A1_DEFAULT_MODEL = 'claude-opus-5-5';           // v0.3: 형님 결정 D1 「그냥 opus로」
 const A1_PRICE_DATE = '2026-11-09';                   // 단가표 기준일 (실제 청구는 Anthropic 콘솔)
@@ -2481,8 +2492,40 @@ function planOf(n, opts, masterTok){   // v0.7: masterTok = R2 마스터 블록�
   if(opts.judgeModel) plan.push({label:'AI 판정',model:opts.judgeModel,calls:n,inTok:5000,outTok:3000});
   return A1C.estimateCost(plan, A1_PRICE);
 }
+/* v0.8: 예상 시간 — 계약 1건 = 회차들이 동시에 (R1 모델별 reps 회 · R2 reps 회는 순서대로) → 동시 실행 수만큼 나눠 돈다 */
+function timeOf(n, opts){
+  const per=Math.max(opts.models.length?opts.reps*A1_SEC_PER_RUN.R1:0, opts.useR2?opts.reps*A1_SEC_PER_RUN.R2:0);
+  const conc=Math.max(1,Math.min(opts.conc||1,6)), sec=Math.ceil(n/conc)*per;
+  return {sec, conc, text:(sec>=3600?Math.floor(sec/3600)+'시간 ':'')+Math.round((sec%3600)/60)+'분'};
+}
+/* v0.8: 이어서 실행 — 저장된 설정과 지금 설정 비교 (다르면 이유 목록) */
+function resumeMismatch(cfg, opts, nos){
+  const st=cfg.settings||{}, why=[], same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+  if(cfg.version!==a1Version()) why.push(`도구 버전: 저장 v${cfg.version} ≠ 지금 v${a1Version()}`);
+  [['rounds','회차'],['models','R1 모델'],['r2Model','R2 모델'],['reps','반복'],['effort','effort'],['maxTokens','max_tokens'],['judgeModel','AI 판정 모델'],['priorN','직전 S/I 건수'],['r0Source','R0 LC JSON']].forEach(([k,lbl])=>{ if(!same(st[k],opts[k])) why.push(`${lbl}: 저장 ${JSON.stringify(st[k])} ≠ 지금 ${JSON.stringify(opts[k])}`); });
+  if(!!st.r2Master!==!!opts.r2Master) why.push(`R2 마스터 사용: 저장 ${st.r2Master?'켬':'끔'} ≠ 지금 ${opts.r2Master?'켬':'끔'}`);
+  const sn=(cfg.targets||[]).map(t=>t.no);
+  if(!same(sn,nos)){ const add=nos.filter(x=>sn.indexOf(x)<0), del=sn.filter(x=>nos.indexOf(x)<0); why.push(`대상 목록: 저장 ${sn.length}건 ≠ 지금 ${nos.length}건`+(add.length?` · 추가 ${add.slice(0,5).join(', ')}${add.length>5?' …':''}`:'')+(del.length?` · 빠짐 ${del.slice(0,5).join(', ')}${del.length>5?' …':''}`:'')+(!add.length&&!del.length?' (순서 다름)':'')); }
+  return why;
+}
+async function resumePick(){
+  if(S.running) return;
+  if(!S.targets.length){ await askBox('먼저 「대상 목록」 을 만드세요.',['確認']); return; }
+  let names=[];
+  try{ names=(await spList(A1_SP_OUT_DIR)).filter(f=>!f.file && /^A1_\d{8}-\d{6}_(pilot|full)$/.test(f.name)).map(f=>f.name).sort().reverse().slice(0,30); }
+  catch(e){ await askBox('결과 폴더를 읽지 못했습니다: '+escH(e.message),['確認']); return; }
+  const info=[]; await mapLimit(names,6,async name=>{ const pr=await spGetJson(A1_SP_OUT_DIR+'/'+name+'/progress.json'); if(pr && pr.total!=null && !pr.finished && Array.isArray(pr.done)) info.push({name,pr}); });   // v0.8 형식 · 끝나지 않은 것만
+  info.sort((a,b)=>b.name.localeCompare(a.name)); const list=info.slice(0,8);
+  if(!list.length){ await askBox('이어서 실행할 수 있는 실행이 없습니다 (끝나지 않은 v0.8 이후 run_id 없음).',['確認']); return; }
+  const i=await askBox('<b>이어서 실행</b> — 끝나지 않은 실행을 고르세요 (끝난 계약은 건너뛰고 남은 것만)<br>'+list.map(x=>`· ${escH(x.name)} — 끝남 ${x.pr.done.length}/${x.pr.total}건 · 마지막 저장 ${escH(String(x.pr.at||'').replace('T',' ').slice(0,19))}`).join('<br>'),list.map(x=>x.name).concat(['취소']));
+  if(i<0||i>=list.length) return;
+  const name=list[i].name, dir=A1_SP_OUT_DIR+'/'+name, cfg=await spGetJson(dir+'/run_config.json');
+  if(!cfg||!cfg.settings){ await askBox('run_config.json 을 읽지 못했습니다: '+escH(name),['確認']); return; }
+  const done={}; await mapLimit(list[i].pr.done,6,async no=>{ const cr=await spGetJson(dir+'/partial/'+no+'.json'); if(cr&&cr.no===no) done[no]=cr; });   // partial 이 없으면 그 계약은 다시 실행
+  await runBench(cfg.kind,{cfg,done,progress:list[i].pr});
+}
 function runId(kind){ const d=new Date(), p=n=>String(n).padStart(2,'0'); return `A1_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}_${kind}`; }
-async function runBench(kind){
+async function runBench(kind, resume){   // v0.8: resume = {cfg, done:{계약: 저장된 결과}, progress} — 이어서 실행
   if(S.running) return;
   if(kind==='full' && !A1_FULL_RUN_UNLOCKED){ await askBox('전체 실행은 잠겨 있습니다 (형님 결정 후 잠금 해제)',['確認']); return; }
   if(!gk()){ await askBox('Anthropic API 키를 먼저 저장하세요.',['確認']); return; }
@@ -2490,29 +2533,41 @@ async function runBench(kind){
   const targets=nos.map(no=>S.targets.find(t=>t.no===no)).filter(Boolean);
   const missing=nos.filter(no=>!S.targets.find(t=>t.no===no));
   if(!targets.length){ await askBox('대상이 없습니다. 먼저 「대상 목록」 을 만드세요.',['確認']); return; }
-  if(missing.length && (await askBox('대상 목록에 없는 계약은 건너뜁니다: '+escH(missing.join(', '))+'<br>계속할까요?',['계속','취소']))!==0) return;
   const opts=readOpts();
   if(kind==='full'){ const fm=$('a1FullModel').value.trim()||A1_DEFAULT_MODEL; if(opts.models.length) opts.models=[fm]; opts.r2Model=fm; }   // 전체 = 대상 전부(이미지 LC · Amend 포함) × 선택 회차 × 2회
+  if(resume){ const why=resumeMismatch(resume.cfg,opts,nos);   // v0.8: 설정 · 대상 목록이 다르면 막는다
+    if(why.length){ logLine(`이어서 실행 막음 — ${resume.cfg.run_id}: ${why.join(' / ')}`,'warn'); await askBox(`<b>이어서 실행할 수 없습니다</b> — ${escH(resume.cfg.run_id)}<br>저장된 설정과 지금 화면 설정이 다릅니다. 화면을 저장된 설정에 맞추거나 새로 실행하세요.<br>`+why.map(w=>'· '+escH(w)).join('<br>'),['確認']); return; } }
+  else if(missing.length && (await askBox('대상 목록에 없는 계약은 건너뜁니다: '+escH(missing.join(', '))+'<br>계속할까요?',['계속','취소']))!==0) return;
   const jobsPer=(opts.withR0?1:0)+opts.models.length*opts.reps+(opts.useR2?3:0);
   if(!jobsPer){ await askBox('실행할 회차가 없습니다 (R1 모델 칸이 비어 있음).',['確認']); return; }
-  const est=planOf(targets.length,opts,r2MasterTokens(targets,opts));
-  const ok=await askBox(`<b>${kind==='pilot'?'파일럿':'전체'} 실행</b> — ${targets.length}건 · 회차 ${escH(opts.rounds.replace('R1R2','R1+R2'))}<br>`+
+  const doneMap=resume?resume.done:{}, todo=targets.filter(t=>!doneMap[t.no]);
+  const est=planOf(todo.length,opts,r2MasterTokens(todo,opts)), tm=timeOf(todo.length,opts);
+  const ok=await askBox((resume?`<b>이어서 실행</b> — ${escH(resume.cfg.run_id)} · 끝난 ${targets.length-todo.length}건 건너뜀 · <b>남은 ${todo.length}건</b> · 회차 ${escH(opts.rounds.replace('R1R2','R1+R2'))}<br>`:`<b>${kind==='pilot'?'파일럿':'전체'} 실행</b> — ${targets.length}건 · 회차 ${escH(opts.rounds.replace('R1R2','R1+R2'))}<br>`)+
     `<table class="a1-t"><tr><th>회차</th><th>모델</th><th>예상 호출</th><th>추정 US$</th></tr>`+est.lines.map(l=>`<tr><td>${escH(l.label)}</td><td>${escH(l.model)}</td><td>${l.calls}</td><td>${l.priced?l.cost.toFixed(2):'단가 없음'}</td></tr>`).join('')+
     `<tr><td colspan="2"><b>합계</b></td><td>${est.lines.reduce((a,l)=>a+l.calls,0)} (+JSON 재시도)</td><td><b>${est.total.toFixed(2)}</b></td></tr></table>`+
-    `<div class="a1-note">추정치 (가격표 ${A1_PRICE_DATE} · 1회 토큰 가정). 실제 청구는 Anthropic 콘솔.</div>`,['실행','취소']);
+    `<div class="a1-note">추정치 (가격표 ${A1_PRICE_DATE} · 1회 토큰 가정). 실제 청구는 Anthropic 콘솔.</div>`+
+    `<div class="a1-note">예상 시간 약 <b>${tm.text}</b> (동시 ${tm.conc}건 · R1 1회 약 ${A1_SEC_PER_RUN.R1}초 · R2 1회 약 ${A1_SEC_PER_RUN.R2}초 — 파일럿 실측 평균)</div>`+
+    (kind==='full'||resume?`<div class="a1-warn">브라우저 탭을 닫거나 PC가 잠들면 중단됩니다 — 계약 1건마다 저장하므로 「이어서 실행」 으로 남은 것만 다시 할 수 있습니다.</div>`:''),['실행','취소']);
   if(ok!==0) return;
-  S.running=true; S.stop=false; $('a1Stop').disabled=false; $('a1RunPilot').disabled=true;
-  const id=runId(kind), dir=A1_SP_OUT_DIR+'/'+id, started=new Date().toISOString();
+  S.running=true; S.stop=false; $('a1Stop').disabled=false; $('a1RunPilot').disabled=true; $('a1RunFull').disabled=true; $('a1Resume').disabled=true;
+  const id=resume?resume.cfg.run_id:runId(kind), dir=A1_SP_OUT_DIR+'/'+id, started=resume?resume.cfg.started:new Date().toISOString();
   const run=S.run={run_id:id, kind, started, finished:null, version:a1Version(), settings:{...opts, r0Model:A1_R0_MODEL, r0MaxTokens:{lc_json:8000,transcribe:16000,si_improve:4000},
       r1:{thinking:'adaptive',effort:opts.effort,max_tokens:opts.maxTokens,temperature:'未指定 (Opus 5.5・Fable は temperature 指定不可のため全モデル既定値)',stream:true},
       priorRule:'同じバイヤー(COMPASS buyer id) × 同じ発行銀行(BIC8) の、対象より前の契約(契約番号の年月・契約日)の S/I を最新から '+opts.priorN+' 件。無ければ同じバイヤー別銀行 1 件を「参考」',
       fieldCheck:S.fieldCheck}, targets:targets.map(t=>({no:t.no,group:t.group,buyer:t.buyer,bankKey:t.bankKey,bankSource:t.bank.source,lcNo:t.lcNo,image:t.image,amends:t.amends,layer:t.layer,formats:t.formats})),
     contracts:[], failures:[]};
-  logLine(`${id} 시작 — ${targets.length}건`,'ok');
-  try{ await spPut(dir+'/run_config.json',JSON.stringify(run,null,2),'application/json'); }catch(e){ logLine('설정 저장 실패: '+e.message,'danger'); }
-  let doneJobs=0; const totalJobs=targets.length*jobsPer; const prog=()=>{ $('a1Prog').textContent=`진행 ${doneJobs}/${totalJobs} (계약 × 회차)`; $('a1ProgBar').style.width=(100*doneJobs/totalJobs).toFixed(1)+'%'; };
+  // v0.8: 이어서 실행 — 저장된 계약 결과를 먼저 넣고 남은 것만 돈다 (run_config 는 처음 것을 그대로 둔다)
+  const doneNos=[]; targets.forEach(t=>{ const cr=doneMap[t.no]; if(cr){ run.contracts.push(cr); run.failures=run.failures.concat((cr.failures||[]).map(f=>Object.assign({contract:t.no},f))); doneNos.push(t.no); } });
+  const resumedLog=(resume&&resume.progress&&resume.progress.resumed||[]).concat(resume?[{at:new Date().toISOString(),skipped:doneNos.length}]:[]);   // 이어서 실행 이력 (progress.json 에만 — 결과 파일에는 넣지 않음)
+  const saveProgress=async fin=>{ try{ await spPut(dir+'/progress.json',JSON.stringify({run_id:id,kind,version:a1Version(),total:targets.length,done:doneNos.slice(),finished:!!fin,at:new Date().toISOString(),resumed:resumedLog}),'application/json'); }catch(e){} };
+  if(resume){ logLine(`${id} 이어서 시작 — 끝난 ${doneNos.length}건 건너뜀 · 남은 ${todo.length}건`,'ok');
+    for(const t of targets) if(doneMap[t.no]){ try{ await ensureBuyerSis(t); await parseContractLc(t.no); }catch(e){} } }   // 건너뛴 계약의 S/I · LC (읽기만 · AI 호출 없음) — 끝의 계약 간 변화 · LC JSON 비교를 끊김 없는 실행과 같게
+  else { logLine(`${id} 시작 — ${targets.length}건`,'ok');
+    try{ await spPut(dir+'/run_config.json',JSON.stringify(run,null,2),'application/json'); }catch(e){ logLine('설정 저장 실패: '+e.message,'danger'); } }
+  await saveProgress(false);
+  let doneJobs=0; const totalJobs=todo.length*jobsPer; const prog=()=>{ $('a1Prog').textContent=`진행 ${doneJobs}/${totalJobs} (계약 × 회차)`; $('a1ProgBar').style.width=(100*doneJobs/totalJobs).toFixed(1)+'%'; };
   prog();
-  await mapLimit(targets, Math.max(1,Math.min(opts.conc,6)), async t=>{
+  await mapLimit(todo, Math.max(1,Math.min(opts.conc,6)), async t=>{
     if(S.stop) return;
     const cr={no:t.no, group:t.group, buyer:t.buyer, bankKey:t.bankKey, layer:t.layer, formats:t.formats, runs:[], rows:[], failures:[]};
     try{
@@ -2594,10 +2649,17 @@ async function runBench(kind){
         a.rows.forEach((ra,i)=>{ const rb=b.rows.find(x=>x.sino===ra.sino&&x.col===ra.col); const st=rb?(A1C.normV(ra.rec)===A1C.normV(rb.rec)?'安定':'不安定'):''; ra.stable=st; if(rb) rb.stable=st; });
       });
     }catch(e){ cr.failures.push({round:'PREP',error:e.message}); logLine(`${t.no} 준비 실패: ${e.message}`,'danger'); doneJobs+=jobsPer; prog(); }
+    const stoppedMid=S.stop;   // 중지 요청 중에 끝난 계약은 회차가 빠졌을 수 있다 → 「끝남」 으로 치지 않음
     run.contracts.push(cr); run.failures=run.failures.concat(cr.failures.map(f=>Object.assign({contract:t.no},f)));
     logLine(`${t.no} 완료 (실패 ${cr.failures.length})`, cr.failures.length?'warn':'ok');
-    try{ await spPut(dir+'/progress.json',JSON.stringify({run_id:id,done:run.contracts.map(c=>c.no),at:new Date().toISOString()}),'application/json'); }catch(e){}
+    // v0.8: 계약 1건마다 partial/{계약}.json + progress.json. 실패가 있거나 중지 중이면 「끝남」 에 넣지 않음 → 이어서 실행 때 다시
+    if(!stoppedMid && !cr.failures.length){ try{ await spPut(dir+'/partial/'+t.no+'.json',JSON.stringify(cr),'application/json'); doneNos.push(t.no); }catch(e){ logLine(t.no+' 중간 저장 실패: '+e.message,'warn'); } }
+    await saveProgress(false);
+    // v0.8: 중간 요약 10건마다
+    const n=run.contracts.length; if(n%10===0||n===targets.length){ const g={}; run.contracts.forEach(c=>c.runs.forEach(r=>(r.rows||[]).forEach(x=>{ const k=r.round==='R0'?'R0':r.round; (g[k]=g[k]||[]).push(x); })));
+      logLine(`중간 요약 ${n}/${targets.length} · 실패 ${run.contracts.filter(c=>c.failures&&c.failures.length).length} · 지금까지 一致率 `+(Object.keys(g).sort().map(k=>k+' '+(100*A1C.accuracy(g[k]).match).toFixed(1)+'%').join(' · ')||'—'),'ok'); }
   });
+  const ord={}; targets.forEach((t,i)=>{ ord[t.no]=i; }); run.contracts.sort((a,b)=>ord[a.no]-ord[b.no]);   // v0.8: 결과는 대상 순서 (이어서 실행 · 동시 실행 순서와 무관하게 같은 결과)
   run.finished=new Date().toISOString(); run.stopped=S.stop;
   run.siChanges=computeSiChanges();
   try{ run.lcJsonDiff=await computeLcJsonDiff(); }catch(e){ run.lcJsonDiff=[]; logLine('LC JSON 비교 실패: '+e.message,'warn'); }
@@ -2614,8 +2676,9 @@ async function runBench(kind){
     logLine(`저장 완료 → SharePoint ${dir}/ (results.json · results.csv · summary.md · si_changes.csv · lcjson_diff.csv · r2_lc_extract.json · r2_reconcile.csv · lc_text/ · run_config.json)`,'ok');
     $('a1SaveNote').textContent='저장 위치: '+dir;
   }catch(e){ logLine('결과 저장 실패: '+e.message+' — 아래 「내려받기」 로 보관하세요','danger'); }
+  await saveProgress(!run.stopped && doneNos.length===targets.length);   // v0.8: 전부 끝났을 때만 끝 표시 (실패 · 중지 → 이어서 실행 가능) · partial/ 은 남겨 둔다
   S.lastOut=out; renderSummary(out);
-  S.running=false; $('a1Stop').disabled=true; $('a1RunPilot').disabled=false;
+  S.running=false; $('a1Stop').disabled=true; $('a1RunPilot').disabled=false; $('a1RunFull').disabled=!A1_FULL_RUN_UNLOCKED; $('a1Resume').disabled=false;
 }
 
 /* ── v1.2 계약 간 S/I 변화 — 대상 바이어의 모든 계약을 층(바이어 × 은행)으로 묶어 계약 순서대로 ── */
@@ -2919,6 +2982,7 @@ function startBench(){
   $('a1RunPilot').onclick=()=>runBench('pilot');
   $('a1RunFull').onclick=()=>runBench('full');
   $('a1RunFull').disabled=!A1_FULL_RUN_UNLOCKED;
+  $('a1Resume').onclick=()=>resumePick();   // v0.8
   $('a1Stop').onclick=()=>{ S.stop=true; logLine('중지 요청 — 진행 중인 호출이 끝나면 멈춥니다','warn'); };
   $('a1DlJson').onclick=()=>S.lastOut&&download(S.run.run_id+'_results.json',JSON.stringify(S.lastOut.json,null,1),'application/json');
   $('a1DlCsv').onclick=()=>S.lastOut&&download(S.run.run_id+'_results.csv',S.lastOut.csv,'text/csv');
@@ -2927,7 +2991,7 @@ function startBench(){
 }
 
 LEENAI.init({
-  sys:'D-00', name:'A1 SI推奨精度試験', version:'0.7', date:'2026-11-16',
+  sys:'D-00', name:'A1 SI推奨精度試験', version:'0.8', date:'2026-11-16',
   desc:'契約/LC → S/I 推奨を COMPASS S/I と欄ごとに比較 (読み取り専用・結果は SharePoint へ)',
   graphScopes:['Sites.ReadWrite.All'],
   redirectUri:'https://mhlee205.github.io/CONTRACT_SEND/a1_bench.html',
