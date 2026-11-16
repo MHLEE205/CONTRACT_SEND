@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link id="leenaiFavicon" rel="icon">
+<link rel="stylesheet" href="https://mhlee205.github.io/LEENAI_COMMON/v1/leenai-common.css">
+<script src="https://mhlee205.github.io/LEENAI_COMMON/v1/leenai-common.js"></script>
+<script>if(!window.LEENAI){document.addEventListener('DOMContentLoaded',function(){document.body.innerHTML='<div style="padding:40px;font-family:sans-serif">共通ファイルの読み込みに失敗しました。ページを再読み込みしてください。</div>';});}</script>
+<style>
+.cw-card{background:var(--read);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-bottom:14px}
+.cw-card h3{margin:0 0 10px;font-size:14px}
+.cw-note{font-size:12px;color:var(--text2);line-height:1.7;margin:4px 0 8px}
+.cw-row{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:6px 0}
+.cw-row label{font-size:12px;color:var(--text2);display:flex;gap:6px;align-items:center}
+.cw-in{background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-size:12.5px;font-family:var(--mono)}
+.cw-btn{background:var(--accent-btn,var(--accent));color:#fff;border:0;border-radius:6px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer}
+.cw-btn:disabled{opacity:.45;cursor:not-allowed}
+.cw-btn.ghost{background:transparent;color:var(--text);border:1px solid var(--border)}
+.cw-btn.danger{background:var(--danger)}
+.cw-t{border-collapse:collapse;width:100%;font-size:12px;margin-top:6px}
+.cw-t th,.cw-t td{border:1px solid var(--border);padding:4px 6px;text-align:left;vertical-align:top}
+.cw-t th{background:var(--surface2);position:sticky;top:0}
+.cw-t td.v{font-family:var(--mono);white-space:pre-wrap;word-break:break-all;max-width:360px}
+.cw-scroll{max-height:420px;overflow:auto}
+.cw-bad td{color:var(--danger)}
+.cw-ok{color:var(--ok);font-size:12.5px}.cw-warn{color:var(--warn);font-size:12.5px}.cw-ng{color:var(--danger);font-size:12.5px;font-weight:700}
+.cw-steps{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin:8px 0}
+#cwLog{font-family:var(--mono);font-size:11.5px;max-height:240px;overflow:auto;line-height:1.6}
+#cwLog .ok{color:var(--ok)}#cwLog .warn{color:var(--warn)}#cwLog .danger{color:var(--danger)}
+.cw-foot{text-align:center;font-size:11px;color:var(--text2);padding:18px 0 28px}
+</style>
+</head>
+<body>
+<div id="app" style="display:none">
+<main id="cwMain" style="display:none;max-width:1200px;margin:0 auto;padding:20px 16px">
+
+  <div class="cw-card">
+    <h3>COMPASS S/I 쓰기 시험 — 변경(PATCH) 시험 (만든 이: MAC-토르)</h3>
+    <div class="cw-note">계약 1건의 모든 sino 의 <code>cr49f_s_i</code> · <code>crcf9_s_i_detail</code> 를 ① 「1」 로 바꾸고 확인 → ② <b>저장본(원래 값)으로 되돌리고 확인</b> 합니다 (형님 결정 W1).<br>
+    이것은 <b>「변경」 시험</b>입니다 — 새 행을 만들지 않습니다 (W2). 쓰는 곳은 위 두 테이블 · 허용 계약 <code id="cwAllowed"></code> 뿐, 기록은 SharePoint <code>古紙/-. AI 活用/D-00/A1_bench/compass_write_test/</code> 아래에만 저장합니다.</div>
+  </div>
+
+  <div class="cw-card">
+    <h3>① 계약 · 저장본 읽기 (읽기만)</h3>
+    <div class="cw-row">
+      <label>계약번호 <input id="cwNo" class="cw-in" style="width:150px" placeholder="LRS-…"></label>
+      <label>저장본 JSON (SharePoint 경로) <input id="cwSnapPath" class="cw-in" style="width:560px"></label>
+      <button id="cwLoad" class="cw-btn">읽기</button>
+    </div>
+    <div id="cwLoadSt" class="cw-note"></div>
+    <div id="cwFields"></div>
+  </div>
+
+  <div class="cw-card">
+    <h3>② 실행 (버튼 하나 = 한 단계)</h3>
+    <div class="cw-note">단계 사이에 멈춥니다 — COMPASS 화면에서 「1」 · 원래 값을 눈으로 확인한 뒤 다음 버튼을 누르세요. 쓰기 단계는 계약번호를 직접 입력해야 「실행」 이 눌립니다.</div>
+    <div class="cw-steps">
+      <button id="cwS1" class="cw-btn" disabled>1. 시작 확인</button>
+      <button id="cwS2" class="cw-btn" disabled>2. 「1」 쓰기</button>
+      <button id="cwS3" class="cw-btn" disabled>3. 확인 ①</button>
+      <button id="cwS4" class="cw-btn" disabled>4. 되돌리기</button>
+      <button id="cwS5" class="cw-btn" disabled>5. 확인 ②</button>
+      <button id="cwS6" class="cw-btn ghost" disabled>밖 수정 감지 시험</button>
+    </div>
+    <div class="cw-row" style="margin-top:12px">
+      <button id="cwRestoreOnly" class="cw-btn danger" disabled>되돌리기만 실행</button>
+      <span class="cw-note" style="margin:0">문제가 생기면: 계약을 「읽기」 한 뒤 이 버튼을 누르고 계약번호를 적으면, 저장본(원래 값)으로 돌아갑니다. 언제 눌러도 됩니다.</span>
+    </div>
+    <div id="cwStepSt" class="cw-note"></div>
+    <div id="cwResult"></div>
+  </div>
+
+  <div class="cw-card">
+    <h3>기록</h3>
+    <div id="cwSaveNote" class="cw-note"></div>
+    <div id="cwLog"></div>
+  </div>
+  <div class="cw-foot">✦ Powered by LEENAI Automation System</div>
+</main>
+<div id="cwAsk" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center">
+  <div class="cw-card" style="max-width:620px;width:92%;margin:0"><div id="cwAskBody" style="font-size:13px;line-height:1.7"></div>
+    <div id="cwAskInWrap" class="cw-row" style="display:none"><label>계약번호를 입력 <input id="cwAskIn" class="cw-in" autocomplete="off" style="width:170px"></label></div>
+    <div id="cwAskBtns" class="cw-row" style="justify-content:flex-end;margin-top:12px"></div></div>
+</div>
+</div>
+
+<script id="cw-core">
+/* ============================================================
+   COMPASS S/I 쓰기 시험 — 순수 로직 (DOM·통신 없음, node 시험 대상)
+   지시서: (2026-11-16)MAC-THOR_지시서_D00_COMPASS쓰기시험도구_v1_0 · 형님 결정 W1~W4
+============================================================ */
+const CW = (()=>{
+  const ALLOWED = ['LRS-2509CV1'];   // 허용 계약 — 이 밖은 읽기만 (쓰기 버튼 잠김)
+  /* 쓰기 대상 테이블 두 개만 — 엔터티 집합 이름 · 논리 이름 · 행 ID 칸 */
+  const TABLES = {
+    cr49f_s_is:        {logical:'cr49f_s_i',        id:'cr49f_s_iid',        label:'S/I'},
+    crcf9_s_i_details: {logical:'crcf9_s_i_detail', id:'crcf9_s_i_detailid', label:'S/I 명세'}
+  };
+  const SP_DIR = '古紙/-. AI 活用/D-00/A1_bench/compass_write_test';
+  const TEXT_TYPES = ['String','Memo'];
+  const NUM_TYPES  = ['Integer','BigInt','Decimal','Double','Money'];
+  const SKIP_TYPES = ['Picklist','Boolean','State','Status','Lookup','Customer','Owner','DateTime','Uniqueidentifier'];
+  /* 시스템 칸 — 종류와 상관없이 쓰지 않음 (자동으로 바뀌거나 Dataverse 가 관리) */
+  const SYSTEM_FIELDS = ['createdon','createdby','createdonbehalfby','modifiedon','modifiedby','modifiedonbehalfby','versionnumber','ownerid','owninguser','owningteam',
+    'owningbusinessunit','statecode','statuscode','importsequencenumber','overriddencreatedon','timezoneruleversionnumber','utcconversiontimezonecode','exchangerate','transactioncurrencyid'];
+  /* 비교에서 빼는 칸 — 쓰기 때마다 자동으로 바뀜 (GET 응답 이름 기준) */
+  const AUTO_KEYS = ['modifiedon','versionnumber','_modifiedby_value','_modifiedonbehalfby_value'];
+
+  const isGuid = s => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(s||''));
+  const normNo = s => String(s||'').trim().toUpperCase();
+  const isAllowed = no => ALLOWED.indexOf(normNo(no))>=0;
+
+  /* 칸 나누기 — attrs: EntityDefinitions/Attributes 응답 ({LogicalName,AttributeType,IsValidForUpdate,MaxLength,AttributeOf,SourceType})
+     ranges: {LogicalName:{min,max}} (숫자 칸 · 없으면 검사 안 함) · keyAttrs: 대체 키에 든 칸 · snapKeys: 저장본 행에 있는 칸 (없으면 되돌릴 수 없어 쓰지 않음) */
+  function classify(attrs, opts){
+    opts=opts||{}; const ranges=opts.ranges||{}, keyAttrs=opts.keyAttrs||[], snapKeys=opts.snapKeys||null;
+    const write=[], skip=[], unclear=[];
+    (attrs||[]).slice().sort((a,b)=>String(a.LogicalName).localeCompare(String(b.LogicalName))).forEach(a=>{
+      const n=a.LogicalName, t=a.AttributeType, it={name:n, type:t};
+      if(SYSTEM_FIELDS.indexOf(n)>=0) return skip.push({...it, why:'시스템 칸'});
+      if(SKIP_TYPES.indexOf(t)>=0) return skip.push({...it, why:t});
+      if(TEXT_TYPES.indexOf(t)<0 && NUM_TYPES.indexOf(t)<0) return unclear.push({...it, why:'정하지 않은 종류 '+t});
+      if(a.IsValidForUpdate===false) return skip.push({...it, why:'IsValidForUpdate=false'});
+      if(a.AttributeOf) return skip.push({...it, why:'딸린 칸 (AttributeOf '+a.AttributeOf+')'});
+      if(a.SourceType===1||a.SourceType===2) return skip.push({...it, why:a.SourceType===1?'계산 칸':'집계 칸'});
+      if(keyAttrs.indexOf(n)>=0) return unclear.push({...it, why:'대체 키 칸 (같은 값 「1」 이 겹칠 수 있음)'});
+      const r=ranges[n];
+      if(NUM_TYPES.indexOf(t)>=0 && r && ((r.min!=null && r.min>1)||(r.max!=null && r.max<1))) return unclear.push({...it, why:'1 이 허용 범위 밖 ('+r.min+'~'+r.max+')'});
+      if(TEXT_TYPES.indexOf(t)>=0 && a.MaxLength!=null && a.MaxLength<1) return unclear.push({...it, why:'MaxLength '+a.MaxLength});
+      if(snapKeys && snapKeys.indexOf(n)<0) return skip.push({...it, why:'저장본에 없음 (되돌릴 값 없음)'});
+      write.push({...it, value:TEXT_TYPES.indexOf(t)>=0?'1':1});
+    });
+    return {write, skip, unclear};
+  }
+  const skipByKind = cls => { const m={}; cls.skip.concat(cls.unclear).forEach(s=>{ const k=/^(정하지|대체|1 이|MaxLength)/.test(s.why)?'애매 → 건너뜀':s.why.replace(/ \(.*$/,''); m[k]=(m[k]||0)+1; }); return m; };
+
+  /* 저장본 → 테이블별 행 (지시서: {contract, contract_id, taken_at, s_i:[…], s_i_detail:[…]}) */
+  function snapRows(snap){ return {cr49f_s_is:(snap&&snap.s_i)||[], crcf9_s_i_details:(snap&&snap.s_i_detail)||[]}; }
+  function snapIds(snap){ const r=snapRows(snap), out={}; Object.keys(TABLES).forEach(set=>{ out[set]=r[set].map(x=>x[TABLES[set].id]); }); return out; }
+  /* 저장본 모양 검사 — 문제 목록 (빈 배열 = 정상) */
+  function checkSnap(snap, contractNo){
+    const why=[]; if(!snap||typeof snap!=='object') return ['저장본이 JSON 객체가 아님'];
+    if(normNo(snap.contract)!==normNo(contractNo)) why.push('저장본 계약 '+snap.contract+' ≠ '+contractNo);
+    if(!isGuid(snap.contract_id)) why.push('contract_id 가 GUID 가 아님');
+    if(!Array.isArray(snap.s_i)||!snap.s_i.length) why.push('s_i 행 없음');
+    if(!Array.isArray(snap.s_i_detail)) why.push('s_i_detail 없음');
+    const r=snapRows(snap); Object.keys(TABLES).forEach(set=>r[set].forEach((x,i)=>{ if(!isGuid(x[TABLES[set].id])) why.push(TABLES[set].label+' '+(i+1)+'행 ID 없음'); }));
+    (snap.s_i||[]).forEach((x,i)=>{ if(x._cr49f_sale_contract_id_value!==undefined && String(x._cr49f_sale_contract_id_value).toLowerCase()!==String(snap.contract_id).toLowerCase()) why.push('S/I '+(i+1)+'행이 다른 계약에 붙어 있음'); });
+    return why;
+  }
+  const cmpKey = k => k.indexOf('@')<0 && AUTO_KEYS.indexOf(k)<0;   // 주석(@…) · 자동 칸 제외
+  const same = (a,b) => (a===undefined?null:a)===(b===undefined?null:b);
+  /* 저장본 행 vs 지금 행 — 칸마다 글자 단위 비교. keys 를 주면 그 칸만 */
+  function diffRows(set, wantRows, nowRows, keys){
+    const id=TABLES[set].id, nowBy={}; (nowRows||[]).forEach(r=>{ nowBy[String(r[id]).toLowerCase()]=r; });
+    const diffs=[], wantIds=new Set();
+    (wantRows||[]).forEach(w=>{ const rid=String(w[id]).toLowerCase(); wantIds.add(rid); const n=nowBy[rid];
+      if(!n) return diffs.push({set, id:w[id], field:'(행)', want:'있음', now:'없음'});
+      (keys||Object.keys(w).filter(cmpKey)).forEach(k=>{ if(!same(w[k],n[k])) diffs.push({set, id:w[id], field:k, want:w[k]===undefined?null:w[k], now:n[k]===undefined?null:n[k]}); }); });
+    (nowRows||[]).forEach(n=>{ if(!wantIds.has(String(n[id]).toLowerCase())) diffs.push({set, id:n[id], field:'(행)', want:'없음', now:'있음'}); });
+    return diffs;
+  }
+  function diffAll(snap, now, keysBySet){ const r=snapRows(snap); return Object.keys(TABLES).reduce((a,set)=>a.concat(diffRows(set, r[set], now[set], keysBySet&&keysBySet[set])),[]); }
+  /* 「1」 쓰기 본문 / 되돌리기 본문 (쓴 칸만 · null 은 null) */
+  const bodyOne = cls => cls.write.reduce((o,f)=>(o[f.name]=f.value,o),{});
+  const bodyRestore = (cls,row) => cls.write.reduce((o,f)=>(o[f.name]=row[f.name]===undefined?null:row[f.name],o),{});
+  /* 확인 ① — 쓴 칸이 모두 「1」/1 인지 · 건너뛴 칸은 저장본 그대로인지 (딸린 칸 · 계산 칸 · 자동 칸은 바뀌어도 됨) */
+  function check1(snap, now, clsBySet){
+    const r=snapRows(snap), bad=[], moved=[];
+    Object.keys(TABLES).forEach(set=>{ const id=TABLES[set].id, cls=clsBySet[set], wnames=cls.write.map(f=>f.name),
+        follow=new Set(cls.skip.filter(s=>/^(딸린|계산|집계)/.test(s.why)).map(s=>s.name));
+      r[set].forEach(w=>{ const n=(now[set]||[]).find(x=>String(x[id]).toLowerCase()===String(w[id]).toLowerCase());
+        if(!n) return bad.push({set, id:w[id], field:'(행)', want:'있음', now:'없음'});
+        cls.write.forEach(f=>{ if(n[f.name]!==f.value) bad.push({set, id:w[id], field:f.name, want:f.value, now:n[f.name]===undefined?null:n[f.name]}); });
+        Object.keys(w).filter(cmpKey).filter(k=>wnames.indexOf(k)<0).forEach(k=>{ if(same(w[k],n[k])) return;
+          const base=k.replace(/_base$/,''); const d={set, id:w[id], field:k, want:w[k], now:n[k]===undefined?null:n[k]};
+          if(follow.has(k)||(k!==base && wnames.indexOf(base)>=0)) moved.push(d); else bad.push(d); }); }); });
+    return {ok:!bad.length, bad, moved};
+  }
+  /* 밖 수정 감지 — saved: {set:{id:modifiedon}} (확인 ② 때 저장) · now: 지금 행 */
+  function detectOutsideChange(saved, now){
+    const out=[]; Object.keys(TABLES).forEach(set=>{ const id=TABLES[set].id;
+      Object.keys((saved||{})[set]||{}).forEach(rid=>{ const n=(now[set]||[]).find(x=>String(x[id]).toLowerCase()===rid.toLowerCase());
+        const was=saved[set][rid], cur=n?n.modifiedon:null; out.push({set, id:rid, saved:was, now:cur, changed:!n||cur!==was}); }); });
+    return {changed:out.some(x=>x.changed), rows:out};
+  }
+  const modifiedMap = now => Object.keys(TABLES).reduce((o,set)=>{ o[set]={}; (now[set]||[]).forEach(r=>{ o[set][String(r[TABLES[set].id]).toLowerCase()]=r.modifiedon||null; }); return o; },{});
+
+  /* 쓰기 문지기 — 어긋나면 예외 (fetch 전에 막는다) */
+  function guardPatch(set, id, body, ctx){
+    if(!TABLES[set]) throw new Error('쓰기 금지 엔터티: '+set);
+    if(!ctx||!isAllowed(ctx.contract)) throw new Error('허용 계약 밖: '+(ctx&&ctx.contract));
+    if(!isGuid(id)) throw new Error('행 ID 가 GUID 가 아님: '+id);
+    if(!ctx.ids||!(ctx.ids[set]||[]).some(x=>String(x).toLowerCase()===String(id).toLowerCase())) throw new Error('저장본에 없는 행: '+id);
+    const allow=(ctx.write&&ctx.write[set])||[]; const bad=Object.keys(body||{}).filter(k=>allow.indexOf(k)<0);
+    if(bad.length) throw new Error('쓸 수 없는 칸: '+bad.join(', '));
+    if(!Object.keys(body||{}).length) throw new Error('쓸 칸 없음');
+    return true;
+  }
+  function guardSpPath(p){ if(String(p).indexOf(SP_DIR+'/')!==0 || /(^|\/)\.\.(\/|$)/.test(p)) throw new Error('쓰기 금지 경로: '+p); return true; }
+  const runId = d => 'cwt_'+(d||new Date()).toISOString().replace(/[-:]/g,'').replace(/\.\d+Z$/,'');
+
+  const fmtV = v => v===null||v===undefined?'null':typeof v==='string'?JSON.stringify(v):String(v);
+  function summaryMd(log){
+    const L=['# COMPASS S/I 쓰기 시험 (변경) — '+log.run_id,'',
+      '- 도구: compass_write_test v'+log.version+' (MAC-토르 제작)','- 계약: '+log.contract+' · 실행자: '+(log.user||'?')+' · 시작 '+log.started+(log.finished?' · 끝 '+log.finished:''),
+      '- 저장본: '+log.snapshot_path,''];
+    L.push('## 칸','','| 테이블 | 쓴 칸 | 건너뛴 칸 |','|---|---|---|');
+    Object.keys(log.fields||{}).forEach(set=>{ const c=log.fields[set]; L.push('| '+set+' | '+c.write.length+' | '+(c.skip.length+c.unclear.length)+' |'); });
+    Object.keys(log.fields||{}).forEach(set=>{ const c=log.fields[set];
+      L.push('','### '+set+' — 쓴 칸 '+c.write.length,'',c.write.map(f=>'`'+f.name+'` ('+f.type+')').join(' · ')||'(없음)');
+      L.push('','### '+set+' — 건너뛴 칸 '+(c.skip.length+c.unclear.length),'');
+      c.skip.concat(c.unclear).forEach(s=>L.push('- `'+s.name+'` ('+s.type+') — '+s.why)); });
+    L.push('','## 단계','','| 단계 | 결과 | 시각 | 걸린 시간 | 메모 |','|---|---|---|---|---|');
+    (log.steps||[]).forEach(s=>L.push('| '+s.step+' | '+(s.ok?'✅ 성공':'❌ 실패')+' | '+s.at+' | '+(s.ms/1000).toFixed(1)+'초 | '+String(s.note||'').replace(/\|/g,'/')+' |'));
+    const fails=(log.steps||[]).reduce((a,s)=>a.concat((s.rows||[]).filter(r=>!r.ok)),[]);
+    L.push('','## 실패 '+fails.length+'건','');
+    fails.forEach(f=>L.push('- '+f.set+' '+f.id+' — HTTP '+f.status+' '+String(f.message||'')));
+    const c1=(log.steps||[]).filter(s=>s.step==='확인 ①').pop(), c2=(log.steps||[]).filter(s=>/확인 ②/.test(s.step)).pop();
+    L.push('','## 확인 결과','','- 확인 ①: '+(c1?(c1.ok?'✅ 쓴 칸 모두 「1」 · 건너뛴 칸 그대로':'❌ 어긋남 '+(c1.diffs||[]).length+'칸'):'(안 함)'),
+      '- 확인 ②: '+(c2?(c2.ok?'✅ 저장본과 완전히 같음':'❌ 다름 '+(c2.diffs||[]).length+'칸'):'(안 함)'));
+    L.push('','---','✦ Powered by LEENAI Automation System','');
+    return L.join('\n');
+  }
+  return {ALLOWED, TABLES, SP_DIR, SYSTEM_FIELDS, AUTO_KEYS, isGuid, normNo, isAllowed, classify, skipByKind, snapRows, snapIds, checkSnap, diffRows, diffAll,
+    bodyOne, bodyRestore, check1, detectOutsideChange, modifiedMap, guardPatch, guardSpPath, runId, fmtV, summaryMd};
+})();
+if(typeof module!=='undefined') module.exports=CW;
+</script>
+
+<script id="cw-app">
+/* ============================================================
+   COMPASS S/I 쓰기 시험 — 통신 · 화면
+   COMPASS 쓰기 = cr49f_s_is · crcf9_s_i_details 의 저장본 행만 (CW.guardPatch). SharePoint 쓰기 = compass_write_test/ 아래만 (CW.guardSpPath)
+============================================================ */
+const CW_DV_API = 'https://orgde512c6f.crm7.dynamics.com/api/data/v9.2';
+const CW_GRAPH  = 'https://graph.microsoft.com/v1.0/';
+const CW_SNAP_DEFAULT = {'LRS-2509CV1':CW.SP_DIR+'/LRS-2509CV1_before_20261116T0939.json'};   // 리나이 저장 (2026-11-16 18:39)
+const cwVersion = () => (document.title.match(/v([\d.]+)\s*$/)||[])[1]||'';
+
+const S = {contract:null, snap:null, snapPath:'', cls:{}, ctx:null, run:null, busy:false, done:{}, savedModified:null};
+const $ = id => document.getElementById(id);
+const escH = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+function logLine(msg, cls){ const el=$('cwLog'); if(!el) return; const d=document.createElement('div'); d.className=cls||''; d.textContent=new Date().toLocaleTimeString('ja-JP')+'  '+msg; el.prepend(d); }
+
+/* ── 확인 상자 (confirm()/alert() 는 쓰지 않음). needNo 를 주면 그 계약번호를 똑같이 입력해야 0번 버튼이 눌림 ── */
+function askBox(html, buttons, needNo){
+  return new Promise(res=>{ const box=$('cwAsk'); $('cwAskBody').innerHTML=html; const bt=$('cwAskBtns'); bt.innerHTML='';
+    const inw=$('cwAskIn'); $('cwAskInWrap').style.display=needNo?'':'none'; inw.value='';
+    (buttons||['OK']).forEach((label,i)=>{ const b=document.createElement('button'); b.className='cw-btn'+(i?' ghost':''); b.id='cwAskBtn'+i; b.textContent=label;
+      if(needNo && i===0) b.disabled=true;
+      b.onclick=()=>{ if(needNo && i===0 && CW.normNo(inw.value)!==CW.normNo(needNo)) return; box.style.display='none'; res(i); }; bt.appendChild(b); });
+    inw.oninput=()=>{ const b0=$('cwAskBtn0'); if(needNo&&b0) b0.disabled=CW.normNo(inw.value)!==CW.normNo(needNo); };
+    box.style.display='flex'; });
+}
+
+/* ── COMPASS (Dataverse) ── */
+async function dvGet(path, _retry){
+  _retry=_retry||0;
+  const tok=await LEENAI.auth.token('dataverse');
+  const res=await fetch(CW_DV_API+'/'+path,{headers:{'Authorization':'Bearer '+tok,'OData-MaxVersion':'4.0','OData-Version':'4.0','Accept':'application/json',
+    'Prefer':'odata.include-annotations="OData.Community.Display.V1.FormattedValue",odata.maxpagesize=5000'}});
+  if(!res.ok){
+    if((res.status===429||res.status>=500) && _retry<2){ await sleep(1500*(_retry+1)); return dvGet(path,_retry+1); }
+    const e=await res.json().catch(()=>({})); throw new Error('DV '+res.status+': '+(e.error&&e.error.message||res.statusText));
+  }
+  return res.json();
+}
+async function dvAll(path){
+  let d=await dvGet(path), out=(d.value||[]).slice();
+  while(d['@odata.nextLink']){ d=await dvGet(d['@odata.nextLink'].replace(CW_DV_API+'/','')); out=out.concat(d.value||[]); }
+  return out;
+}
+/* PATCH — 문지기 통과한 것만. If-Match:* = 행이 없으면 새로 만들지 않고 실패 (변경 시험만, W2). 재시도 없음 */
+async function dvPatch(set, id, body){
+  CW.guardPatch(set, id, body, S.ctx);
+  const tok=await LEENAI.auth.token('dataverse');
+  const res=await fetch(CW_DV_API+'/'+set+'('+id+')',{method:'PATCH',headers:{'Authorization':'Bearer '+tok,'OData-MaxVersion':'4.0','OData-Version':'4.0',
+    'Accept':'application/json','Content-Type':'application/json; charset=utf-8','If-Match':'*'},body:JSON.stringify(body)});
+  let msg=''; if(!res.ok){ const e=await res.json().catch(()=>({})); msg=(e.error&&e.error.message)||res.statusText||''; }
+  return {ok:res.ok, status:res.status, message:msg};
+}
+async function readMeta(logical){
+  const base="EntityDefinitions(LogicalName='"+logical+"')";
+  const a=await dvGet(base+'/Attributes?$select=LogicalName,AttributeType,IsValidForUpdate,MaxLength,AttributeOf,SourceType');
+  const ranges={};
+  for(const t of ['Integer','BigInt','Decimal','Double','Money']){
+    try{ const r=await dvGet(base+'/Attributes/Microsoft.Dynamics.CRM.'+t+'AttributeMetadata?$select=LogicalName,MinValue,MaxValue');
+      (r.value||[]).forEach(x=>{ ranges[x.LogicalName]={min:x.MinValue==null?null:x.MinValue, max:x.MaxValue==null?null:x.MaxValue}; }); }catch(e){ logLine('범위 메타데이터 못 읽음 ('+t+'): '+e.message,'warn'); }
+  }
+  let keyAttrs=[]; try{ const k=await dvGet(base+'/Keys?$select=KeyAttributes'); keyAttrs=(k.value||[]).reduce((o,x)=>o.concat(x.KeyAttributes||[]),[]); }catch(e){ logLine('대체 키 메타데이터 못 읽음: '+e.message,'warn'); }
+  return {attrs:a.value||[], ranges, keyAttrs};
+}
+/* 지금 COMPASS 값 (전 열) — 저장본과 같은 모양 */
+async function readNow(){
+  const cid=S.contract.id;
+  const heads=await dvAll('cr49f_s_is?$filter=_cr49f_sale_contract_id_value eq '+cid+'&$orderby=crcf9_sino asc');
+  let details=[]; for(const h of heads){ details=details.concat(await dvAll('crcf9_s_i_details?$filter=_crcf9_s_i_id_value eq '+h.cr49f_s_iid)); }
+  return {cr49f_s_is:heads, crcf9_s_i_details:details};
+}
+
+/* ── SharePoint (Graph) ── */
+const spEnc = p => p.split('/').map(encodeURIComponent).join('/');
+const spItem = p => CW_GRAPH+'drives/'+LEENAI.SP.DRIVE_ID+'/root:/'+spEnc(p);
+async function graphFetch(url, opts, _retry){
+  _retry=_retry||0;
+  const tok=await LEENAI.auth.token('graph');
+  const res=await fetch(url,Object.assign({},opts||{},{headers:Object.assign({'Authorization':'Bearer '+tok},(opts&&opts.headers)||{})}));
+  if(res.status===401&&_retry===0) return graphFetch(url,opts,1);
+  if((res.status===429||res.status>=500)&&_retry<3){ const ra=parseInt(res.headers.get('Retry-After')||'',10); await sleep(Number.isFinite(ra)?Math.min(ra*1000,30000):1000*Math.pow(2,_retry)); return graphFetch(url,opts,_retry+1); }
+  return res;
+}
+async function spGetJson(p){ const r=await graphFetch(spItem(p)+':/content',{headers:{Accept:'application/json'}}); if(!r.ok) throw new Error('SP get '+r.status+' '+p); return r.json(); }
+async function spPut(p, content, type){
+  CW.guardSpPath(p);
+  const r=await graphFetch(spItem(p)+':/content',{method:'PUT',headers:{'Content-Type':type||'application/octet-stream'},body:new Blob([content],{type:type||'application/octet-stream'})});
+  if(!r.ok){ const e=await r.json().catch(()=>({})); throw new Error('SP PUT '+r.status+': '+(e.error&&e.error.message||'')); }
+  return r.json();
+}
+
+/* ── 기록 ── */
+function newRun(){
+  const d=new Date(), id=CW.runId(d);
+  S.run={run_id:id, version:cwVersion(), contract:S.contract.no, contract_id:S.contract.id, user:(LEENAI.user&&LEENAI.user.email)||'', snapshot_path:S.snapPath,
+    started:d.toISOString(), finished:null, fields:{}, steps:[]};
+  Object.keys(CW.TABLES).forEach(set=>{ const c=S.cls[set]; S.run.fields[set]={write:c.write.map(f=>({name:f.name,type:f.type})), skip:c.skip, unclear:c.unclear}; });
+  return S.run;
+}
+async function saveLog(){
+  const dir=CW.SP_DIR+'/'+S.run.run_id;
+  try{ await spPut(dir+'/log.json', JSON.stringify(S.run,null,1), 'application/json');
+    await spPut(dir+'/summary.md', CW.summaryMd(S.run), 'text/markdown');
+    $('cwSaveNote').textContent='기록 저장: SharePoint '+dir+'/ (log.json · summary.md)'; }
+  catch(e){ $('cwSaveNote').textContent='기록 저장 실패: '+e.message; logLine('기록 저장 실패: '+e.message,'danger'); }
+}
+function addStep(step, t0, ok, extra){
+  const s=Object.assign({step, at:new Date().toISOString(), ms:Date.now()-t0, ok}, extra||{}); S.run.steps.push(s); return s;
+}
+
+/* ── 화면 ── */
+function diffTable(diffs, title){
+  if(!diffs.length) return '';
+  return '<div class="cw-note">'+escH(title)+' '+diffs.length+'칸</div><div class="cw-scroll"><table class="cw-t"><tr><th>테이블</th><th>행</th><th>칸</th><th>기대</th><th>지금</th></tr>'+
+    diffs.slice(0,300).map(d=>'<tr><td>'+escH(d.set)+'</td><td>'+escH(d.id)+'</td><td>'+escH(d.field)+'</td><td class="v">'+escH(CW.fmtV(d.want))+'</td><td class="v">'+escH(CW.fmtV(d.now))+'</td></tr>').join('')+'</table></div>';
+}
+function rowsTable(rows){
+  return '<table class="cw-t"><tr><th>테이블</th><th>행</th><th>결과</th><th>HTTP</th><th>메시지</th></tr>'+rows.map(r=>'<tr class="'+(r.ok?'':'cw-bad')+'"><td>'+escH(r.set)+'</td><td>'+escH(r.id)+'</td><td>'+(r.ok?'성공':'실패')+'</td><td>'+escH(r.status)+'</td><td>'+escH(r.message||'')+'</td></tr>').join('')+'</table>';
+}
+function showResult(html){ $('cwResult').innerHTML=html; }
+function setStepButtons(){
+  const loaded=!!(S.contract&&S.snap&&S.ctx), allowed=loaded&&CW.isAllowed(S.contract.no), d=S.done;
+  $('cwS1').disabled=!allowed||S.busy;
+  $('cwS2').disabled=!allowed||S.busy||!d.start;
+  $('cwS3').disabled=!allowed||S.busy||!d.one;
+  $('cwS4').disabled=!allowed||S.busy||!d.one;
+  $('cwS5').disabled=!allowed||S.busy||!d.restore;
+  $('cwS6').disabled=!allowed||S.busy||!d.check2;
+  $('cwRestoreOnly').disabled=!allowed||S.busy;
+}
+function renderFields(){
+  let h='<table class="cw-t"><tr><th>테이블</th><th>행</th><th>쓸 칸</th><th>건너뛸 칸 (종류별)</th></tr>';
+  Object.keys(CW.TABLES).forEach(set=>{ const c=S.cls[set], k=CW.skipByKind(c);
+    h+='<tr><td>'+set+'</td><td>'+CW.snapRows(S.snap)[set].length+'</td><td>'+c.write.length+'</td><td>'+(c.skip.length+c.unclear.length)+' — '+Object.keys(k).map(x=>escH(x)+' '+k[x]).join(' · ')+'</td></tr>'; });
+  h+='</table>';
+  Object.keys(CW.TABLES).forEach(set=>{ const c=S.cls[set];
+    h+='<details style="margin-top:6px"><summary class="cw-note">'+set+' 칸 목록 (쓸 칸 '+c.write.length+' · 건너뜀 '+(c.skip.length+c.unclear.length)+(c.unclear.length?' · 애매 '+c.unclear.length:'')+')</summary><div class="cw-scroll"><table class="cw-t"><tr><th>칸</th><th>종류</th><th>처리</th></tr>'+
+      c.write.map(f=>'<tr><td>'+escH(f.name)+'</td><td>'+escH(f.type)+'</td><td>쓰기 → '+escH(CW.fmtV(f.value))+'</td></tr>').join('')+
+      c.unclear.map(f=>'<tr class="cw-bad"><td>'+escH(f.name)+'</td><td>'+escH(f.type)+'</td><td>애매 → 건너뜀: '+escH(f.why)+'</td></tr>').join('')+
+      c.skip.map(f=>'<tr><td>'+escH(f.name)+'</td><td>'+escH(f.type)+'</td><td>건너뜀: '+escH(f.why)+'</td></tr>').join('')+'</table></div></details>'; });
+  $('cwFields').innerHTML=h;
+}
+
+/* ① 읽기 — 계약 · 저장본 · 메타데이터 (쓰기 없음) */
+async function loadContract(){
+  const no=CW.normNo($('cwNo').value); if(!no) return;
+  S.busy=true; S.contract=S.snap=S.ctx=null; S.cls={}; S.done={}; S.run=null; setStepButtons(); $('cwFields').innerHTML=''; showResult('');
+  $('cwLoadSt').textContent='읽는 중…';
+  try{
+    const sc=await dvAll("cr49f_sale_contracts?$filter="+encodeURIComponent("cr49f_sale_contract_no eq '"+no.replace(/'/g,"''")+"'")+'&$select=cr49f_sale_contractid,cr49f_sale_contract_no');
+    if(sc.length!==1) throw new Error('계약 '+no+' 을(를) '+sc.length+'건 찾음 (1건이어야 함)');
+    S.contract={id:sc[0].cr49f_sale_contractid, no};
+    S.snapPath=$('cwSnapPath').value.trim()||CW_SNAP_DEFAULT[no]||'';
+    if(!S.snapPath) throw new Error('저장본 경로가 없습니다');
+    const snap=await spGetJson(S.snapPath), why=CW.checkSnap(snap, no);
+    if(String(snap&&snap.contract_id).toLowerCase()!==String(S.contract.id).toLowerCase()) why.push('저장본 contract_id ≠ COMPASS 계약 ID');
+    if(why.length) throw new Error('저장본 문제: '+why.join(' / '));
+    S.snap=snap;
+    const rows=CW.snapRows(snap);
+    for(const set of Object.keys(CW.TABLES)){
+      const m=await readMeta(CW.TABLES[set].logical);
+      const snapKeys=rows[set].length?Object.keys(rows[set][0]).filter(k=>rows[set].every(r=>k in r)):[];
+      S.cls[set]=CW.classify(m.attrs,{ranges:m.ranges, keyAttrs:m.keyAttrs, snapKeys});
+    }
+    S.ctx={contract:no, ids:CW.snapIds(snap), write:Object.keys(CW.TABLES).reduce((o,set)=>(o[set]=S.cls[set].write.map(f=>f.name),o),{})};
+    renderFields();
+    const allowed=CW.isAllowed(no);
+    $('cwLoadSt').innerHTML='계약 <b>'+escH(no)+'</b> · 저장본 '+escH(snap.taken_at||'')+' · S/I '+rows.cr49f_s_is.length+'행 · 명세 '+rows.crcf9_s_i_details.length+'행'+
+      (allowed?'':' — <span class="cw-ng">허용 목록 밖 계약: 읽기만 (쓰기 버튼 잠김)</span>');
+    logLine('읽기 완료: '+no+(allowed?'':' (허용 밖 — 쓰기 잠김)'), allowed?'ok':'warn');
+  }catch(e){ $('cwLoadSt').innerHTML='<span class="cw-ng">'+escH(e.message)+'</span>'; logLine('읽기 오류: '+e.message,'danger'); S.contract=S.snap=S.ctx=null; }
+  S.busy=false; setStepButtons();
+}
+
+/* 단계 실행 틀 — busy 잠금 · 오류 잡기 */
+async function step(fn){ if(S.busy) return; S.busy=true; setStepButtons(); try{ await fn(); }catch(e){ $('cwStepSt').innerHTML='<span class="cw-ng">오류: '+escH(e.message)+'</span>'; logLine('오류: '+e.message,'danger'); } S.busy=false; setStepButtons(); }
+
+/* 1. 시작 확인 — 지금 값 = 저장본 이어야 함 */
+async function stepStart(){ await step(async()=>{
+  const t0=Date.now(); newRun(); const now=await readNow(), diffs=CW.diffAll(S.snap, now);
+  if(diffs.length){
+    addStep('시작 확인', t0, false, {note:'저장본과 다름 — 멈춤', diffs}); await saveLog();
+    $('cwStepSt').innerHTML='<span class="cw-ng">1. 시작 확인: 저장본과 지금 값이 다릅니다 — 멈춤 (누가 바꿨을 수 있음). 쓰지 않았습니다.</span>';
+    showResult(diffTable(diffs,'다른 칸')); logLine('시작 확인: 다름 '+diffs.length+'칸 — 멈춤','danger'); return;
+  }
+  await spPut(CW.SP_DIR+'/'+S.run.run_id+'/before.json', JSON.stringify({contract:S.contract.no, contract_id:S.contract.id, taken_at:new Date().toISOString(),
+    s_i:now.cr49f_s_is, s_i_detail:now.crcf9_s_i_details},null,1), 'application/json');
+  addStep('시작 확인', t0, true, {note:'저장본과 같음 · before.json 저장'}); await saveLog();
+  S.done={start:true};
+  $('cwStepSt').innerHTML='<span class="cw-ok">1. 시작 확인: 저장본과 같음 ✅ — 이번 실행 '+escH(S.run.run_id)+' · before.json 저장. 다음: 「1」 쓰기</span>'; showResult('');
+  logLine('시작 확인 OK — '+S.run.run_id,'ok');
+}); }
+
+/* PATCH 를 행마다 — 실패하면 그 자리에서 멈춤 */
+async function patchAll(kind){
+  const rows=CW.snapRows(S.snap), out=[];
+  for(const set of Object.keys(CW.TABLES)){
+    for(const r of rows[set]){
+      const id=r[CW.TABLES[set].id], body=kind==='one'?CW.bodyOne(S.cls[set]):CW.bodyRestore(S.cls[set], r);
+      if(!Object.keys(body).length){ out.push({set,id,ok:true,status:'-',message:'쓸 칸 없음'}); continue; }
+      const res=await dvPatch(set, id, body); out.push({set,id,...res});
+      logLine((kind==='one'?'「1」 쓰기 ':'되돌리기 ')+set+' '+id+' → '+res.status+(res.ok?'':' '+res.message), res.ok?'':'danger');
+      if(!res.ok) return {ok:false, rows:out};
+    }
+  }
+  return {ok:true, rows:out};
+}
+async function confirmWrite(what){
+  return (await askBox('<b>'+escH(what)+'</b><br>계약 <b>'+escH(S.contract.no)+'</b> 의 S/I '+CW.snapRows(S.snap).cr49f_s_is.length+'행 · 명세 '+CW.snapRows(S.snap).crcf9_s_i_details.length+'행에 COMPASS 쓰기를 합니다.<br>계약번호를 똑같이 입력해야 「실행」 이 눌립니다.',['실행','취소'], S.contract.no))===0;
+}
+/* 2. 「1」 쓰기 */
+async function stepOne(){
+  if(!(await confirmWrite('「1」 쓰기'))){ logLine('「1」 쓰기 취소'); return; }
+  await step(async()=>{
+    const t0=Date.now(), r=await patchAll('one');
+    addStep('「1」 쓰기', t0, r.ok, {rows:r.rows, note:r.ok?'':'실패에서 멈춤 — 「되돌리기만 실행」'}); await saveLog();
+    if(r.ok){ S.done.one=true; $('cwStepSt').innerHTML='<span class="cw-ok">2. 「1」 쓰기 완료 ✅ — COMPASS 화면에서 「1」 을 확인한 뒤 「3. 확인 ①」</span>'; }
+    else { S.done={}; $('cwStepSt').innerHTML='<span class="cw-ng">2. 「1」 쓰기 실패 — 멈췄습니다. 「되돌리기만 실행」 으로 원래 값으로 돌리세요.</span>'; }
+    showResult(rowsTable(r.rows));
+  });
+}
+/* 3. 확인 ① */
+async function stepCheck1(){ await step(async()=>{
+  const t0=Date.now(), now=await readNow(), r=CW.check1(S.snap, now, S.cls);
+  addStep('확인 ①', t0, r.ok, {diffs:r.bad, moved:r.moved.length, note:r.moved.length?'딸린 칸 · 계산 칸 '+r.moved.length+'칸 따라 바뀜 (정상)':''}); await saveLog();
+  $('cwStepSt').innerHTML=r.ok?'<span class="cw-ok">3. 확인 ①: 쓴 칸 모두 「1」 · 건너뛴 칸 그대로 ✅ — 다음: 「4. 되돌리기」</span>'
+    :'<span class="cw-ng">3. 확인 ①: 어긋남 '+r.bad.length+'칸 — 「4. 되돌리기」 또는 「되돌리기만 실행」 으로 원래 값으로 돌리세요.</span>';
+  showResult(diffTable(r.bad,'어긋난 칸')+diffTable(r.moved,'따라 바뀐 칸 (정상)'));
+}); }
+/* 4. 되돌리기 / 되돌리기만 실행 */
+async function stepRestore(only){
+  if(!(await confirmWrite(only?'되돌리기만 실행 (저장본 값으로 복구)':'되돌리기 (저장본 값으로)'))){ logLine('되돌리기 취소'); return; }
+  await step(async()=>{
+    if(!S.run) newRun();
+    const t0=Date.now(), r=await patchAll('restore');
+    addStep(only?'되돌리기만 실행':'되돌리기', t0, r.ok, {rows:r.rows}); await saveLog();
+    if(!r.ok){ $('cwStepSt').innerHTML='<span class="cw-ng">되돌리기 실패 — 표를 보고 다시 「되돌리기만 실행」 을 누르세요.</span>'; showResult(rowsTable(r.rows)); return; }
+    S.done.restore=true;
+    if(only){ S.busy=false; await stepCheck2(true); return; }
+    $('cwStepSt').innerHTML='<span class="cw-ok">4. 되돌리기 완료 ✅ — COMPASS 화면에서 원래 값을 확인한 뒤 「5. 확인 ②」</span>'; showResult(rowsTable(r.rows));
+  });
+}
+/* 5. 확인 ② — 저장본과 칸마다 글자 단위 (자동 칸 제외) */
+async function stepCheck2(afterOnly){ await step(async()=>{
+  const t0=Date.now(), now=await readNow(), diffs=CW.diffAll(S.snap, now), ok=!diffs.length;
+  S.savedModified=CW.modifiedMap(now);
+  addStep(afterOnly?'확인 ② (되돌리기만 뒤)':'확인 ②', t0, ok, {diffs, modifiedon:S.savedModified, note:ok?'저장본과 완전히 같음':''});
+  if(ok) S.run.finished=new Date().toISOString();
+  await saveLog();
+  if(ok) S.done.check2=true;
+  $('cwStepSt').innerHTML=ok?'<span class="cw-ok">5. 확인 ②: 저장본과 완전히 같음 ✅ (modifiedon · versionnumber 등 자동 칸 제외) — 시험 성공</span>'
+    :'<span class="cw-ng">5. 확인 ②: 저장본과 다름 '+diffs.length+'칸 — 「되돌리기만 실행」 을 다시 누르세요.</span>';
+  showResult(diffTable(diffs,'다른 칸'));
+}); }
+/* 밖 수정 감지 시험 — 확인 ② 때 저장한 modifiedon 과 지금 값 */
+async function stepDetect(){ await step(async()=>{
+  const t0=Date.now(), now=await readNow(), r=CW.detectOutsideChange(S.savedModified, now);
+  addStep('밖 수정 감지 시험', t0, true, {note:r.changed?'TOOL 밖에서 바뀜 있음':'바뀜 없음', detect:r.rows}); await saveLog();
+  $('cwStepSt').innerHTML=r.changed?'<span class="cw-warn">감지 시험: TOOL 밖에서 바뀐 행이 있습니다</span>':'<span class="cw-ok">감지 시험: 확인 ② 뒤로 바뀐 행 없음</span>';
+  showResult('<table class="cw-t"><tr><th>테이블</th><th>행</th><th>저장한 modifiedon</th><th>지금</th><th>판정</th></tr>'+r.rows.map(x=>'<tr class="'+(x.changed?'cw-bad':'')+'"><td>'+escH(x.set)+'</td><td>'+escH(x.id)+'</td><td>'+escH(x.saved)+'</td><td>'+escH(x.now)+'</td><td>'+(x.changed?'TOOL 밖에서 바뀜':'그대로')+'</td></tr>').join('')+'</table>');
+}); }
+
+function startPage(){
+  $('cwMain').style.display='';
+  $('cwAllowed').textContent=CW.ALLOWED.join(', ');
+  $('cwNo').value=CW.ALLOWED[0]; $('cwSnapPath').value=CW_SNAP_DEFAULT[CW.ALLOWED[0]]||'';
+  $('cwNo').addEventListener('change',()=>{ const d=CW_SNAP_DEFAULT[CW.normNo($('cwNo').value)]; if(d) $('cwSnapPath').value=d; });
+  $('cwLoad').onclick=loadContract;
+  $('cwS1').onclick=stepStart; $('cwS2').onclick=stepOne; $('cwS3').onclick=stepCheck1;
+  $('cwS4').onclick=()=>stepRestore(false); $('cwS5').onclick=()=>stepCheck2(false); $('cwS6').onclick=stepDetect;
+  $('cwRestoreOnly').onclick=()=>stepRestore(true);
+  setStepButtons();
+  const dot=LEENAI.auth.status; logLine('접속: Dataverse '+dot.dataverse+' / Graph '+dot.graph);
+}
+
+LEENAI.init({
+  sys:'D-00', name:'COMPASS S/I 書込試験', version:'0.1', date:'2026-11-16',
+  desc:'COMPASS S/I を 1 契約だけ「1」に変更 → 保存本の値に戻して確認 (変更試験・新規作成なし)',
+  graphScopes:['Sites.ReadWrite.All'],
+  redirectUri:'https://mhlee205.github.io/CONTRACT_SEND/compass_write_test.html',
+  onReady:startPage
+});
+</script>
+</body>
+</html>
