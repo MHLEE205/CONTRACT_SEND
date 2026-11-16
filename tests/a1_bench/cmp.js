@@ -2,12 +2,12 @@
    allfc (v0.9): all 과 같되 format_check 값만 빼고 비교 — 바뀐 format_check 는 모두 LC_REQUIRED_WORDING 이 낀 변화여야 함 (v0.9 Step 3-3 규칙 변경)
    all  : 산출물 전부 + R0 (스위치 끈 v0.7 R2 = v0.6 R2 확인용)
    r1r0 : results.csv 의 R1 행 + R0 만 (스위치 켠 v0.7 에서도 R1 · R0 불변 확인용)
-   맞추는 것: 실행 ID · 시각 · 소요 시간 · 버전 표기 · v0.7 에서 생긴 master_check 열 / r2Master 설정 키 (값이 없거나 false 일 때) */
+   맞추는 것: 실행 ID · 시각 · 소요 시간 · 버전 표기 (v0.10 처럼 두 자리도) · v0.7 에서 생긴 master_check 열 · v0.10 exception 열 / r2Master 설정 키 (값이 없거나 false 일 때) */
 const fs=require('fs');
 const [,,fa,fb,modeArg]=process.argv, mode=modeArg||'all';
 const [a,b]=[fa,fb].map(f=>JSON.parse(fs.readFileSync(f,'utf8')));
 const norm=s=>String(s).replace(/A1_\d{8}-\d{6}_(?:pilot|full)/g,'RUNID').replace(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z/g,'TS')
-  .replace(/"(ms|_ms)": ?\d+/g,'"$1":0').replace(/,\d+\r?$/gm,',MS').replace(/v0\.\d\b/g,'vX').replace(/"version": ?"0\.\d"/g,'"version":"X"').replace(/\d+초/g,'N초').replace(/\| \d+ms/g,'| ms')
+  .replace(/"(ms|_ms)": ?\d+/g,'"$1":0').replace(/,\d+\r?$/gm,',MS').replace(/v0\.\d+\b/g,'vX').replace(/"version": ?"0\.\d+"/g,'"version":"X"').replace(/\d+초/g,'N초').replace(/\| \d+ms/g,'| ms')
   .replace(/,\s*"r2Master": ?false/g,'');
 /* CSV: master_check 열이 모두 빈 값이면 열을 뺀다 (값이 있으면 그대로 두어 차이로 드러나게) */
 /* CSV 를 레코드로 (따옴표 안 줄바꿈 포함) */
@@ -21,8 +21,8 @@ function parseCsv(text){
 const toCsv=rows=>rows.map(r=>r.map(v=>/[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v).join(',')).join('\r\n');
 /* rowFilter 로 고른 행에서 master_check 가 모두 비면 그 열을 뺀다 */
 function csvDrop(text, rowFilter){
-  const rows=parseCsv(text), h=rows[0], body=rows.slice(1).filter(r=>!rowFilter||rowFilter(r,h)), i=h.indexOf('master_check');
-  if(i>=0 && !body.some(r=>r[i])){ h.splice(i,1); body.forEach(r=>r.splice(i,1)); }
+  const rows=parseCsv(text), h=rows[0], body=rows.slice(1).filter(r=>!rowFilter||rowFilter(r,h));
+  ['master_check','exception'].forEach(col=>{ const i=h.indexOf(col); if(i>=0 && !body.some(r=>r[i])){ h.splice(i,1); body.forEach(r=>r.splice(i,1)); } });   // v0.10: exception 열 (값이 모두 비면)
   return toCsv([h].concat(body));
 }
 const prep=f=>norm(/\.csv$/.test(f.file)?csvDrop(f.text):f.text);

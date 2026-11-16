@@ -1,10 +1,10 @@
 /* a1_bench jsdom 하네스 — LEENAI 공통 · Dataverse · Graph · Anthropic 을 모두 mock (네트워크 없음 · 가짜 데이터만)
-   node harness.js <html> <mode: integ|bench|r2|resume> <out.json> [R2 마스터 스위치: on|off (v0.7~, 기본 on)]
+   node harness.js <html> <mode: integ|bench|r2|resume> <out.json> [R2 마스터 스위치: on|off (v0.7~, 기본 on)] [r2: 예외로 볼 계약 (v0.10)]
    integ = マスター草案 화면 · 저장 확인 상자 / bench = 파일럿 R1+R2 2건 + R0 / r2 = R2만 3건 (v0.7 마스터 사용)
    resume (v0.8~) = 전체 실행 6건: 끊김 없는 기준 실행 · 2건 뒤 강제 중단 → 새 페이지에서 「이어서 실행」 (가짜 SharePoint 저장소를 페이지끼리 공유) */
 const fs=require('fs'), path=require('path');
 let JSDOM; try{ ({JSDOM}=require('jsdom')); }catch(e){ ({JSDOM}=require(path.join(process.env.APPDATA||'','npm/node_modules/jsdom'))); }   // 이 폴더의 npm install 우선 · 없으면 전역(Windows)
-const [,,htmlPath,mode,outPath,masterSw]=process.argv;
+const [,,htmlPath,mode,outPath,masterSw,exceptionNo]=process.argv;   // v0.10: exceptionNo = 시험용으로 A1_EXCEPTIONS 에 더할 계약 (r2 모드)
 const prompts=[];   // Anthropic 호출 입력 (system 종류 · 사용자 텍스트)
 let html=fs.readFileSync(htmlPath,'utf8');
 const FAKE=`<script>window.LEENAI={auth:{token:async()=>'tok',status:{dataverse:'ok',graph:'ok'}},SP:{DRIVE_ID:'drv'},
@@ -62,7 +62,8 @@ function claudeReply(body){
   if(/判読担当/.test(sys)){ const q=v=>({value:v,loc:'x',quote:v,note:null});
     return {lc_no:q(lcNo),applicant_name:q(/KB/.test(lcNo)?'A.B.C. PAPER MILL CO., LTD.':'DELTA PAPER CORPORATION'),port_discharge:q(/KB/.test(lcNo)?'BANGKOK, THAILAND':'HO CHI MINH CITY, VIET NAM'),hs:q('4707.10.00'),po:{value:'PO-NA',loc:'45A',quote:'NOT IN LC',note:null},goods:[{grade:'OCC',quantity:'500 MT',unit_price:null,amount:null,loc:'45A',quote:'WASTE PAPER OCC 500 MT'}],docs:[],conditions_47A:[{no:'47A-1',quote:'ALL DOCUMENTS MUST SHOW LC NUMBER'}]}; }
   if(/ベテラン/.test(sys)) return {sinos:[{sino:1,fields:{crcf9_consignee:{value:'TO ORDER OF APPLICANT',source:'LC(46A-2)',note:''},cr49f_lc_no:{value:lcNo+' DATED ON XX',source:'LC(20)'},crcf9_notify_party:{value:'DELTA PAPER CORPORATION',source:'LC(50)'},crcf9_vo_no:{value:'XX',source:'PLACEHOLDER'},crcf9_bl_text1:{value:'WASTE PAPER#4707.10.00#XXKGS 999999',source:'PRIOR'},
-    ...(/バイヤー × 銀行 マスター/.test(txt)?{crcf9_address:{value:'#DELTA PAPER CORPORATION***',source:'MASTER'}}:{})}}],details:[{crcf9_productname:{value:'OCC',source:'CONTRACT'},crcf9_hs_code:{value:'HS CODE: 47071000',source:'LC(45A)'}}],notes:'n'};
+    ...(/バイヤー × 銀行 マスター/.test(txt)?{crcf9_address:{value:'#DELTA PAPER CORPORATION***',source:'MASTER'},
+      ...(/ILC000[23]/.test(lcNo)?{crcf9_place_of_delivery_1:{value:'HO CHI MINH OR CAT LAI, VIET NAM',source:'LC(44F)'},crcf9_place_of_delivery_2:{value:'',source:''},crcf9_place_of_delivery_3:{value:'',source:''},crcf9_po_vo:{value:'PO-NA',source:'LC(45A)'}}:{})}:{})}}],details:[{crcf9_productname:{value:'OCC',source:'CONTRACT'},crcf9_hs_code:{value:'HS CODE: 47071000',source:'LC(45A)'}}],notes:'n'};
   if(/正解/.test(txt)){ const ids=[...txt.matchAll(/^\[(\d+)\]/gm)].map(m=>+m[1]); return {results:ids.map(i=>({id:i,verdict:i%2?'表記差':'内容差',reason:'r'+i,evidence:i%2?'e'+i:''}))}; }
   if(/S\/I|sinos/.test(txt) && /直前|販売契約/.test(txt)) return {sinos:[{sino:1,fields:{crcf9_consignee:{value:'TO ORDER OF '+(/KB/.test(lcNo)?'A.B.C. PAPER MILL CO., LTD.':'DELTA PAPER CORPORATION'),basis:'46A',confidence:'high'},cr49f_lc_no:{value:lcNo+' DATED ON MAR 06, 2026',basis:'20'},crcf9_address:{value:'10 EXAMPLE RD. 12345678',basis:'50'}}},{sino:2,fields:{crcf9_notify_party:{value:'DELTA PAPER CORP',basis:'50'}}}],details:[{crcf9_productname:{value:'OCC',basis:'c'},crcf9_hs_code:{value:'HS CODE: 4707.10',basis:'45A'}}],notes:'x'};
   return {lcNo,applicant:'DELTA PAPER CORPORATION',applicantAddress:'SAMPLE A INDUSTRIAL PARK',country:'VIETNAM',notifyParty46A:'APPLICANT',consignee46A:'TO ORDER OF SAMPLE BANK TOKYO',commodity45A:'WASTE PAPER OCC HS CODE: 4707.10.00',term42C:'AT SIGHT',pod:'HO CHI MINH CITY, VIET NAM',lcDate:'2026-03-06',docs46A:['1. SIGNED COMMERCIAL INVOICE'],addCond47A:'1. ALL DOCUMENTS MUST SHOW LC NUMBER',consignee:'TO ORDER OF SAMPLE BANK TOKYO',blText1:'WASTE PAPER'};
@@ -157,6 +158,7 @@ const clickAsk=async(pg,matchFn,label)=>{ await until(()=>pg.$('a1Ask').style.di
   if(mode==='r2'){
     // v0.7: 「R2만」 3건 — 2603SG1 (첫 거래 · 마스터 없음) · 2604SG1 (앞 1건) · 2605SG1 (앞 2건 → 확실 틀)
     try{ w.localStorage.setItem('leenai_apikey_v1','sk-test'); }catch(e){}
+    if(exceptionNo) ev(`A1C.A1_EXCEPTIONS[${JSON.stringify(exceptionNo)}]='TEST 例外'`);
     $('a1PilotList').value='LRS-2603SG1\nLRS-2604SG1\nLRS-2605SG1'; $('a1Rounds').value='R2';
     if($('a1R2Master')) $('a1R2Master').checked=masterSw!=='off';
     $('a1RunPilot').click(); await until(()=>$('a1Ask').style.display==='flex',5000,'askRun'); out.estHtml=$('a1AskBody').innerHTML; $('a1AskBtn0').click();

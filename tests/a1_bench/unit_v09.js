@@ -21,26 +21,26 @@ const k1=A1M.buildMasterDraft([p1('LRS-2601SG1','2026-01-05'),p1('LRS-2602SG1','
 eq('1 직전 S/I 「CAT LAI PORT IN VIETNAM」 + 계약 POD CAT LAI → 틀 {POD} PORT IN VIETNAM (確実)',[f1('crcf9_place_of_delivery_1').status,f1('crcf9_place_of_delivery_1').recommended],['確実','{POD} PORT IN VIETNAM']);
 eq('1 {POD} 는 place_of_delivery 칸에만 (port_of_discharge 는 그대로)',f1('crcf9_port_of_discharge').recommended,'CAT LAI, VIETNAM');
 const mf1=A1M.buildMasterFor(p1('LRS-2603SG1','2026-03-05'),[p1('LRS-2601SG1','2026-01-05'),p1('LRS-2602SG1','2026-02-05')]), b1=A1M.masterPromptBlock(mf1);
-ok('1 ③ 블록 규칙 문구 (L/C 候補港 아님 · 実際の仕向港)',b1.indexOf('place_of_delivery 欄は L/C の候補港(… OR …)ではなく、実際の仕向港(契約 / ブッキング)を、テンプレ(直前 S/I)の書き方で入れる。')>=0,b1);
+ok('1 ③ 블록 {POD} 줄 (v0.10: L/C 仕向港候補の 1 港 — v0.9 「実際の仕向港」 규칙은 지움)',b1.indexOf('{POD}=L/C 仕向港候補の 1 港 (place_of_delivery 欄だけ · 1 欄に 1 港)。')>=0&&b1.indexOf('実際の仕向港')<0,b1);
 ok('1 ③ 블록 틀 sino 1 crcf9_place_of_delivery_1 「{POD} PORT IN VIETNAM」',b1.indexOf('sino 1 crcf9_place_of_delivery_1 テンプレ(確実): "{POD} PORT IN VIETNAM"')>=0);
 eq('1 master_check: 실제 항구 → SAME · LC 후보 나열 → DIFF',[A1M.masterCheck(mf1,1,'crcf9_place_of_delivery_1','CAT LAI PORT IN VIETNAM'),A1M.masterCheck(mf1,1,'crcf9_place_of_delivery_1','CAI MEP OR CAT LAI OR SP-ITC PORT IN VIETNAM')],['MASTER_SAME','MASTER_DIFF']);
 const x1=ctx.r2ExtraText({podContract:'CAT LAI',podBookings:['CAT LAI'],poNo:'',wording:null});
-ok('1 ③ 입력 【実際の仕向港】 = 계약 CAT LAI · 부킹 CAT LAI + 규칙',/【実際の仕向港 \(契約 \/ ブッキング\) — place_of_delivery 用】\n契約 POD: CAT LAI \/ ブッキング POD: CAT LAI/.test(x1)&&/実際の仕向港\(契約 \/ ブッキング\)を、テンプレ\(直前 S\/I\)の書き方で入れる/.test(x1),x1);
+ok('1 ③ 입력 — 계약 · 부킹 POD 는 참고 (v0.10: 「ブッキング時の選択候補に入っているべき港」 · 実際の仕向港 규칙 없음)',/参考 — ブッキング時の選択候補に入っているべき港: 契約 POD CAT LAI \/ ブッキング POD CAT LAI/.test(x1)&&x1.indexOf('実際の仕向港')<0,x1);
 
 /* ── Step 2 po_vo 종류 ── */
 console.log('Step 2 — po_vo 는 마스터의 종류');
 const T2={'20':'ILC0000301','50':'DELTA PAPER CORPORATION\nSAMPLE A INDUSTRIAL PARK, SAMPLE WARD','45A':'WASTE PAPER\nPO NO. OCC20250001'};
 const p2=(no,date,po,cpo)=>item(no,date,'DELTA','BIC:BANKVNVX',T2,[{crcf9_sino:1,crcf9_po_vo:po}],{contractPo:cpo||''});
-const pri2=[p2('LRS-2601SG1','2026-01-05','1111/2222'),p2('LRS-2602SG1','2026-02-05','3333/4444')];
+const pri2=[p2('LRS-2601SG1','2026-01-05','1111/2222','1111/2222'),p2('LRS-2602SG1','2026-02-05','3333/4444','3333/4444')];   // v0.10: po_vo = 각 계약 po_no → 契約PO型 (v0.9 의 その他 규칙은 契約PO型 일 때만)
 const mf2=A1M.buildMasterFor(p2('LRS-2603SG1','2026-03-05','','5555/6666'),pri2), b2=A1M.masterPromptBlock(mf2);
 eq('2 마스터 po_vo 종류 その他 · 형 9999/9999',[A1M.poVoKindOf(mf2).kind,A1M.poVoKindOf(mf2).shape],['その他','9999/9999']);
-ok('2 ③ 블록에 종류 · 형 · 규칙 문구',b2.indexOf('po_vo 種類 (sino 1 · 最新): その他 (形 9999/9999)。po_vo 欄はマスターの種類に従う。その他(バイヤー契約番号等)の場合、L/C の PO を入れない — 契約の番号があればその番号、無ければ空欄(未完成)。')>=0,b2);
-eq('2 LC PO OCC20250001 추천 + 판매계약 po_no 5555/6666 → 5555/6666 (LC PO 아님)',A1M.poVoRule(mf2,'OCC20250001','5555/6666',mf2.ctx.pos).value,'5555/6666');
-eq('2 po_no 없음 → 빈칸 (未完成)',[A1M.poVoRule(mf2,'OCC20250001','',mf2.ctx.pos).value,A1M.poVoRule(mf2,'OCC20250001','',mf2.ctx.pos).changed],['',true]);
-eq('2 빈 추천 + po_no 있음 → 계약 번호',A1M.poVoRule(mf2,'','5555/6666',mf2.ctx.pos).value,'5555/6666');
-eq('2 이미 계약 번호면 그대로',A1M.poVoRule(mf2,'5555/6666','5555/6666',mf2.ctx.pos).changed,false);
+ok('2 ③ 블록에 종류 · 규칙 문구 (v0.10: 契約PO型)',b2.indexOf('- po_vo 欄: マスター種類 sino 1 契約PO型 [2件中 2件]。')>=0&&b2.indexOf('固定値型 → 固定値をそのまま。契約PO型 → 販売契約の番号。L/C の PO は種類が L/C PO型 のときだけ。')>=0,b2);
+eq('2 LC PO OCC20250001 추천 + 판매계약 po_no 5555/6666 → 5555/6666 (LC PO 아님)',A1M.poVoRule(mf2,1,'OCC20250001','5555/6666',mf2.ctx.pos).value,'5555/6666');
+eq('2 po_no 없음 → 빈칸 (未完成)',[A1M.poVoRule(mf2,1,'OCC20250001','',mf2.ctx.pos).value,A1M.poVoRule(mf2,1,'OCC20250001','',mf2.ctx.pos).changed],['',true]);
+eq('2 빈 추천 + po_no 있음 → 계약 번호',A1M.poVoRule(mf2,1,'','5555/6666',mf2.ctx.pos).value,'5555/6666');
+eq('2 이미 계약 번호면 그대로',A1M.poVoRule(mf2,1,'5555/6666','5555/6666',mf2.ctx.pos).changed,false);
 const pri2b=[p2('LRS-2601SG1','2026-01-05','OCC20250001'),p2('LRS-2602SG1','2026-02-05','OCC20250001')], mf2b=A1M.buildMasterFor(p2('LRS-2603SG1','2026-03-05','','5555/6666'),pri2b);
-eq('2 종류 バイヤーPO 면 손대지 않음',[A1M.poVoKindOf(mf2b).kind,A1M.poVoRule(mf2b,'OCC20250001','5555/6666',mf2b.ctx.pos).changed],['バイヤーPO',false]);
+eq('2 종류 バイヤーPO 면 손대지 않음',[A1M.poVoKindOf(mf2b).kind,A1M.poVoRule(mf2b,1,'OCC20250001','5555/6666',mf2b.ctx.pos).changed],['バイヤーPO',false]);
 ok('2 ③ 입력 【バイヤー契約番号】',/【バイヤー契約番号 \(販売契約 cr49f_po_no\)】\n5555\/6666/.test(ctx.r2ExtraText({podContract:'',podBookings:[],poNo:'5555/6666',wording:null})));
 
 /* ── Step 3 LC 지정 문구 ── */
