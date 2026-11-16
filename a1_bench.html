@@ -43,7 +43,7 @@ textarea.a1-in{width:100%;min-height:90px}
 <main id="a1Main" style="display:none;max-width:1200px;margin:0 auto;padding:20px 16px">
 
   <div class="a1-card">
-    <h3>A1 「契約/LC → S/I」 추천 정확도 시험 (설계서 v0.5 · 지시서 시험도구 v0.6 マスター草案 자동 생성)</h3>
+    <h3>A1 「契約/LC → S/I」 추천 정확도 시험 (설계서 v0.5 · 지시서 시험도구 v0.7 마스터 보정 · R2 마스터 사용)</h3>
     <div class="a1-note">정답 = COMPASS S/I (2609 이전 = 검증). 이 페이지는 COMPASS · LC 원본 · 마스터를 <b>읽기만</b> 하고, 결과는 SharePoint <code>古紙/-. AI 活用/D-00/A1_bench/{run_id}/</code> 에만 저장합니다.<br>
     「몇 건 맞았다」 로 결론 내지 않습니다 — 파일럿은 모델 · 비용을 고르기 위한 것 (설계서 v0.2 §7).</div>
   </div>
@@ -84,7 +84,7 @@ textarea.a1-in{width:100%;min-height:90px}
   </div>
 
   <div class="a1-card" id="a1MasterCard">
-    <h3>②-2 マスター草案 — 바이어 × 은행 × 신청 회사 (v0.6 · 코드만 · AI 호출 없음)</h3>
+    <h3>②-2 マスター草案 — 바이어 × 은행 × 신청 회사 (v0.7 · 코드만 · AI 호출 없음)</h3>
     <div class="a1-note">「대상 목록」 으로 읽은 LC 판독 · COMPASS S/I 로 S/I 칸마다의 <b>틀</b>(LC 에서 오는 값은 <code>{…}</code> 자리)과 관행값을 뽑습니다. COMPASS 에는 쓰지 않습니다.<br>
     저장은 따로 — SharePoint <code>古紙/-. AI 活用/D-00/A1_bench/master_draft/</code> 에만 (공통 마스터 위치에는 쓰지 않음). 줄을 누르면 칸별 틀이 펼쳐집니다.</div>
     <div class="a1-row"><button id="a1BtnMaster" class="a1-btn" disabled title="먼저 「대상 목록」">マスター草案</button><button id="a1BtnMasterSave" class="a1-btn ghost" disabled>草案 保存 (SharePoint)</button><span id="a1MasterStatus" class="a1-note"></span></div>
@@ -103,6 +103,7 @@ textarea.a1-in{width:100%;min-height:90px}
     <h3>④ 실행</h3>
     <div class="a1-row">
       <label>회차 <select id="a1Rounds" class="a1-in"><option value="R1R2" selected>R1+R2</option><option value="R1">R1만</option><option value="R2">R2만</option></select></label>
+      <label title="v0.7: R2 ③ 조립에 바이어 × 은행 마스터(대상보다 앞선 같은 키 계약만)의 틀을 넣는다. 끄면 v0.6 과 같은 R2"><input type="checkbox" id="a1R2Master" checked> R2 마스터 사용</label>
       <button id="a1RunPilot" class="a1-btn">파일럿 실행 (각 2회)</button>
       <button id="a1Stop" class="a1-btn ghost" disabled>중지</button>
       <span style="flex:1"></span>
@@ -1502,7 +1503,7 @@ var A1M=(function(){
 'use strict';
 var FIELDS=['consignee','notify_party','address','tel','fax','bl_text1','bl_text2','all','invoicetext','bencert_text','po_vo','vo_no','remark',
   'place_of_delivery_1','place_of_delivery_2','place_of_delivery_3','port_of_discharge','shipping_mark','lc_no'].map(function(f){return [f,A1C.COL[f]];});
-var PH_NAMES=['APPLICANT_NAME','APPLICANT_ADDR','LC_NO','LC_DATE','PO','HS','VO'];
+var PH_NAMES=['APPLICANT_NAME','APPLICANT_ADDR','LC_NO','LC_DATE','PO','HS','VO','CONTRACT_NO'];   // v0.7: CONTRACT_NO = 当社 販売契約番号 (LRS-… / LRS- を除いた形)
 var BANK_UNKNOWN='銀行不明';
 function nfkc(s){ var t=String(s==null?'':s); try{t=t.normalize('NFKC');}catch(e){} return t; }
 function escRe(s){ return String(s).replace(/[.*+?^${}()|[\]\\\/]/g,'\\$&'); }
@@ -1573,10 +1574,19 @@ function lcContext(lc, contractPo){
   return {applicantName:lines[0]||'', addrLines:lines.slice(1), lcNo:lc.lcNo||String(tags['20']||'').split('\n')[0].trim(),
     issueDate:A1C.swiftDate(tags['31C']||''), pos:lcPos(tags, lc.text||'', contractPo), hs:lcHs(tags)};
 }
-/* 값 → 틀. {template, formats, used[], addrLines} */
+/* v0.7: 판매계약번호의 두 모양 — 「LRS-2601A1」 · 「2601A1」 (긴 것부터) */
+function contractNoForms(no){
+  var a=nfkc(no).toUpperCase().trim(); if(!a) return [];
+  var b=a.replace(/^[A-Z]{2,4}-/,''), out=[a];
+  if(b!==a && alnumKey(b).length>=5 && /\d/.test(b)) out.push(b);
+  return out;
+}
+/* 값 → 틀. {template, formats, used[], addrLines}. ctx.contractNo (v0.7) = 그 계약의 번호 */
 function toTemplate(value, ctx){
   var v=nfkc(value).replace(/\r\n?/g,'\n'), used={}, formats=[], addrUsed=[];
   if(!v.trim()) return {template:'', formats:[], used:[], addrLines:''};
+  // v0.7 Step 1-1: 그 계약의 우리 판매계약번호 → {CONTRACT_NO} (긴 것부터 · 기존 자리보다 먼저)
+  contractNoForms(ctx.contractNo).forEach(function(n){ var r=replaceLoose(v,n,'CONTRACT_NO'); if(r.hit){ v=r.text; used.CONTRACT_NO=1; } });
   // VO — 값 안의 「VO NUMBER : …」 번호 (LC 에 없음 — 메일 출처). XX 자리표시는 그대로
   v=v.replace(/(\bV\.?O\.?\s*(?:NUMBER|NO\.?)\s*:?\s*)([^\s#*]+)/gi,function(m,a,num){ if(/^X+$/i.test(num)) return m; used.VO=1; return a+sentinel('VO'); });
   // 긴 것부터 (:50 첫 줄 · 주소 전체 · 주소 줄 · :20 · PO)
@@ -1603,7 +1613,7 @@ function tplKey(t){ return nfkc(t).toUpperCase().replace(/[\s.,\-;:]+/g,''); }
 
 /* ── Step 3 관행값 · 지시문 ── */
 var PRACTICE_RES={
-  tax:[/\b(?:NPWP|TAX\s*(?:CODE|ID|NO\.?|NUMBER)?|MST|ENTERPRISE\s+CODE)\s*(?:NO\.?|NUMBER)?\s*[:.#]?\s*([0-9][0-9.\-]{5,}[0-9])/gi, /(?:^|\n)(\d{10,13})#/g],
+  tax:[/\b(?:NPWP|TAX\s*(?:CODE|ID|NO\.?|NUMBER)?|MST|ENTERPRISE\s+CODE)(?:\s+OF\s+(?:THE\s+)?(?:APPLICANT|BENEFICIARY|BUYER|IMPORTER|SHIPPER|EXPORTER))?\s*(?:NO\.?|NUMBER)?\s*[:.#]?\s*([0-9][0-9.\-]{5,}[0-9])/gi, /(?:^|\n)(\d{10,13})#/g],   // v0.7: 「NPWP OF APPLICANT 0010…」 모양도
   permit:[/\b(\d+\/[A-Z]{2,6}-BTNMT)\b/gi, /\b(?:PERMIT|LICEN[CS]E)\s*(?:NO\.?|NUMBER)?\s*[:.#]?\s*([A-Z0-9][A-Z0-9\/\-.]*\d[A-Z0-9\/\-]*)/gi],
   email:[/([A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,})/gi],
   tel:[/(\bTEL(?:EPHONE)?[ \t]*(?:NO\.?)?[ \t]*[:.]?[ \t]*\+?\d[\d \t\-()\/.]{5,}\d)/gi],
@@ -1617,6 +1627,56 @@ function findPractices(text){
   Object.keys(PRACTICE_RES).forEach(function(k){ var seen={}; PRACTICE_RES[k].forEach(function(re){ re.lastIndex=0; var m; while((m=re.exec(t))){ var v=practiceNorm(k,m[1]); if(v&&!seen[v]){ seen[v]=1; (out[k]=out[k]||[]).push(v); } if(!m[0]) re.lastIndex++; } }); });
   return out;
 }
+/* ── v0.7 Step 1-2 번호의 「주인」 (세금번호 · 허가번호) — own = 当社 · buyer = バイヤー · unknown ── */
+var OWN_NUMBERS=['8011101092439'];   // 当社 (LEENEAR) 法人番号 — 형님 확인 2026-11-16. 주인 판정의 첫 규칙
+var OWN_MARK=/LEENEAR|SHIPPER|EXPORTER|BENEFICIARY/;
+var OWNED_KINDS=['tax','permit'];
+function isOwnNumber(v){ var d=nfkc(v).replace(/[^0-9]/g,''); return !!d && OWN_NUMBERS.indexOf(d)>=0; }
+/* kind 의 값들을 위치와 함께 (findPractices 와 같은 정규식) */
+function practiceHits(kind, t){
+  var out=[]; PRACTICE_RES[kind].forEach(function(re){ re.lastIndex=0; var m; while((m=re.exec(t))){ var v=practiceNorm(kind,m[1]); if(v) out.push({value:v, at:m.index+Math.max(0,m[0].indexOf(m[1]))}); if(!m[0]) re.lastIndex++; } });
+  return out;
+}
+/* S/I 쪽: 상수 → shipper_address 칸 → 같은 줄의 같은 # 구간에 LEENEAR · SHIPPER · EXPORTER · BENEFICIARY → own. 그 밖 buyer */
+function siOwner(value, text, at, col){
+  if(isOwnNumber(value)) return 'own';
+  if(col==='crcf9_shipper_address') return 'own';
+  var ls=text.lastIndexOf('\n',at-1)+1, le=text.indexOf('\n',at); if(le<0) le=text.length;
+  var line=text.slice(ls,le), p=at-ls, ss=line.lastIndexOf('#',p-1)+1, se=line.indexOf('#',p); if(se<0) se=line.length;
+  return OWN_MARK.test(line.slice(ss,se).toUpperCase())?'own':'buyer';
+}
+/* → {kind:[{value, owner}]} — 주인은 tax · permit 만 (같은 값이 여러 곳이면 own 이 하나라도 있으면 own) */
+function findPracticesAt(text, col){
+  var out={}, t=nfkc(text);
+  Object.keys(PRACTICE_RES).forEach(function(k){ var seen={};
+    practiceHits(k,t).forEach(function(h){ var o=OWNED_KINDS.indexOf(k)>=0?siOwner(h.value,t,h.at,col):undefined;
+      if(!seen[h.value]){ seen[h.value]={value:h.value}; if(o) seen[h.value].owner=o; (out[k]=out[k]||[]).push(seen[h.value]); }
+      else if(o==='own') seen[h.value].owner='own'; }); });
+  return out;
+}
+/* Step 1-3: LC 원문 줄바꿈 이어 붙이기 (번호 찾기 전용 사본) — 「-⏎」→「-」 · 「/⏎」→「/」 · 나머지 줄바꿈 → 공백 */
+function joinHyphenBreaks(s){ return nfkc(s).replace(/\r/g,'').replace(/-[ \t]*\n\s*/g,'-').replace(/\/[ \t]*\n\s*/g,'/'); }
+function joinLcBreaks(s){ return joinHyphenBreaks(s).replace(/\s*\n\s*/g,' '); }
+/* LC 쪽: 상수 → :59 = own · :50 = buyer → 그 밖 태그는 조항(문장) 안에서 번호에 가장 가까운 표지
+   (수익자: BENEFICIARY · LEENEAR · SHIPPER · EXPORTER · :59 첫 줄 / 신청 회사: APPLICANT · BUYER · IMPORTER · :50 첫 줄). 없거나 같은 거리 → unknown */
+function lcOwnedPractices(tags){
+  tags=tags||{}; var out={};
+  var firstLine=function(x){ return nfkc(x||'').replace(/\r/g,'').split('\n').map(function(s){return s.trim();}).filter(Boolean)[0]||''; };
+  var benName=firstLine(tags['59']).toUpperCase(), appName=firstLine(tags['50']).toUpperCase();
+  var markRe=function(words, name){ var a=words.slice(); if(alnumKey(name).length>=5){ var r=looseRe(name); if(r) a.push(r.source); } return new RegExp(a.join('|'),'gi'); };
+  var ownRe=markRe(['BENEFICIARY','LEENEAR','SHIPPER','EXPORTER'],benName), buyRe=markRe(['APPLICANT','BUYER','IMPORTER'],appName);
+  var nearest=function(re, s, at){ re.lastIndex=0; var m, d=Infinity; while((m=re.exec(s))){ var x=at<m.index?m.index-at:(at>m.index+m[0].length?at-(m.index+m[0].length):0); if(x<d) d=x; if(!m[0]) re.lastIndex++; } return d; };
+  Object.keys(tags).forEach(function(tag){
+    var raw=joinHyphenBreaks(tags[tag]||''); if(!raw.trim()) return;
+    var clauses=(tag==='50'||tag==='59')?[raw]:A1C.splitClauses(raw).map(function(c){return c.text;});
+    clauses.forEach(function(cl){ var s=joinLcBreaks(cl).toUpperCase();
+      OWNED_KINDS.forEach(function(k){ practiceHits(k,s).forEach(function(h){
+        var o=isOwnNumber(h.value)?'own':tag==='59'?'own':tag==='50'?'buyer':(function(){ var a=nearest(ownRe,s,h.at), b=nearest(buyRe,s,h.at); return a===b?'unknown':(a<b?'own':'buyer'); })();
+        var arr=out[k]=out[k]||[], e=arr.filter(function(x){return x.value===h.value;})[0];
+        if(!e) arr.push({value:h.value, owner:o, tag:tag}); else if(e.owner!==o && o!=='unknown') e.owner=(e.owner==='unknown'?o:(o==='own'||e.owner==='own'?'own':o)); }); }); });
+  });
+  return out;
+}
 /* LC 46A B/L 조항의 「(MADE OUT )TO (THE )ORDER OF …」 (최대 120자) */
 function consigneeWording(tags){
   var cl=A1C.splitClauses(nfkc(tags['46A']||'')).filter(function(c){return /BILLS?\s+OF\s+LADING|\bB\/L\b|SEA\s*WAY\s*BILL|OCEAN|MARINE/i.test(c.text);});
@@ -1627,7 +1687,7 @@ function consigneeWording(tags){
 function poKind(value, pos, template){
   var v=nfkc(value).trim(); if(!v) return null;
   var shape=v.toUpperCase().replace(/[0-9]/g,'9').replace(/[A-Z]/g,'A');
-  if(/^LRS-/i.test(v)) return {kind:'LRS番号', shape:shape};
+  if(/^LRS-/i.test(v) || template==='{CONTRACT_NO}') return {kind:'LRS番号', shape:shape};   // v0.7: 「2601A1」 모양도
   var k=alnumKey(v); if((pos||[]).some(function(p){return alnumKey(p)===k;}) || template==='{PO}') return {kind:'バイヤーPO', shape:shape};
   return {kind:'その他', shape:shape};
 }
@@ -1639,7 +1699,7 @@ function byNo(a,b){ return String(a.no).localeCompare(String(b.no)); }
 function buildMasterDraft(items){
   var groups={};
   (items||[]).slice().sort(byNo).forEach(function(it){
-    var ctx=lcContext(it.lc, it.contractPo), k=keyOf(it,ctx);
+    var ctx=lcContext(it.lc, it.contractPo), k=keyOf(it,ctx); ctx.contractNo=it.no;   // v0.7: {CONTRACT_NO}
     var g=groups[k]=groups[k]||{buyer:it.buyer||'?', bank:bankLabel(it.bankKey), bankKey:it.bankKey||'', bankUnknown:!it.bankKey, applicant:ctx.applicantName, applicantKey:alnumKey(ctx.applicantName), items:[]};
     g.items.push({it:it, ctx:ctx});
   });
@@ -1669,18 +1729,19 @@ function buildMasterDraft(items){
     });
     // 관행값 — 틀의 고정 부분에서 (값 + 처음/마지막으로 본 계약)
     fields.forEach(function(fd){ fd.templates.forEach(function(t){ if(!t.template) return;
-      var found=findPractices(t.template);
-      Object.keys(found).forEach(function(kind){ found[kind].forEach(function(v){
+      var found=findPracticesAt(t.template, fd.col);   // v0.7: 세금번호 · 허가번호는 주인(own/buyer)도
+      Object.keys(found).forEach(function(kind){ found[kind].forEach(function(f){ var v=f.value;
         var arr=practices[kind]=practices[kind]||[], e=arr.filter(function(x){return x.value===v;})[0];
-        if(!e){ e={value:v, first:'', last:'', contracts:{}, where:{}}; arr.push(e); }
+        if(!e){ e={value:v, first:'', last:'', contracts:{}, where:{}}; if(f.owner) e.owner=f.owner; arr.push(e); }
+        else if(f.owner==='own') e.owner='own';
         t.contracts.forEach(function(no){ e.contracts[no]=1; }); e.where[fd.sino+':'+fd.field]=1; }); }); }); });
     var allNos=list.map(function(x){return x.it.no;});
     Object.keys(practices).forEach(function(kind){ practices[kind].forEach(function(e){ var ns=allNos.filter(function(n){return e.contracts[n];}); e.first=ns[0]||''; e.last=ns[ns.length-1]||''; e.count=ns.length; e.where=Object.keys(e.where); delete e.contracts; });
       practices[kind].sort(function(a,b){ return allNos.indexOf(b.last)-allNos.indexOf(a.last); }); });
-    // 허가번호 · 세금코드 ↔ 가장 최근 LC 원문 (LC 우선 — 사람 확인)
-    var last=list[list.length-1], lcText=(last.it.lc&&last.it.lc.text)||'', lcF=findPractices(lcText), lcDiff=[];
+    // 허가번호 · 세금코드 ↔ 가장 최근 LC 원문 (LC 우선 — 사람 확인). v0.7: 같은 주인 · 같은 종류끼리만 — 当社(own) 번호는 대조하지 않음 · LC 쪽 unknown 은 대조
+    var last=list[list.length-1], lcF=lcOwnedPractices((last.it.lc&&last.it.lc.tags)||{}), lcDiff=[];
     ['permit','tax'].forEach(function(kind){
-      var lv=lcF[kind]||[], mv=practices[kind]||[]; if(!lv.length||!mv.length) return;
+      var lv=(lcF[kind]||[]).filter(function(x){return x.owner!=='own';}).map(function(x){return x.value;}), mv=(practices[kind]||[]).filter(function(e){return e.owner!=='own';}); if(!lv.length||!mv.length) return;
       var newest=mv.filter(function(e){return e.last===mv[0].last;});
       newest.forEach(function(e){ if(lv.indexOf(e.value)<0) lcDiff.push({kind:kind, label:PRACTICE_LABEL[kind], master:e.value, master_last:e.last, lc:lv.join(' / '), lc_contract:last.it.no}); });
     });
@@ -1693,11 +1754,55 @@ function buildMasterDraft(items){
     var counts={確実:0,確認要:0,単発:0}; fields.forEach(function(fd){ counts[fd.status]++; });
     return {buyer:g.buyer, bank:g.bank, bank_key:g.bankKey, bank_unknown:g.bankUnknown, bank_note:g.bankUnknown?'銀行 人入力必要':'', applicant:g.applicant, applicant_key:g.applicantKey,
       contracts:allNos, n:allNos.length, sinos:sinos, sino_composition:sinoComp, counts:counts, fields:fields, unused_fields:unused, practices:practices, lc_diff:lcDiff,
-      consignee_wording:Object.keys(cw).map(function(k){return cw[k];}), po_vo_kind:Object.keys(pk).map(function(k){return pk[k];})};
+      consignee_wording:Object.keys(cw).map(function(k){return cw[k];}), po_vo_kind:Object.keys(pk).map(function(k){return pk[k];}), own_numbers:ownNumbers(practices)};
   });
-  return {keys:keys, pairs:Object.keys(keys.reduce(function(o,k){o[k.buyer+'|'+k.bank]=1;return o;},{})).length, contracts:(items||[]).length};
+  // v0.7: 2개 이상 키에서 같은 当社 번호 → 「当社番号 候補」 (형님 확인용)
+  var ownKeys={}; keys.forEach(function(k){ k.own_numbers.forEach(function(o){ var kk=o.kind+'|'+o.value; (ownKeys[kk]=ownKeys[kk]||{kind:o.kind, label:PRACTICE_LABEL[o.kind], value:o.value, confirmed:isOwnNumber(o.value), keys:[]}).keys.push(k.buyer+' × '+k.bank+' × '+(k.applicant||'?')); }); });
+  var ownCand=Object.keys(ownKeys).map(function(kk){return ownKeys[kk];}).filter(function(o){return o.keys.length>=2;});
+  return {keys:keys, pairs:Object.keys(keys.reduce(function(o,k){o[k.buyer+'|'+k.bank]=1;return o;},{})).length, contracts:(items||[]).length, own_candidates:ownCand};
 }
-function practiceSummary(p){ return Object.keys(PRACTICE_LABEL).filter(function(k){return p[k]&&p[k].length;}).map(function(k){ return PRACTICE_LABEL[k]+' '+p[k].map(function(e){return e.value;}).join(' / '); }).join(' · '); }
+function ownNumbers(p){ var out=[]; OWNED_KINDS.forEach(function(kind){ (p[kind]||[]).forEach(function(e){ if(e.owner==='own') out.push({kind:kind, value:e.value}); }); }); return out; }
+/* ── v0.7 Step 2 — R2 가 쓰는 마스터 (누설 금지: 대상보다 앞선 계약만 · 같은 키) ── */
+function targetCtx(target){ var c=lcContext(target.lc, target.contractPo); c.contractNo=target.no; return c; }
+function buildMasterFor(target, items){
+  var ctxT=targetCtx(target), kT=keyOf(target, ctxT);
+  var earlier=(items||[]).filter(function(it){ return String(it.no).toUpperCase()!==String(target.no).toUpperCase() && A1C.isEarlier(it,target) && keyOf(it, lcContext(it.lc,it.contractPo))===kT; });
+  if(!earlier.length) return null;
+  var k=buildMasterDraft(earlier).keys[0];
+  return {target:target.no, key:k, from:k.contracts.slice(), ctx:ctxT};
+}
+function sureTemplates(mf){ var o={}; if(mf) mf.key.fields.forEach(function(f){ if(f.status==='確実') o[f.sino+'|'+f.col]=f.recommended; }); return o; }
+/* ③ 조립 입력의 마스터 블록 (규칙 + 칸별 틀 + 관행값 + consignee 지시문 짝) */
+function masterPromptBlock(mf){
+  var k=mf.key, L=[], lab={確実:'テンプレ(確実)',確認要:'テンプレ(参考・最新)',単発:'テンプレ(1件のみ)'};
+  L.push('【バイヤー × 銀行 マスター (コードで作成 · この契約より前の同じバイヤー × 銀行 × 申請会社の契約 '+mf.from.length+' 件: '+mf.from.join(', ')+')】');
+  L.push('今回の契約番号 (CONTRACT_NO): '+mf.target);
+  L.push('規則:');
+  L.push('- テンプレ(確実)がある欄は、形(固定部分・区切り・順序)をテンプレに合わせ、{…} には検証済みの L/C 値・契約番号を入れる。固定部分の番号(税番号・許可番号・EMAIL 等)はそのまま使う。');
+  L.push('- ただし L/C が書類文言を指定している欄は L/C 文言(note に「L/C指定文言」)。');
+  L.push('- テンプレ(参考・最新)・テンプレ(1件のみ)の欄は直前 S/I と同じ扱い。');
+  L.push('- {APPLICANT_NAME}=:50 1行目 / {APPLICANT_ADDR}=:50 の残りの行 / {LC_NO}=:20 / {LC_DATE}=:31C (日付の形はテンプレの日付形式) / {PO}=L/C の PO 番号 / {HS}=L/C の HS コード / {VO}=VO 番号 (既存の規則どおり) / {CONTRACT_NO}=今回の契約番号');
+  L.push('欄:');
+  k.fields.forEach(function(f){ var t=f.templates.filter(function(x){return x.recommended;})[0]||{};
+    L.push('  sino '+f.sino+' '+f.col+' '+lab[f.status]+': '+(t.empty?'(空欄)':JSON.stringify(f.recommended))+(t.date_formats&&t.date_formats.length?' (日付形式 '+t.date_formats.join(' / ')+')':'')+(f.status==='単発'?'':' ['+f.n+'件中 '+t.contracts.length+'件]')); });
+  var pr=[]; Object.keys(PRACTICE_LABEL).forEach(function(kind){ (k.practices[kind]||[]).forEach(function(e){ pr.push((e.owner==='own'?'当社番号('+PRACTICE_LABEL[kind]+')':PRACTICE_LABEL[kind]+(e.owner==='buyer'?'(バイヤー)':''))+': '+e.value+' (最終 '+e.last+')'); }); });
+  if(pr.length) L.push('慣行値 (固定部分の番号・書き方):','  '+pr.join('\n  '));
+  if(k.consignee_wording.length) L.push('consignee 指示文の対応 (sino 1):','  '+k.consignee_wording.map(function(w){ return 'L/C 46A「'+w.lc_wording+'」→ S/I '+JSON.stringify(w.si_template)+' ('+w.contracts.join(', ')+')'; }).join('\n  '));
+  return L.join('\n');
+}
+/* master_check — 추천값을 그 계약 LC 로 틀로 바꾼 것이 확실 틀과 같은가 (구두점 · 공백 무시) */
+function masterCheck(mf, sino, col, value){
+  var f=mf&&mf.key.fields.filter(function(x){return x.sino===+sino && x.col===col;})[0];
+  if(!f||f.status!=='確実') return 'NO_MASTER';
+  return tplKey(toTemplate(value, mf.ctx).template)===tplKey(f.recommended)?'MASTER_SAME':'MASTER_DIFF';
+}
+/* 출처 검사 허용 낱말 (extra 에만) — 관행값 전부 */
+function masterAllowWords(mf){ var out=[]; if(mf) Object.keys(mf.key.practices).forEach(function(kind){ mf.key.practices[kind].forEach(function(e){ out.push(e.value); }); }); return out; }
+function practiceSummary(p){
+  var out=Object.keys(PRACTICE_LABEL).map(function(k){ var es=(p[k]||[]).filter(function(e){return e.owner!=='own';}); return es.length?PRACTICE_LABEL[k]+' '+es.map(function(e){return e.value;}).join(' / '):''; }).filter(Boolean);
+  var own=ownNumbers(p); if(own.length) out.push('当社番号 '+own.map(function(o){return o.value;}).join(' / '));   // v0.7: 当社 번호는 따로
+  return out.join(' · ');
+}
 /* 사람용 CSV (한 줄 = 키 × sino × 칸) */
 var CSV_HEAD=['buyer','bank','applicant','contracts','sino','field','col','status','n','recommended_template','template_count','templates','date_formats','addr_lines','practices','lc_diff','bank_note'];
 function toCsvRows(draft){
@@ -1726,7 +1831,9 @@ function toSummaryMd(draft, meta){
     L.push('- **'+mdc(k.buyer+' × '+k.bank+' × '+(k.applicant||'?'))+'** sino '+f.sino+' `'+f.field+'` — 틀 '+f.templates.length+'개');
     f.templates.forEach(function(t){ L.push('  - '+(t.recommended?'⭐推奨 ':'')+'`'+mdc(t.empty?'(空欄)':t.template).replace(/\n/g,'⏎')+'` ← '+t.contracts.join(', ')); }); }); });
   if(!any) L.push('(なし)');
-  L.push('','## LC と違う (許可番号 · 税番号 — LC 優先 · 人確認)','');
+  L.push('','## 当社番号 候補 (2 キー以上で同じ当社番号 — 형님 확인用)','');
+  L.push((draft.own_candidates||[]).length?draft.own_candidates.map(function(o){ return '- '+o.label+' `'+o.value+'`'+(o.confirmed?' (当社 法人番号 — 형님 확인 済)':'')+' ← '+o.keys.length+' キー: '+o.keys.map(mdc).join(' / '); }).join('\n'):'(なし)');
+  L.push('','## LC と違う (許可番号 · 税番号 — 同じ主人・同じ種類のみ · 当社番号は対照しない · LC 優先 · 人確認)','');
   var d=[]; draft.keys.forEach(function(k){ k.lc_diff.forEach(function(x){ d.push('- '+mdc(k.buyer+' × '+k.bank+' × '+(k.applicant||'?'))+' — '+x.label+' マスター `'+x.master+'` (最終 '+x.master_last+') ≠ 最新 LC '+x.lc_contract+' `'+x.lc+'`'); }); });
   L.push(d.length?d.join('\n'):'(なし)');
   var bu=draft.keys.filter(function(k){return k.bank_unknown;});
@@ -1737,7 +1844,8 @@ function toSummaryMd(draft, meta){
 function mdc(s){ return String(s==null?'':s).replace(/\|/g,'\\|'); }
 
 return {FIELDS:FIELDS, PH_NAMES:PH_NAMES, BANK_UNKNOWN:BANK_UNKNOWN, alnumKey:alnumKey, looseRe:looseRe, replaceLoose:replaceLoose, replaceDates:replaceDates, dateForms:dateForms,
-  lcPos:lcPos, lcHs:lcHs, lcContext:lcContext, toTemplate:toTemplate, tplKey:tplKey, findPractices:findPractices, consigneeWording:consigneeWording, poKind:poKind,
+  lcPos:lcPos, lcHs:lcHs, lcContext:lcContext, toTemplate:toTemplate, contractNoForms:contractNoForms, OWN_NUMBERS:OWN_NUMBERS, isOwnNumber:isOwnNumber, findPracticesAt:findPracticesAt,
+  joinLcBreaks:joinLcBreaks, lcOwnedPractices:lcOwnedPractices, buildMasterFor:buildMasterFor, masterPromptBlock:masterPromptBlock, masterCheck:masterCheck, masterAllowWords:masterAllowWords, sureTemplates:sureTemplates, ownNumbers:ownNumbers, tplKey:tplKey, findPractices:findPractices, consigneeWording:consigneeWording, poKind:poKind,
   buildMasterDraft:buildMasterDraft, practiceSummary:practiceSummary, toCsvRows:toCsvRows, CSV_HEAD:CSV_HEAD, toSummaryMd:toSummaryMd, PRACTICE_LABEL:PRACTICE_LABEL};
 })();
 </script>
@@ -2264,7 +2372,7 @@ async function runR2Assemble(t, r2, input, opts, rep){
   const text=`【L/C から抜き出し・検証済みの値 (2回の判読が一致し、原文にそのままあるもの) — source=LC に使えるのはこれだけ】\n${JSON.stringify(passed,null,1)}\n\n`+
     `【未確定 (判読不一致・原文なし) — LC の値として使わない。参考のみ】\n${JSON.stringify(unsure,null,1)}\n\n`+
     `【照合表 (L/C 値 ↔ COMPASS) — コードで作成】\n${recon||'(なし)'}\n\n`+
-    `${input.priorTxt||'【直前 S/I なし】同じバイヤーの前の契約に S/I がない（初回）'}\n\n【マスター】\n${input.masterTxt}\n\n【関行 (検証済みの書き方)】\n${input.practices}\n\n【L/C 要件の種類 → S/I 欄 (カタログ要約)】\n${input.catalog}\n`+
+    `${input.priorTxt||'【直前 S/I なし】同じバイヤーの前の契約に S/I がない（初回）'}\n\n【マスター】\n${input.masterTxt}${input.r2Master?'\n\n'+A1M.masterPromptBlock(input.r2Master):''}\n\n【関行 (検証済みの書き方)】\n${input.practices}\n\n【L/C 要件の種類 → S/I 欄 (カタログ要約)】\n${input.catalog}\n`+
     `\n【作成する S/I】\n- sino: ${input.priorSinos.length?('直前 S/I と同じ構成 → sino '+input.priorSinos.join('・')):'直前 S/I がないため、ベトナム向けは sino 1+2、それ以外は sino 1 のみ'}\n- 各 sino の欄: ${input.fieldsSpec}\n- 明細: crcf9_productname, crcf9_hs_code\n\n`+
     `【出力形式】JSON のみ\n{\n  "sinos": [ { "sino": 1, "fields": { "<欄名>": {"value": "...", "source": "LC(46A-2) | PRIOR(LRS-…) | MASTER | CONTRACT | PLACEHOLDER", "note": "差異・判断 (短く)"} } } ],\n  "details": [ { "crcf9_productname": {"value":"...","source":"...","note":""}, "crcf9_hs_code": {"value":"...","source":"...","note":""} } ],\n  "notes": "..."\n}\n- 全ての欄を出力する（空なら value は ""）。値の中の改行は \\n。`;
   const body={model:opts.r2Model,max_tokens:opts.maxTokens,system:R2_ASSEMBLE_SYSTEM,thinking:{type:'adaptive'},output_config:{effort:opts.effort},messages:[{role:'user',content:[{type:'text',text,cache_control:{type:'ephemeral'}}]}]};
@@ -2285,6 +2393,7 @@ async function runR2Assemble(t, r2, input, opts, rep){
         format_check:A1C.formatCheck(v,phv,hasPrior,srcWords,f.note), placeholder_removed:pr2.removed?'XX削除':''};
       if(sc==='出典不一致') rec.sourceIssues.push({sino:sn,col,value:v,source:f.source||''});
       if(bad.length){ rec.rejected.push({sino:sn,col,value:v,numbers:bad}); rec.basis[sn][col].rejected=bad; v=''; }
+      if(opts.r2Master) rec.basis[sn][col].master_check=A1M.masterCheck(input.r2Master,sn,col,v);   // v0.7 (표시만)
       rec.sinos[sn][col]=v; }); });
   rec.details=(cj.json.details||[]).map(d=>{ const o={}; A1C.DETAIL_FIELDS.forEach(([s2,col])=>{ const f=d[col]||{}; let v=f.value==null?'':String(f.value); const sc=A1C.sourceCheck(v,f.source,quotes);
       if(sc==='出典不一致') rec.sourceIssues.push({sino:'detail',col,value:v,source:f.source||''});
@@ -2307,7 +2416,7 @@ function compareRun(t, answerSis, rec){
       const a=ans[col]==null?'':String(ans[col]), r=recS?(recS[col]==null?'':String(recS[col])):'';
       const j=A1C.judgeField(a,r,s);
       const b=(rec.basis&&rec.basis[sn]&&rec.basis[sn][col])||{};
-      rows.push({contract:t.no,sino:+sn,field:s,col,important:A1C.IMPORTANT.indexOf(s)>=0,answer:a,rec:r,verdict:j.verdict,rules:j.rules.join('+'),basis:b.basis||'',confidence:b.confidence||'',rejected:(b.rejected||[]).join(' '),source:b.source||'',source_check:b.source_check||'',format_check:b.format_check||'',placeholder_removed:b.placeholder_removed||''});
+      rows.push(Object.assign({contract:t.no,sino:+sn,field:s,col,important:A1C.IMPORTANT.indexOf(s)>=0,answer:a,rec:r,verdict:j.verdict,rules:j.rules.join('+'),basis:b.basis||'',confidence:b.confidence||'',rejected:(b.rejected||[]).join(' '),source:b.source||'',source_check:b.source_check||'',format_check:b.format_check||'',placeholder_removed:b.placeholder_removed||''},b.master_check?{master_check:b.master_check}:{}));
     });
   });
   // 명세: v0.3 — 줄 순서가 아니라 품목끼리 짝지어 비교 (등급 약호 · 품명 유사도)
@@ -2356,7 +2465,7 @@ function readOpts(){
   const rounds=$('a1Rounds').value;   // v0.3: R1 / R2 / R1R2 (R0 제외)
   return {models:/R1/.test(rounds)?models:[], useR2:/R2/.test(rounds), rounds, r2Model:$('a1R2Model').value.trim()||A1_DEFAULT_MODEL, withR0:false,
     reps:2, effort:$('a1Effort').value, maxTokens:+$('a1MaxTok').value||32000, judgeModel:$('a1Judge').value.trim(),
-    r0Source:$('a1R0Src').value, priorN:+$('a1PriorN').value||2, conc:+$('a1Conc').value||3};
+    r0Source:$('a1R0Src').value, priorN:+$('a1PriorN').value||2, conc:+$('a1Conc').value||3, r2Master:!!($('a1R2Master')&&$('a1R2Master').checked)};   // v0.7
 }
 /* v0.3: 페이지 안 확인 상자 (confirm()/alert() 는 탭을 멈춰 브라우저 자동화가 끊김) → 누른 버튼의 번호 */
 function askBox(html, buttons){
@@ -2366,9 +2475,9 @@ function askBox(html, buttons){
     box.style.display='flex'; });
 }
 /* 예상 호출 수 · 추정 비용 (파일럿 실측: Opus 5.5 R1 1회 약 US$0.14 — 입력 약 15천 · 출력 약 8천 토큰으로 가정) */
-function planOf(n, opts){
+function planOf(n, opts, masterTok){   // v0.7: masterTok = R2 마스터 블록의 1회 평균 입력 토큰 (스위치 끔 → 0 → v0.6 과 같음)
   const plan=[]; opts.models.forEach(m=>plan.push({label:'R1 '+m,model:m,calls:n*opts.reps,inTok:15000,outTok:8000}));
-  if(opts.useR2){ plan.push({label:'R2① LC 판독 ×2',model:opts.r2Model,calls:n*2,inTok:12000,outTok:6000}); plan.push({label:'R2③ S/I 조립 ×2',model:opts.r2Model,calls:n*2,inTok:15000,outTok:8000}); }
+  if(opts.useR2){ plan.push({label:'R2① LC 판독 ×2',model:opts.r2Model,calls:n*2,inTok:12000,outTok:6000}); plan.push({label:'R2③ S/I 조립 ×2'+(masterTok?' (+마스터 약 '+masterTok.toLocaleString()+' 토큰/회)':''),model:opts.r2Model,calls:n*2,inTok:15000+(masterTok||0),outTok:8000}); }
   if(opts.judgeModel) plan.push({label:'AI 판정',model:opts.judgeModel,calls:n,inTok:5000,outTok:3000});
   return A1C.estimateCost(plan, A1_PRICE);
 }
@@ -2386,7 +2495,7 @@ async function runBench(kind){
   if(kind==='full'){ const fm=$('a1FullModel').value.trim()||A1_DEFAULT_MODEL; if(opts.models.length) opts.models=[fm]; opts.r2Model=fm; }   // 전체 = 대상 전부(이미지 LC · Amend 포함) × 선택 회차 × 2회
   const jobsPer=(opts.withR0?1:0)+opts.models.length*opts.reps+(opts.useR2?3:0);
   if(!jobsPer){ await askBox('실행할 회차가 없습니다 (R1 모델 칸이 비어 있음).',['確認']); return; }
-  const est=planOf(targets.length,opts);
+  const est=planOf(targets.length,opts,r2MasterTokens(targets,opts));
   const ok=await askBox(`<b>${kind==='pilot'?'파일럿':'전체'} 실행</b> — ${targets.length}건 · 회차 ${escH(opts.rounds.replace('R1R2','R1+R2'))}<br>`+
     `<table class="a1-t"><tr><th>회차</th><th>모델</th><th>예상 호출</th><th>추정 US$</th></tr>`+est.lines.map(l=>`<tr><td>${escH(l.label)}</td><td>${escH(l.model)}</td><td>${l.calls}</td><td>${l.priced?l.cost.toFixed(2):'단가 없음'}</td></tr>`).join('')+
     `<tr><td colspan="2"><b>합계</b></td><td>${est.lines.reduce((a,l)=>a+l.calls,0)} (+JSON 재시도)</td><td><b>${est.total.toFixed(2)}</b></td></tr></table>`+
@@ -2421,6 +2530,9 @@ async function runBench(kind){
           afterEtd:!!(etd.first&&lastMod&&lastMod>etd.first), createdBeforeLcIssue:!!(lcIssue&&h.createdon&&String(h.createdon).slice(0,10)<lcIssue)}; })}; cr.lc={files:lcp.files,amendFiles:lcp.amendFiles,image:lcp.image,bank:lcp.bank,lcNo:lcp.lcNo,hexLog:lcp.hexLog,forwarding:lcp.forwarding,amendLog:lcp.amendLog,msgTypes:lcp.msgTypes};
       try{ await spPut(dir+'/lc_text/'+t.no+'.txt','﻿'+lcp.view+'\n\n'+'='.repeat(60)+'\n'+lcp.rawRestored,'text/plain;charset=utf-8'); }catch(e){ logLine(t.no+' 판독 원문 저장 실패: '+e.message,'warn'); }
       const input=await buildR1Input(t,lcp,opts); cr.priors=input.priors; cr.promptChars=input.promptChars;
+      if(opts.useR2 && opts.r2Master){   // v0.7 Step 2: 대상보다 앞선 같은 키 계약만으로 만든 마스터 (누설 금지)
+        input.r2Master=r2MasterFor(t);
+        cr.r2Master=input.r2Master?{from:input.r2Master.from, key:[input.r2Master.key.buyer,input.r2Master.key.bank,input.r2Master.key.applicant].join(' × '), sure:A1M.sureTemplates(input.r2Master), block_chars:A1M.masterPromptBlock(input.r2Master).length}:{from:[], note:'前の契約なし (初回) — マスターなし'}; }
       cr.branch=Object.assign({target:(t.branch||{}).key||'',targetSource:(t.branch||{}).source||''},branchState(t));   // 대상 지점 vs 직전 S/I 지점
       const jobs=opts.withR0?[{kind:'R0'}]:[]; opts.models.forEach(m=>{ jobs.push({kind:'R1',model:m,chain:[1,2]}); }); if(opts.useR2) jobs.push({kind:'R2'});
       await Promise.all(jobs.map(async j=>{
@@ -2470,8 +2582,9 @@ async function runBench(kind){
       // v0.4 Step 4: 칸별 · 양방향 출처 검사 (표시만) — R2 ② 통과 값이 있을 때. 정답 · R1 · R2 모두
       if(cr.r2){
         const lcItems={}; cr.r2.checks.forEach(c=>{ if(c.pass && c.kind==='item') lcItems[c.item]=c.passValue; });
-        const cw=contractWords(input.contract), chk=(fld,sn,val)=>{ const ph=pSis.find(h=>h.crcf9_sino===sn); return A1C.fieldLcCheck(fld,val,lcItems,ph?ph[A1C.COL[fld]]:null,cw,[]); };
-        cr.runs.forEach(rec=>rec.rows.forEach(r=>{ if(!A1C.FIELD_LC_MAP[r.field]||typeof r.sino!=='number') return; const x=chk(r.field,r.sino,r.rec); r.lc_check=x.result; r.lc_extra=x.extra.join(' '); r.lc_missing=x.missing.join(' '); }));
+        const cw=contractWords(input.contract), chk=(fld,sn,val,allow)=>{ const ph=pSis.find(h=>h.crcf9_sino===sn); return A1C.fieldLcCheck(fld,val,lcItems,ph?ph[A1C.COL[fld]]:null,cw,allow||[]); };
+        const mAllow=A1M.masterAllowWords(input.r2Master);   // v0.7 Step 2-6: R2 행만 · 마스터 관행값 낱말 (extra 에만 — missing 에는 쓰지 않음)
+        cr.runs.forEach(rec=>rec.rows.forEach(r=>{ if(!A1C.FIELD_LC_MAP[r.field]||typeof r.sino!=='number') return; const x=chk(r.field,r.sino,r.rec,r.round==='R2'?mAllow:null); r.lc_check=x.result; r.lc_extra=x.extra.join(' '); r.lc_missing=x.missing.join(' '); }));
         cr.answerLcCheck=[]; answer.filter(h=>h.crcf9_sino<=2).forEach(h=>Object.keys(A1C.FIELD_LC_MAP).forEach(fld=>{ const v=h[A1C.COL[fld]]; if(v==null||!String(v).trim()) return; const x=chk(fld,h.crcf9_sino,v); cr.answerLcCheck.push({sino:h.crcf9_sino,field:fld,value:String(v),result:x.result,extra:x.extra.join(' '),missing:x.missing.join(' ')}); }));
       }
       // 2회 일치 (불안정)
@@ -2540,7 +2653,7 @@ function buildOutputs(run){
       tokens_in:u.in,tokens_out:u.out,ms:u.ms},x)));
     const k=runLabel(r); perRun[k]=perRun[k]||{calls:0,in:0,out:0,ms:0,cost:0,runs:0}; perRun[k].runs++; perRun[k].calls+=r.calls.length; perRun[k].in+=u.in; perRun[k].out+=u.out; perRun[k].ms+=u.ms; perRun[k].cost+=u.cost;
   }));
-  const header=['run_id','contract','group','buyer','bank_key','layer','formats','round','model','rep','sino','field','col','important','answer','rec','verdict','rules','aiReason','aiEvidence','basis','confidence','stable','rejected','branch_flag','auto_cat','source','source_check','paired','format_check','placeholder_removed','lc_check','lc_extra','lc_missing','answer_modified','after_etd','tokens_in','tokens_out','ms'];
+  const header=['run_id','contract','group','buyer','bank_key','layer','formats','round','model','rep','sino','field','col','important','answer','rec','verdict','rules','aiReason','aiEvidence','basis','confidence','stable','rejected','branch_flag','auto_cat','source','source_check','paired','format_check','placeholder_removed','master_check','lc_check','lc_extra','lc_missing','answer_modified','after_etd','tokens_in','tokens_out','ms'];
   const csv=A1C.toCsv(header,rows);
   // summary.md
   const pct=x=>(100*x).toFixed(1)+'%';
@@ -2550,7 +2663,7 @@ function buildOutputs(run){
     Object.keys(g).sort().forEach(k=>{ const a=A1C.accuracy(g[k]); s+=`| ${k} | ${a.n} | ${pct(a.match)} | ${a.完全一致} | ${a.表記差} | ${a.内容差} | ${a.推奨なし} | ${a.正解なし} |\n`; }); return s;
   };
   const vr=r=>`${r.round==='R0'?'R0 D-01':r.round+' '+r.model}`;
-  let md=`# A1 「契約/LC → S/I」 推奨精度試験 — ${run.run_id}\n\n- 실행: ${run.started} ~ ${run.finished}${run.stopped?' (중지됨)':''}\n- 대상: ${run.targets.length}건 (${run.kind==='pilot'?'파일럿':'전체'})\n- 설정: 회차 ${run.settings.rounds||''} / R1 = ${run.settings.models.join(' · ')||'—'} × ${run.settings.reps}회 / R2 = ${run.settings.useR2?(run.settings.r2Model+' (① ×2 → ② 검사 → ③ 조립 ×2)'):'—'}, thinking adaptive · effort ${run.settings.effort} · max_tokens ${run.settings.maxTokens} · temperature 미지정 / AI 판정 = ${run.settings.judgeModel}\n- 직전 S/I 규칙: ${run.settings.priorRule}\n- 정답: COMPASS S/I (검증 = 2609 이전 계약)\n`;
+  let md=`# A1 「契約/LC → S/I」 推奨精度試験 — ${run.run_id}\n\n- 실행: ${run.started} ~ ${run.finished}${run.stopped?' (중지됨)':''}\n- 대상: ${run.targets.length}건 (${run.kind==='pilot'?'파일럿':'전체'})\n- 설정: 회차 ${run.settings.rounds||''} / R1 = ${run.settings.models.join(' · ')||'—'} × ${run.settings.reps}회 / R2 = ${run.settings.useR2?(run.settings.r2Model+' (① ×2 → ② 검사 → ③ 조립 ×2)'+(run.settings.r2Master?' · マスター使用 (v0.7)':'')):'—'}, thinking adaptive · effort ${run.settings.effort} · max_tokens ${run.settings.maxTokens} · temperature 미지정 / AI 판정 = ${run.settings.judgeModel}\n- 직전 S/I 규칙: ${run.settings.priorRule}\n- 정답: COMPASS S/I (검증 = 2609 이전 계약)\n`;
   md+=`\n## 1. 대상\n\n| 계약 | 그룹 | 층 · 형식 | 바이어 | 은행 키 | LC 번호 | 직전 S/I (같은 은행) | 참고 (다른 은행) | 이미지 LC | Amend |\n|---|---|---|---|---|---|---|---|---|---|\n`;
   run.contracts.slice().sort((a,b)=>a.no.localeCompare(b.no)).forEach(c=>{ const t=run.targets.find(x=>x.no===c.no)||{}; md+=`| ${c.no} | ${c.group} | ${(c.formats||[]).join('+')} | ${c.buyer} | ${c.bankKey} | ${t.lcNo||''} | ${(c.priors&&c.priors.same||[]).join(', ')||'없음'} | ${(c.priors&&c.priors.other||[]).join(', ')} | ${t.image?'○':''} | ${t.amends||0} |\n`; });
   md+=`\n## 2. 정확도 (正解なし 제외. 一致率 = (完全一致+表記差)/비교 칸)\n`;
@@ -2609,6 +2722,16 @@ function buildOutputs(run){
     md+=`\n**FORMAT_CHANGED · LC_REQUIRED_WORDING 목록** (${fcl.length})\n\n| 계약 | 회 | sino | 칸 | 추천 | 정답 | 판정 | format_check |\n|---|---|---|---|---|---|---|---|\n`+(fcl.map(r=>`| ${r.contract} | ${r.rep} | ${r.sino} | ${r.field} | ${cellx(r.rec)} | ${cellx(r.answer)} | ${r.verdict} | ${r.format_check} |`).join('\n')||'| — | | | | | | | |')+'\n';
     const phl=[]; run.contracts.forEach(c=>c.runs.filter(r=>r.round==='R2').forEach(r=>(r.placeholderRemoved||[]).forEach(x=>phl.push(Object.assign({no:c.no,rep:r.rep},x)))));
     md+=`\n**placeholder_removed** (자리표시 XX 를 넣지 않음 — 직전 S/I 의 같은 칸이 비어 있음 · 직전 없음의 vo_no) (${phl.length})\n\n| 계약 | 회 | sino | 칸 | 모델 값 | 이유 |\n|---|---|---|---|---|---|\n`+(phl.map(x=>`| ${x.no} | ${x.rep} | ${x.sino} | ${x.col} | ${cellx(x.value)} | ${x.reason} |`).join('\n')||'| — | | | | | |')+'\n';
+    // v0.7 Step 2-4 — master_check (R2 마스터 사용일 때만)
+    const mcRows=rows.filter(r=>r.round==='R2'&&r.master_check);
+    if(mcRows.length){
+      const MC=['MASTER_SAME','MASTER_DIFF','NO_MASTER'], mc={}; mcRows.forEach(r=>{ const k='R2 #'+r.rep; mc[k]=mc[k]||{}; mc[k][r.master_check]=(mc[k][r.master_check]||0)+1; });
+      const sureOf=(no,sn,col)=>{ const c=run.contracts.find(x=>x.no===no); return c&&c.r2Master&&c.r2Master.sure?(c.r2Master.sure[sn+'|'+col]||''):''; };
+      const mdl=mcRows.filter(r=>r.master_check==='MASTER_DIFF');
+      md+=`\n### master_check (v0.7 — R2 マスター使用 · 칸 수)\n\n| 회 | ${MC.join(' | ')} |\n|---|---|---|---|\n`+Object.keys(mc).sort().map(k=>`| ${k} | ${MC.map(f=>mc[k][f]||0).join(' | ')} |`).join('\n')+'\n';
+      md+=`\n| 계약 | 마스터 출처 (대상보다 앞선 같은 키 계약) |\n|---|---|\n`+run.contracts.filter(c=>c.r2Master).sort((a,b)=>a.no.localeCompare(b.no)).map(c=>`| ${c.no} | ${c.r2Master.from.length?c.r2Master.from.join(', '):c.r2Master.note} |`).join('\n')+'\n';
+      md+=`\n**MASTER_DIFF 목록** (${mdl.length})\n\n| 계약 | 회 | sino | 칸 | 추천 | 마스터 확실 틀 | 정답 | 판정 |\n|---|---|---|---|---|---|---|---|\n`+(mdl.map(r=>`| ${r.contract} | ${r.rep} | ${r.sino} | ${r.field} | ${cellx(r.rec)} | ${cellx(sureOf(r.contract,r.sino,r.col))} | ${cellx(r.answer)} | ${r.verdict} |`).join('\n')||'| — | | | | | | | |')+'\n';
+    }
     const lcC={}; const addC=(who,fld,res)=>{ lcC[fld]=lcC[fld]||{}; lcC[fld][who]=lcC[fld][who]||{n:0,ng:0}; lcC[fld][who].n++; if(res==='LC確認') lcC[fld][who].ng++; };
     run.contracts.forEach(c=>(c.answerLcCheck||[]).forEach(x=>addC('正解',x.field,x.result)));
     rows.filter(r=>r.lc_check&&(r.round==='R1'||r.round==='R2')).forEach(r=>addC(r.round,r.field,r.lc_check));
@@ -2651,7 +2774,7 @@ function buildOutputs(run){
   md+=`\n---\n✦ Powered by LEENAI Automation System\n`;
   const json={run_id:run.run_id, kind:run.kind, started:run.started, finished:run.finished, stopped:!!run.stopped, version:'a1_bench v'+a1Version(), settings:run.settings, targets:run.targets,
     perRun, failures:run.failures, contracts:run.contracts.map(c=>({no:c.no,group:c.group,buyer:c.buyer,bankKey:c.bankKey,branch:c.branch,priors:c.priors,promptChars:c.promptChars,answerSinos:c.answerSinos,lc:c.lc,judgeUsage:c.judgeUsage,failures:c.failures,
-      answerLcCheck:c.answerLcCheck,runs:c.runs.map(r=>({round:r.round,model:r.round==='R0'?A1_R0_MODEL:r.model,rep:r.rep,calls:r.calls,notes:r.notes,pastSi:r.pastSi,pastReason:r.pastReason,applyRes:r.applyRes,rejected:r.rejected,placeholderRemoved:r.placeholderRemoved,aiNotes:r.aiNotes,sinos:r.sinos,details:r.details,basis:r.basis,lcJson:r.lcJson,rows:r.rows}))}))};
+      answerLcCheck:c.answerLcCheck,r2Master:c.r2Master,runs:c.runs.map(r=>({round:r.round,model:r.round==='R0'?A1_R0_MODEL:r.model,rep:r.rep,calls:r.calls,notes:r.notes,pastSi:r.pastSi,pastReason:r.pastReason,applyRes:r.applyRes,rejected:r.rejected,placeholderRemoved:r.placeholderRemoved,aiNotes:r.aiNotes,sinos:r.sinos,details:r.details,basis:r.basis,lcJson:r.lcJson,rows:r.rows}))}))};
   json.siHistory=run.contracts.map(c=>({no:c.no,siHistory:c.siHistory,layer:c.layer,formats:c.formats}));
   json.lcJsonDiff=run.lcJsonDiff||[];
   const siChangesCsv=A1C.toCsv(['layer','prev_contract','contract','sino','field','change','prev','cur'],run.siChanges||[]);
@@ -2698,6 +2821,14 @@ function renderSummary(out){
    v0.6 — マスター草案 (코드만 · 읽기만). 쓰기는 「保存」 을 눌러 확인한 뒤 master_draft/ 에만
 ============================================================ */
 const A1_SP_MASTER_DIR = A1_SP_OUT_DIR+'/master_draft';
+/* v0.7 Step 2: R2 대상 t 의 마스터 — 대상 목록 안에서 t 보다 앞선 같은 키(바이어 × 은행 × 신청 회사) 계약만 */
+function r2MasterFor(t){ const items=masterItems(), me=items.find(x=>x.no===t.no); return me?A1M.buildMasterFor(me,items):null; }
+function r2MasterTokens(targets, opts){   // 예상 비용 상자용 — 마스터 블록 1회 평균 글자 수 ÷ 3
+  if(!opts.useR2||!opts.r2Master||!targets.length) return 0;
+  const items=masterItems(); let sum=0;
+  targets.forEach(t=>{ const me=items.find(x=>x.no===t.no), mf=me&&A1M.buildMasterFor(me,items); if(mf) sum+=A1M.masterPromptBlock(mf).length; });
+  return Math.ceil(sum/targets.length/3);
+}
 function masterItems(){
   return S.targets.slice().sort((a,b)=>a.no.localeCompare(b.no)).map(t=>{
     const lc=S.lcParsed[t.no]||{}, cur=lc.current||{}, tags={};
@@ -2716,11 +2847,11 @@ function runMasterDraft(){
   const msg=`マスター草案 — 키 ${S.master.keys.length} · 바이어×은행 ${S.master.pairs} · 계약 ${S.master.contracts} (${Math.round(performance.now()-t0)}ms)`;
   $('a1MasterStatus').textContent=msg; logLine(msg,'ok');
 }
-const phHtml = s => escH(s).replace(/\{(APPLICANT_NAME|APPLICANT_ADDR|LC_NO|LC_DATE|PO|HS|VO)\}/g,'<span class="a1-ph">{$1}</span>');
+const phHtml = s => escH(s).replace(/\{(APPLICANT_NAME|APPLICANT_ADDR|LC_NO|LC_DATE|PO|HS|VO|CONTRACT_NO)\}/g,'<span class="a1-ph">{$1}</span>');
 function renderMaster(){
   const d=S.master, tot={確実:0,確認要:0,単発:0}; d.keys.forEach(k=>Object.keys(tot).forEach(s=>{ tot[s]+=k.counts[s]; }));
   const nDiff=d.keys.reduce((n,k)=>n+k.lc_diff.length,0), nUnk=d.keys.filter(k=>k.bank_unknown).length;
-  $('a1MasterSummary').innerHTML=`<div class="a1-kpis"><div><b>키 (바이어×은행×신청회사)</b>${d.keys.length}</div><div><b>바이어 × 은행</b>${d.pairs}</div><div><b>계약</b>${d.contracts}</div><div><b>確実 칸</b>${tot.確実}</div><div><b>確認要 칸</b>${tot.確認要}</div><div><b>単発 칸</b>${tot.単発}</div><div><b>LC와 다름</b>${nDiff}</div><div><b>은행 사람 입력</b>${nUnk}</div></div>`;
+  $('a1MasterSummary').innerHTML=`<div class="a1-kpis"><div><b>키 (바이어×은행×신청회사)</b>${d.keys.length}</div><div><b>바이어 × 은행</b>${d.pairs}</div><div><b>계약</b>${d.contracts}</div><div><b>確実 칸</b>${tot.確実}</div><div><b>確認要 칸</b>${tot.確認要}</div><div><b>単発 칸</b>${tot.単発}</div><div><b>LC와 다름</b>${nDiff}</div><div><b>当社番号 候補</b>${(d.own_candidates||[]).length}</div><div><b>은행 사람 입력</b>${nUnk}</div></div>`;
   $('a1MasterTable').innerHTML='<table class="a1-t"><thead><tr><th>바이어</th><th>은행</th><th>신청 회사 (:50 첫 줄)</th><th>계약</th><th>sino</th><th>確実</th><th>確認要</th><th>単発</th><th>관행값</th><th>LC와 다름</th></tr></thead><tbody>'+
     d.keys.map((k,i)=>`<tr class="a1-mk" data-mk="${i}"><td>${escH(k.buyer)}</td><td>${escH(k.bank)}${k.bank_unknown?' <span class="a1-warn">은행 사람 입력 필요</span>':''}</td><td>${escH(k.applicant||'(申請会社不明)')}</td><td>${k.n}</td><td>${escH(Object.keys(k.sino_composition).join(' / '))}</td>`+
       `<td class="a1-st-確実">${k.counts.確実}</td><td class="a1-st-確認要">${k.counts.確認要||''}</td><td class="a1-st-単発">${k.counts.単発||''}</td><td>${escH(A1M.practiceSummary(k.practices))}</td><td>${k.lc_diff.length?'<span class="a1-warn">'+k.lc_diff.length+'</span>':''}</td></tr>`+
@@ -2730,7 +2861,7 @@ function masterDetailHtml(k){
   const rows=k.fields.map(f=>`<tr><td>${f.sino}</td><td>${escH(f.field)}</td><td class="a1-st-${f.status}">${f.status}</td><td>${f.n}</td><td>`+
     f.templates.map(t=>`<div class="a1-tpl">${f.templates.length>1?(t.recommended?'⭐推奨 ':'· '):''}${t.empty?'<i>(空欄)</i>':phHtml(t.template)}</div>`+
       (f.templates.length>1||t.date_formats.length||t.addr_lines?`<div class="a1-note" style="margin:0 0 6px">${f.templates.length>1?escH(t.contracts.join(', ')):''}${t.date_formats.length?' · 日付 '+escH(t.date_formats.join(' / ')):''}${t.addr_lines?' · 住所行 '+escH(t.addr_lines):''}</div>`:'')).join('')+'</td></tr>').join('');
-  const pr=Object.keys(A1M.PRACTICE_LABEL).filter(x=>k.practices[x]&&k.practices[x].length).map(x=>k.practices[x].map(e=>`<tr><td>${escH(A1M.PRACTICE_LABEL[x])}</td><td class="a1-tpl">${escH(e.value)}</td><td>${escH(e.first)} → ${escH(e.last)} (${e.count})</td><td>${escH(e.where.join(' '))}</td></tr>`).join('')).join('');
+  const pr=Object.keys(A1M.PRACTICE_LABEL).filter(x=>k.practices[x]&&k.practices[x].length).map(x=>k.practices[x].map(e=>`<tr><td>${escH(e.owner==='own'?'当社番号 ('+A1M.PRACTICE_LABEL[x]+')':A1M.PRACTICE_LABEL[x])}</td><td class="a1-tpl">${escH(e.value)}</td><td>${escH(e.first)} → ${escH(e.last)} (${e.count})</td><td>${escH(e.where.join(' '))}</td></tr>`).join('')).join('');
   return `<div class="a1-note">계약: ${escH(k.contracts.join(', '))}${k.unused_fields.length?' · 使わない: '+escH(k.unused_fields.map(u=>u.sino+':'+u.field).join(' ')):''}</div>`+
     `<table class="a1-t"><thead><tr><th>sino</th><th>칸</th><th>상태</th><th>계약</th><th>틀 (자리 = 색)</th></tr></thead><tbody>${rows}</tbody></table>`+
     (pr?`<table class="a1-t"><thead><tr><th>관행값</th><th>값</th><th>처음 → 마지막 (계약 수)</th><th>칸</th></tr></thead><tbody>${pr}</tbody></table>`:'')+
@@ -2746,7 +2877,8 @@ function masterStamp(){ const d=new Date(), p=n=>String(n).padStart(2,'0'); retu
 function masterOutputs(stamp){
   const d=S.master, dir=A1_SP_MASTER_DIR;
   const json={schema:'a1_master_buyer_bank_draft/0.1', status:'草案 (DOC-Z-07 共通マスターには未登録)', generated_at:d.generated_at, version:d.version,
-    placeholders:{APPLICANT_NAME:':50 1行目',APPLICANT_ADDR:':50 残りの行 (addr_lines = 使った行)',LC_NO:':20',LC_DATE:':31C (date_formats = 見つけた形式)',PO:'LC 45A/47A の PO 番号',HS:'LC 45A の HS コード',VO:'値の中の VO NUMBER (メール出所)'},
+    placeholders:{APPLICANT_NAME:':50 1行目',APPLICANT_ADDR:':50 残りの行 (addr_lines = 使った行)',LC_NO:':20',LC_DATE:':31C (date_formats = 見つけた形式)',PO:'LC 45A/47A の PO 番号',HS:'LC 45A の HS コード',VO:'値の中の VO NUMBER (メール出所)',CONTRACT_NO:'当社 販売契約番号 (LRS-… / LRS- なし)'},
+    owner_rule:{own:'当社番号 — 定数 '+A1M.OWN_NUMBERS.join(',')+' · shipper_address 欄 · 同じ行の同じ # 区間に LEENEAR/SHIPPER/EXPORTER/BENEFICIARY (LC: :59 · 受益者の近く)',buyer:'それ以外 (LC: :50 · 申請会社の近く · NPWP OF APPLICANT 等)',lc_diff:'同じ主人・同じ種類のみ対照 (LC 側 unknown も対照 · 当社番号は対照しない)'},
     status_rule:{確実:'契約 2 件以上 · 틀 1つ',確認要:'틀 2つ以上 (recommended = 最新契約の틀)',単発:'契約 1 件'},
     contracts:d.contracts, pairs:d.pairs, keys:d.keys};
   return {dir, json:JSON.stringify(json,null,1), csv:A1C.toCsv(A1M.CSV_HEAD,A1M.toCsvRows(d)), md:A1M.toSummaryMd(d,{generated_at:d.generated_at,version:d.version,dir}),
@@ -2795,7 +2927,7 @@ function startBench(){
 }
 
 LEENAI.init({
-  sys:'D-00', name:'A1 SI推奨精度試験', version:'0.6', date:'2026-11-16',
+  sys:'D-00', name:'A1 SI推奨精度試験', version:'0.7', date:'2026-11-16',
   desc:'契約/LC → S/I 推奨を COMPASS S/I と欄ごとに比較 (読み取り専用・結果は SharePoint へ)',
   graphScopes:['Sites.ReadWrite.All'],
   redirectUri:'https://mhlee205.github.io/CONTRACT_SEND/a1_bench.html',
