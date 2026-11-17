@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link id="leenaiFavicon" rel="icon">
+<link rel="stylesheet" href="https://mhlee205.github.io/LEENAI_COMMON/v1/leenai-common.css">
+<script src="https://mhlee205.github.io/LEENAI_COMMON/v1/leenai-common.js"></script>
+<script>if(!window.LEENAI){document.addEventListener('DOMContentLoaded',function(){document.body.innerHTML='<div style="padding:40px;font-family:sans-serif">共通ファイルの読み込みに失敗しました。ページを再読み込みしてください。</div>';});}</script>
+<style>
+.ab-card{background:var(--read);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-bottom:14px}
+.ab-card h3{margin:0 0 10px;font-size:14px}
+.ab-note{font-size:12px;color:var(--text2);line-height:1.7;margin:4px 0 8px}
+.ab-row{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:6px 0}
+.ab-row label{font-size:12px;color:var(--text2);display:flex;gap:6px;align-items:center}
+.ab-in{background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-size:12.5px;font-family:var(--mono)}
+.ab-btn{background:var(--accent-btn,var(--accent));color:#fff;border:0;border-radius:6px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer}
+.ab-btn:disabled{opacity:.45;cursor:not-allowed}
+.ab-btn.ghost{background:transparent;color:var(--text);border:1px solid var(--border)}
+.ab-t{border-collapse:collapse;width:100%;font-size:12px;margin-top:6px}
+.ab-t th,.ab-t td{border:1px solid var(--border);padding:4px 6px;text-align:left;vertical-align:top}
+.ab-t th{background:var(--surface2);position:sticky;top:0}
+.ab-t td.v{font-family:var(--mono);white-space:pre-wrap;word-break:break-all;max-width:420px}
+.ab-scroll{max-height:520px;overflow:auto}
+.ab-kpis{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0}
+.ab-kpis div{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px}
+.ab-kpis b{display:block;font-size:11px;color:var(--text2);font-weight:600}
+.ab-ok{color:var(--ok)}.ab-warn{color:var(--warn)}.ab-ng{color:var(--danger);font-weight:700}
+.ab-drop{background:rgba(255,80,80,.22);text-decoration:line-through}.ab-add{background:rgba(80,200,120,.25)}
+tr.ab-d td{background:var(--surface)}
+#abLog{font-family:var(--mono);font-size:11.5px;max-height:220px;overflow:auto;line-height:1.6}
+#abLog .ok{color:var(--ok)}#abLog .warn{color:var(--warn)}#abLog .danger{color:var(--danger)}
+.ab-foot{text-align:center;font-size:11px;color:var(--text2);padding:18px 0 28px}
+</style>
+</head>
+<body>
+<div id="app" style="display:none">
+<main id="abMain" style="display:none;max-width:1300px;margin:0 auto;padding:20px 16px">
+
+  <div class="ab-card">
+    <h3>ACL 照合試験 — ACL (NACCS) ↔ COMPASS (S/I · ブッキング · コンテナ) 100% 照合 (読むだけ)</h3>
+    <div class="ab-note">SharePoint の <code>{Invoice}_ACL.pdf</code> を<b>座標で</b>読み、COMPASS の S/I (sino 1) · ブッキング · コンテナ (セット) と<b>一字一句</b>比べます。基準は <b>COMPASS S/I</b> (L/C ではない · 형님 C3)。
+    AI 呼び出しなし (費用 0) · COMPASS · SharePoint 原本は<b>読むだけ</b> · 保存は <code>古紙/-. AI 活用/D-00/ACL_bench/</code> の下だけ。<br>
+    判定: 完全一致 / 表記差のみ (改行・空白だけ違う — 自動 OK ではない) / 相違あり / 読取確認要 (座標があいまい) / 読取対象外 (スキャン・その他の様式) / COMPASS照会不可</div>
+  </div>
+
+  <div class="ab-card">
+    <h3>① ACL 一覧 (Step 1)</h3>
+    <div class="ab-row"><button id="abList" class="ab-btn">ACL 一覧</button><span id="abListSt" class="ab-note" style="margin:0"></span></div>
+    <div class="ab-note">Graph 検索 「_ACL」 → <code>古紙/-. 古紙書類/▲ 書類作成中/</code> · <code>古紙/_OLD_DOC/</code> の下の <code>{Invoice}_ACL.pdf</code> だけ。同じ Invoice に複数あれば最新 1 つ (他は一覧に表示)。PDF を読んで様式を判定します。</div>
+    <div id="abListOut"></div>
+  </div>
+
+  <div class="ab-card">
+    <h3>② 照合 (Step 3 · 4)</h3>
+    <div class="ab-row">
+      <label>Invoice 指定 (空 = NACCS 全部 · 1 行 1 件) <textarea id="abInv" class="ab-in" rows="3" style="width:260px"></textarea></label>
+      <button id="abRun" class="ab-btn" disabled>照合 実行</button>
+      <button id="abStop" class="ab-btn ghost" disabled>止める</button>
+    </div>
+    <div id="abRunSt" class="ab-note"></div>
+  </div>
+
+  <div class="ab-card">
+    <h3>③ 結果</h3>
+    <div id="abKpis"></div>
+    <div id="abKinds"></div>
+    <div id="abResults"></div>
+  </div>
+
+  <div class="ab-card">
+    <h3>④ 保存</h3>
+    <div class="ab-row"><button id="abSave" class="ab-btn" disabled>保存 (results.json · results.csv · summary.md)</button>
+      <label><input type="checkbox" id="abSaveCoords"> 座標も保存 (読み取り調整用 · coords/{Invoice}.json)</label></div>
+    <div id="abSaveSt" class="ab-note"></div>
+  </div>
+
+  <div class="ab-card"><h3>記録</h3><div id="abLog"></div></div>
+  <div class="ab-foot">✦ Powered by LEENAI Automation System</div>
+</main>
+</div>
+
+<script id="acl-core">
+/* ============================================================
+   ACL 照合 — 純粋ロジック (DOM · 通信なし · node 試験対象)
+   指示書: (2026-11-17)THOR_指示書_D00_ACL대조시험도구_acl_bench_v0.1 · 형님 C1~C4
+   出典: D-01 MHLEE205/LC_FD_CHECKER v3.2 (28abc7f) — readAclPdfPages (座標項目) · pageLines · parseNaccsFlags (ラベル真下の値) · fetchCompassShipment (Invoice → booking → container → S/I) の考え方を流用し、
+         値の取り方は「ラベル = セルの左上、セルの右端 = 同じ行の次のラベル、下端 = 下にある次のラベル」 の座標方式に作り直した。
+         D-03 MHLEE205/Shipping_Document v4.11 (d3fdb93) — renderSI (S/I 書類の各欄の文面) · substituteBlText1 · aggregateItems · _productNameCandidates をそのまま移植
+============================================================ */
+const ACL = (()=>{
+  const SP_OUT = '古紙/-. AI 活用/D-00/ACL_bench';
+  const SRC_DIRS = ['古紙/-. 古紙書類/▲ 書類作成中/', '古紙/_OLD_DOC/'];   // F1
+  const ISO = /^[A-Z]{4}\d{7}$/;
+  /* D-03 v4.11 renderSI が S/I 欄が空のときに印字する既定値 (D-03 と同じ文字 — D-03 が変われば合わせる) */
+  const D03 = {shipperName:'LEENEAR CORPORATION', shipperAddr:'VORT SUIDOBASHI 3 5FL, 2-8-11 KANDASARUGAKUCHO, CHIYODA, TOKYO, JAPAN, 101-0064',
+    shipperTel:'TEL : +81-3-3528-9850', shipperFax:'FAX : +81-3-3528-9851', noMark:'NO MARK', freight:'FREIGHT PREPAID AS ARRANGED'};
+
+  const norm = s => String(s==null?'':s).replace(/\s+/g,' ').trim();
+  const lc = s => String(s==null?'':s).toLowerCase();
+
+  /* ── Step 1: 対象 ── */
+  function invoiceOf(name){ const m=String(name||'').match(/^(.+?)_ACL\.pdf$/i); return m?m[1].trim():null; }
+  function relPath(p){ let s=String(p||''); try{ s=decodeURIComponent(s); }catch(e){} return s.replace(/^\/drives\/[^/]+\/root:\/?/,'').replace(/^\/+/,''); }
+  function inSourceDirs(path){ const p=relPath(path)+'/'; return SRC_DIRS.some(d=>p.indexOf(d)===0); }
+  /* items: [{id,name,path,lastModifiedDateTime,size}] → {targets:[{invoice,file,others}], skipped:[{name,path,why}]} */
+  function groupTargets(items){
+    const by={}, skipped=[];
+    (items||[]).forEach(it=>{
+      if(!/\.pdf$/i.test(it.name||'')) return;
+      if(!inSourceDirs(it.path)){ if(/_ACL/i.test(it.name)) skipped.push({name:it.name, path:relPath(it.path), why:'対象フォルダ外'}); return; }
+      const inv=invoiceOf(it.name); if(!inv){ skipped.push({name:it.name, path:relPath(it.path), why:'名前が {Invoice}_ACL.pdf でない'}); return; }
+      const k=inv.toUpperCase(); (by[k]=by[k]||{invoice:inv, files:[]}).files.push(Object.assign({},it,{path:relPath(it.path)}));
+    });
+    const targets=Object.keys(by).sort().map(k=>{ const g=by[k];
+      g.files.sort((a,b)=>String(b.lastModifiedDateTime||'').localeCompare(String(a.lastModifiedDateTime||''))||a.path.localeCompare(b.path));
+      return {invoice:g.invoice, file:g.files[0], others:g.files.slice(1)}; });
+    return {targets, skipped};
+  }
+
+  /* ── 様式の判定 (F2) ── */
+  function pageText(items){ return pageLines(items).join('\n'); }
+  function classifyFormat(pages){
+    const all=(pages||[]).map(p=>pageText(p.items||[])).join('\n'), n=all.replace(/\s/g,'').length;
+    if(n<20) return {format:'SCAN', why:'文字なし (スキャン)'};
+    const one=norm(pageText((pages[0]||{}).items||[]));
+    if(/Number of Original B\(S\)\/L/i.test(one) && /Place of B\(S\)\/L Issue/i.test(one)) return {format:'NACCS', why:'NACCS 標準様式'};
+    return {format:'OTHER', why:'NACCS 標準様式でない (その他の様式)'};
+  }
+
+  /* ── 座標: 項目 → 行 · 句 ── items: [{s,x,y,w}] (pdf.js textContent · 左下原点) ── */
+  const LINE_TOL=1.6, GAP=4.5;
+  function pageLines(items){
+    const ls=[]; (items||[]).filter(i=>String(i.s).trim()).slice().sort((a,b)=>(b.y-a.y)||(a.x-b.x)).forEach(it=>{ const l=ls.find(L=>Math.abs(L.y-it.y)<=LINE_TOL); if(l) l.p.push(it); else ls.push({y:it.y,p:[it]}); });
+    return ls.map(l=>l.p.sort((a,b)=>a.x-b.x).map(p=>String(p.s).trim()).join(' '));
+  }
+  /* 句 = 同じ行で間が GAP 以下の項目をつないだもの {s,x1,x2,y} */
+  function phrases(items){
+    const ls=[]; (items||[]).filter(i=>String(i.s).trim()).slice().sort((a,b)=>(b.y-a.y)||(a.x-b.x)).forEach(it=>{ const l=ls.find(L=>Math.abs(L.y-it.y)<=LINE_TOL); if(l) l.p.push(it); else ls.push({y:it.y,p:[it]}); });
+    const out=[];
+    ls.forEach(l=>{ l.p.sort((a,b)=>a.x-b.x); let cur=null;
+      l.p.forEach(it=>{ const s=String(it.s), x2=it.x+(+it.w||s.length*4);
+        // ラベルと値が同じ行で近いとき、つないでラベルを壊さない (完成したラベル + 続き / 単独でラベルの項目 は別の句)
+        const joinBreaksLabel=cur && ((labelKey(cur.s)&&!labelKey(cur.s+' '+s)) || (labelKey(s)&&!labelKey(cur.s+' '+s)));
+        if(cur && it.x-cur.x2<=GAP && !joinBreaksLabel){ cur.s+=(it.x-cur.x2>0.8||/\s$/.test(cur.s)?' ':'')+s; cur.x2=Math.max(cur.x2,x2); cur.items.push(it); }
+        else { cur={s, x1:it.x, x2, y:l.y, items:[it]}; out.push(cur); } }); });
+    out.forEach(p=>{ p.s=norm(p.s); });
+    return out;
+  }
+
+  /* NACCS のラベル (セルの左上に印字される見出し)。値の区切りに使うため、取り出さない見出しも並べる */
+  const LABELS = {
+    shipper:'Shipper', consignee:'Consignee', notify:'Notify Party', alsoNotify:'Also Notify Party', booking:'Booking No.', carrier:'Carrier/Shipping Agent',
+    masterBl:'Master B/L No.', refNo:'Ref No.', vessel:'Ocean Vessel', voy:'Voy.No.', preCarriage:'Pre-Carriage By', receipt:'Place of Receipt', pol:'Port of Loading',
+    pod:'Port of Discharge', delivery:'Place of Delivery', finalDest:'Final Destination', originals:'Number of Original B(S)/L', issuePlace:'Place of B(S)/L Issue',
+    payPlace:'Place of Payment', wayBill:'Way Bill', received:'Received B/L', freight:'Freight As Arranged', forwarder:"Forwarder's Name", hsMain:'HS Code(Main)', hs:'HS Code',
+    marks:'Marks & No.', description:'Description of Goods', totalContainers:'Total Number of Containers', totalPkgs:'Total Number and Kind of Packages',
+    totalWeight:'Total Weight', totalMeasure:'Total Measurement', pkgs2:'Number and Kind of Packages', attached:'Attached Sheet', cyCfs:'CY/CFS Code',
+    agentSign:'Agent Signature', requestId:'Request Identifier', regDate:'Registration Date', registrant:'Registrant', invoiceNo:'Invoice No.', lcNo:'L/C No.', orderNo:'Order No.',
+    remarks:'Remarks', cargoNo:'Cargo No.',
+    colContainer:'Container No.', colSeal:'Seal No.', colType:'Type', colSize:'Size', colPkgs:'Number and kind', colCargo:'Cargo Weight', colMeasure:'Measurement', colTare:'Tare', colTemp:'Temp',
+    gross:'Gross', net:'Net', weight:'Weight', ofPackages:'of Packages', numberOf:'Number of', containers:'Containers', ofPackages2:'Packages'
+  };
+  const LABEL_KEY = {}; Object.keys(LABELS).forEach(k=>{ LABEL_KEY[lc(LABELS[k])]=k; });
+  const labelKey = s => LABEL_KEY[lc(norm(s))]||null;
+  const isNoise = s => /^\d\)$/.test(s);
+  const COLS = ['colContainer','colSeal','colType','colSize','colPkgs','colCargo','colMeasure','colTare','colTemp'];
+
+  /* ページを解析: 句 · ラベル */
+  function layout(items, pageW){
+    const ph=phrases(items); ph.forEach(p=>{ p.label=labelKey(p.s); p.noise=!p.label&&isNoise(p.s); });
+    return {ph, labels:ph.filter(p=>p.label), pageW:pageW||Math.max(612,...ph.map(p=>p.x2+1))};
+  }
+  /* セル: ラベル L の左上から、右 = 同じ行で右にある次のラベル、下 = 横に重なる下の次のラベル */
+  function cellOf(pg, L){
+    const x1=L.x1-2, right=pg.labels.filter(o=>o!==L&&Math.abs(o.y-L.y)<=4&&o.x1>L.x1+5).reduce((m,o)=>Math.min(m,o.x1),pg.pageW+1), x2=right-1;
+    const below=pg.labels.filter(o=>o!==L&&o.y<L.y-3&&o.x1<x2&&o.x2>x1).reduce((m,o)=>Math.max(m,o.y),-1e9);
+    const bottom=below>-1e9?below+2:-1e9;
+    const inY=p=>p.y<=L.y+2&&p.y>bottom;
+    const vals=[], amb=[];
+    pg.ph.forEach(p=>{ if(p===L||p.label||p.noise||!inY(p)) return;
+      if(p.y>=L.y-2 && p.x1<L.x2) return;   // ラベルと同じ行でラベルより左
+      const starts=p.x1>=x1-1&&p.x1<x2;
+      if(starts && p.x2>x2+3) amb.push(p);              // 右のセルにはみ出す (左のセルから入り込んだ値は、始まったセルの側で 位置あいまい になる)
+      if(starts) vals.push(p); });
+    const lines=[]; vals.slice().sort((a,b)=>(b.y-a.y)||(a.x1-b.x1)).forEach(p=>{ const l=lines.find(q=>Math.abs(q.y-p.y)<=LINE_TOL); if(l) l.p.push(p); else lines.push({y:p.y,p:[p]}); });
+    const text=lines.map(l=>l.p.sort((a,b)=>a.x1-b.x1).map(p=>p.s).join(' ')).join('\n');
+    return {text, x1, x2, top:L.y+2, bottom, open:bottom===-1e9, conf:amb.length?'AMBIGUOUS':'SURE', amb:amb.map(p=>p.s)};
+  }
+
+  /* ── Step 2: NACCS ACL を読む ── pages: [{page, items, w}] ── */
+  const HEAD_KEYS=['shipper','consignee','notify','alsoNotify','booking','masterBl','refNo','vessel','voy','receipt','pol','pod','delivery','finalDest','originals','issuePlace','wayBill','received','freight','hsMain','description','marks','totalContainers','totalPkgs','totalWeight','totalMeasure'];
+  const num = s => { const m=String(s||'').replace(/,/g,'').match(/-?\d+(?:\.\d+)?/); return m?+m[0]:null; };
+  function tokensOn(items, y){   // 行の語 (各語の x を文字位置から推定)
+    const out=[]; items.filter(i=>Math.abs(i.y-y)<=2.5).forEach(it=>{ const s=String(it.s), w=+it.w||s.length*4, cw=s.length?w/s.length:4; let re=/\S+/g, m; while((m=re.exec(s))) out.push({s:m[0], x:it.x+m.index*cw}); });
+    return out.sort((a,b)=>a.x-b.x);
+  }
+  function readNaccs(pages){
+    const lays=(pages||[]).map(p=>layout(p.items||[], p.w));
+    const fields={};
+    HEAD_KEYS.forEach(k=>{
+      let hit=null; lays.some((pg,pi)=>{ const Ls=pg.labels.filter(l=>l.label===k).sort((a,b)=>b.y-a.y); if(Ls.length){ hit={pg, L:Ls[0], page:pi+1}; return true; } return false; });
+      if(!hit){ fields[k]={text:'', conf:'MISSING', page:null}; return; }
+      const c=cellOf(hit.pg, hit.L); fields[k]={text:c.text, conf:c.conf, page:hit.page, amb:c.amb};
+    });
+    // コンテナ (セット) — ページごとの見出し列 (無ければ前ページの列を引き継ぐ)
+    let cols=null; const rows=[];
+    lays.forEach((pg,pi)=>{
+      const hs=COLS.map(k=>{ const L=pg.labels.filter(l=>l.label===k).sort((a,b)=>b.y-a.y)[0]; return L?{k, x:L.x1, y:L.y}:null; }).filter(Boolean);
+      let inherited=false;
+      if(hs.some(h=>h.k==='colContainer')) cols=hs.slice().sort((a,b)=>a.x-b.x); else if(cols) inherited=true; else return;
+      const headY=inherited?1e9:Math.min(...cols.map(c=>c.y));
+      const items=(pages[pi].items||[]);
+      const anchors=[]; items.forEach(it=>{ tokensOn([it], it.y).forEach(t=>{ if(ISO.test(t.s)&&it.y<headY-2) anchors.push({s:t.s, x:t.x, y:it.y}); }); });
+      anchors.sort((a,b)=>b.y-a.y).forEach(a=>{
+        const toks=tokensOn(items, a.y), byCol={};
+        toks.forEach(t=>{ const c=cols.filter(c=>c.x<=t.x+3).pop(); if(c) (byCol[c.k]=byCol[c.k]||[]).push(t.s); });
+        const g=k=>(byCol[k]||[]).join(' ');
+        const pk=byCol.colPkgs||[], pkN=pk.filter(x=>/^\d+$/.test(x)), bales=pkN.length?+pkN[pkN.length-1]:null;
+        const row={page:pi+1, container:a.s, seal:(byCol.colSeal||[]).join(' '), type:g('colType'), size:g('colSize'), kind:pk.filter(x=>!/^\d+$/.test(x)&&x!=='BL').join(' '),
+          bales, cargo:num(g('colCargo')), measure:num(g('colMeasure')), tare:num(g('colTare')), inherited};
+        row.conf=(row.seal&&row.bales!=null&&row.cargo!=null)?'SURE':'AMBIGUOUS';
+        rows.push(row); });
+    });
+    const fullText=(pages||[]).map(p=>pageText(p.items||[])).join('\n');
+    const tc=fields.totalContainers.text||'', m=tc.match(/\((\d+)\)/)||norm(fullText).match(/\((\d+)\)\s*CONTAINERS?\s*ONLY/i);
+    const tp=(fields.totalPkgs.text||'').split(/\s+/).filter(x=>/^\d+$/.test(x));
+    const totals={containers:m?+m[1]:null, bales:tp.length?+tp[tp.length-1]:null, weight:num(fields.totalWeight.text), measure:num(fields.totalMeasure.text)};
+    return {fields, rows, totals, fullText};
+  }
+
+  /* ── Step 3: COMPASS の期待値 — D-03 v4.11 renderSI と同じ組み立て ── */
+  // D-03 substituteBlText1 (そのまま移植)
+  function substituteBlText1(text, totalBales, totalNwKg, totalGwKg, containers){
+    if(!text) return '';
+    const totalNwMt=(totalNwKg/1000).toFixed(2), totalGwMt=((totalGwKg||0)/1000).toFixed(3), totalNwMt3=(totalNwKg/1000).toFixed(3);
+    return text
+      .replace(/XXKGS/g, Math.round(totalNwKg)+'KGS')
+      .replace(/XXBALES/g, totalBales+'BALES')
+      .replace(/XX\s*MT/gi, totalNwMt+' MT')
+      .replace(/TOTAL GROSS WEIGHT \(MT\)\s*:\s*XX[^\n]*/gi, `TOTAL GROSS WEIGHT (MT): ${totalGwMt}`)
+      .replace(/TOTAL NET WEIGHT \(MT\)\s*:\s*XX[^\n]*/gi, `TOTAL NET WEIGHT (MT): ${totalNwMt3}`)
+      .replace(/TOTAL NO\.?\s*OF PACKING UNITS\s*:\s*XX[^\n]*/gi, `TOTAL NO. OF PACKING UNITS: ${totalBales} BALES`)
+      .replace(/TOTAL GROSS WEIGHT\/TOTAL NET WEIGHT\s*:\s*XX[^\n]*/gi, `TOTAL GROSS WEIGHT/TOTAL NET WEIGHT: ${Math.round(totalNwKg)}KGS`)
+      .replace(/TOTAL NUMBER OF BALES\s*:\s*XX[^\n]*/gi, `TOTAL NUMBER OF BALES: ${totalBales} BALES`)
+      .replace(/例\)[A-Z]{4}X+\s*:[^\n]*/gi, (containers||[]).map(c=>`${c.crcf9_container_no||'?'} : ${Math.round(c.crcf9_n_w||0)}KGS, ${c.crcf9_quantity||0}BALES`).join('\n'));
+  }
+  // D-03 _siDetailCachesBySino + _productNameCandidates + buildProductNameMap
+  function productNameMap(sis, details){
+    const order=(sis||[]).slice().sort((a,b)=>(a.crcf9_sino||9)-(b.crcf9_sino||9)), seen=new Set(), caches=[];
+    order.forEach(si=>{ const id=si.cr49f_s_iid; if(id&&details[id]){ seen.add(id); caches.push({sino:si.crcf9_sino, cache:details[id]}); } });
+    Object.keys(details||{}).forEach(id=>{ if(!seen.has(id)) caches.push({sino:null, cache:details[id]}); });
+    const by={};
+    caches.forEach(({sino,cache},o)=>{ (cache||[]).forEach(d=>{ const sd=d._crcf9_sale_detail_id_value||d.crcf9_sale_detail_id, name=String(d.crcf9_productname||'').trim(); if(!sd||!name) return;
+      const t=Date.parse(d.modifiedon||''); (by[sd]=by[sd]||[]).push({sino, name, mod:isNaN(t)?null:t, order:o}); }); });
+    const map={}; Object.keys(by).forEach(sd=>{ by[sd].sort((a,b)=>((b.mod||0)-(a.mod||0))||(a.order-b.order)); map[sd]=by[sd][0].name; });
+    return map;
+  }
+  // D-03 aggregateItems (品名 · HS · 本数 · N/W のみ)
+  function aggregateItems(siId, cp){
+    const byDetail={}; (cp.containers||[]).forEach(c=>{ const k=c._crcf9_sale_detail_id_value||c.crcf9_sale_detail_id; if(!k) return; byDetail[k]=byDetail[k]||{bales:0,nwKg:0}; byDetail[k].bales+=(c.crcf9_quantity||0); byDetail[k].nwKg+=(c.crcf9_n_w||0); });
+    const nameMap=productNameMap(cp.sis, cp.details||{});
+    const proc=d=>{ const sd=d._crcf9_sale_detail_id_value||d.crcf9_sale_detail_id; if(!sd||!byDetail[sd]||byDetail[sd].bales===0) return null;
+      return {saleDetailId:sd, productName:nameMap[sd]||d.crcf9_productname||'', hsCode:d.crcf9_hs_code||'', bales:byDetail[sd].bales, weightMt:byDetail[sd].nwKg/1000}; };
+    const primary=((cp.details||{})[siId]||[]).map(proc).filter(Boolean); if(primary.length) return primary;
+    const seen=new Set(), fb=[]; Object.values(cp.details||{}).forEach(cache=>(cache||[]).forEach(d=>{ const it=proc(d); if(it&&!seen.has(it.saleDetailId)){ seen.add(it.saleDetailId); fb.push(it); } }));
+    return fb;
+  }
+  function pickBlSi(sis){ return (sis||[]).find(s=>+s.crcf9_sino===1)||(sis||[]).find(s=>s.cr49f_lc_no)||(sis||[])[0]||null; }   // B/L 用 = sino 1 (D-03 siHeader と同じ順の予備)
+  // D-03 renderSI の DESCRIPTION OF PACKAGES AND GOODS
+  function descBlock(si, cp){
+    const items=aggregateItems(si.cr49f_s_iid, cp), totalBales=items.reduce((s,i)=>s+i.bales,0), totalWeightMt=Math.round(items.reduce((s,i)=>s+i.weightMt,0)*100)/100;
+    const det=(cp.details||{})[si.cr49f_s_iid]||[], nm=productNameMap(cp.sis, cp.details||{});
+    const prod=items.length?items.map(i=>({productName:i.productName, hsCode:i.hsCode})):det.map(d=>({productName:nm[d._crcf9_sale_detail_id_value]||d.crcf9_productname||'', hsCode:d.crcf9_hs_code||''}));
+    const bl1=si.crcf9_bl_text1||''; let b='';
+    if(bl1.includes('XX')){
+      b+=substituteBlText1(bl1, totalBales, totalWeightMt*1000, (cp.containers||[]).reduce((s,c)=>s+(c.crcf9_g_w||0),0), cp.containers)+'\n\n';
+      if(prod[0]&&prod[0].productName) b+=prod[0].productName+'\n\n';
+      if(prod[0]&&prod[0].hsCode) b+=prod[0].hsCode+'\n\n';
+      b+=(si.cr49f_lc_no?'L/C NO.: '+si.cr49f_lc_no+'\n\n':'');
+      if(si.crcf9_bl_text2) b+=si.crcf9_bl_text2+'\n\n';
+    } else {
+      prod.forEach(i=>{ if(i.productName) b+=i.productName+'\n'; });
+      prod.forEach(i=>{ if(i.hsCode) b+=i.hsCode+'\n'; });
+      b+=(si.cr49f_lc_no?'L/C NO.: '+si.cr49f_lc_no+'\n':'');
+      if(bl1) b+=bl1+'\n';
+      if(si.crcf9_bl_text2) b+=si.crcf9_bl_text2+'\n';
+    }
+    return b+D03.freight;
+  }
+  function polText(cp){ const b=cp.booking||{}; if(cp.pol) return cp.pol+', JAPAN'; if(b.crcf9_delivery_location) return b.crcf9_delivery_location.replace(/ CY$| PORT$/,'')+', JAPAN'; return ''; }   // D-03 getPol
+  function expected(cp){
+    const si=pickBlSi(cp.sis)||{}, b=cp.booking||{};
+    return {si, sino:si.crcf9_sino,
+      shipper:[si.crcf9_shipper||D03.shipperName, si.crcf9_shipper_address||D03.shipperAddr, (si.crcf9_shipper_tel||D03.shipperTel)+' '+(si.crcf9_shipper_fax||D03.shipperFax)].join('\n'),
+      consignee:si.crcf9_consignee||'',
+      notify:[si.crcf9_notify_party||'', si.crcf9_address||'', [si.crcf9_tel||'', si.crcf9_fax||''].filter(Boolean).join(' ')].filter(Boolean).join('\n'),
+      alsoNotify:'',   // D-03 は ALSO NOTIFY 欄に何も印字しない (現地Agent記載 の印だけ)
+      description:si.cr49f_s_iid?descBlock(si,cp):'', marks:si.crcf9_shipping_mark||D03.noMark,
+      vessel:b.cr49f_main_ship_name||'', booking:b.cr49f_booking_no||'', masterBl:b.cr49f_bl_number||'', pol:polText(cp), pod:cp.pod||'',
+      podCands:['crcf9_pod_bl1','crcf9_pod_bl2','crcf9_pod_bl3','crcf9_place_of_delivery_1','crcf9_place_of_delivery_2','crcf9_place_of_delivery_3'].map(k=>({col:k, v:si[k]||''})).filter(x=>x.v)};
+  }
+
+  /* ── Step 4: 比較 ── */
+  /* 文面: 改行 · 空白以外が同じ → 表記差 (完全一致は 行の切れ目 · 語 も同じ)。違えば 文字単位の差 (脱落 · 追加) */
+  function compareText(E, A){
+    const e=String(E==null?'':E).replace(/\r\n?/g,'\n'), a=String(A==null?'':A).replace(/\r\n?/g,'\n');
+    const lines=t=>t.split('\n').map(norm).filter(Boolean);
+    if(lines(e).join('\n')===lines(a).join('\n')) return {status:'MATCH', ops:[]};
+    const es=e.replace(/\s+/g,''), as=a.replace(/\s+/g,'');
+    if(es===as) return {status:'NOTATION', ops:[], note:'改行・空白のみ違う'};
+    const ops=charDiff(e, a);
+    const drop=ops.some(o=>o.t==='drop'), add=ops.some(o=>o.t==='add');
+    const eLines=e.split('\n'), dropped=[]; eLines.forEach((l,i)=>{ const k=l.replace(/\s+/g,''); if(k && ops.some(o=>o.t==='drop'&&o.line===i&&o.full)) dropped.push(l.trim()); });
+    return {status:drop&&add?'DIFF':drop?'DROP':'ADD', ops, droppedLines:dropped};
+  }
+  /* 語 (空白区切り) の LCS → 脱落 / 追加 の塊。隣り合う 脱落+追加 が空白を除いて同じなら差ではない (行の折り返し) ·
+     短い置き換えは文字単位に絞る (前後の共通部分を除く)。各塊: {t, text, ctx (前後の文脈), line (期待側の行), full (行まるごと)} */
+  function charDiff(e, a){
+    const W=t=>{ const out=[]; t.split('\n').forEach((ln,li)=>{ let re=/\S+/g, m; while((m=re.exec(ln))) out.push({w:m[0], line:li}); }); return out; };
+    const E=W(e), A=W(a), n=E.length, m=A.length;
+    if(n*m>4e6) return [{t:'drop', text:'(長すぎて比較せず)', ctx:'', line:0}];
+    const L=[]; for(let i=0;i<=n;i++) L.push(new Uint16Array(m+1));
+    for(let i=n-1;i>=0;i--) for(let j=m-1;j>=0;j--) L[i][j]=E[i].w===A[j].w?L[i+1][j+1]+1:Math.max(L[i+1][j],L[i][j+1]);
+    const blocks=[]; let i=0,j=0, cur=null;
+    while(i<n||j<m){
+      if(i<n&&j<m&&E[i].w===A[j].w){ cur=null; i++; j++; continue; }
+      if(!cur){ cur={d:[], a:[], ei:i, aj:j}; blocks.push(cur); }
+      if(i<n&&(j>=m||L[i+1][j]>=L[i][j+1])){ cur.d.push(i); i++; } else { cur.a.push(j); j++; }
+    }
+    const ctxOf=(S,k0,k1)=>S.slice(Math.max(0,k0-3),k0).map(x=>x.w).join(' ')+' ['+S.slice(k0,k1+1).map(x=>x.w).join(' ')+'] '+S.slice(k1+1,k1+4).map(x=>x.w).join(' ');
+    const ops=[];
+    blocks.forEach(b=>{
+      const dt=b.d.map(k=>E[k].w).join(' '), at=b.a.map(k=>A[k].w).join(' '), ds=dt.replace(/\s/g,''), as=at.replace(/\s/g,'');
+      if(b.d.length&&b.a.length&&ds===as) return;   // 折り返し · 空白だけ
+      if(b.d.length&&b.a.length&&ds.length<=80&&as.length<=80){   // 短い置き換え → 文字単位の LCS (空白を除く)
+        const x=ds, y=as, C=[]; for(let r=0;r<=x.length;r++) C.push(new Uint16Array(y.length+1));
+        for(let r=x.length-1;r>=0;r--) for(let c=y.length-1;c>=0;c--) C[r][c]=x[r]===y[c]?C[r+1][c+1]+1:Math.max(C[r+1][c],C[r][c+1]);
+        const ctx=ctxOf(E,b.d[0],b.d[b.d.length-1]), ln=E[b.d[0]].line, seg=[]; let r=0,c=0;
+        const push=(t,ch)=>{ const s=seg[seg.length-1]; if(s&&s.t===t) s.text+=ch; else seg.push({t,text:ch}); };
+        while(r<x.length||c<y.length){ if(r<x.length&&c<y.length&&x[r]===y[c]){ seg.push({t:'='}); r++; c++; } else if(r<x.length&&(c>=y.length||C[r+1][c]>=C[r][c+1])) push('drop',x[r++]); else push('add',y[c++]); }
+        seg.filter(s=>s.t!=='=').forEach(s=>ops.push(s.t==='drop'?{t:'drop', text:s.text, ctx, line:ln, full:false}:{t:'add', text:s.text, ctx, line:ln}));
+        return; }
+      if(b.d.length){ const ln=E[b.d[0]].line, lineWords=E.filter(x=>x.line===ln).length, inLine=b.d.filter(k=>E[k].line===ln).length;
+        ops.push({t:'drop', text:dt, ctx:ctxOf(E,b.d[0],b.d[b.d.length-1]), line:ln, full:inLine===lineWords}); }
+      if(b.a.length) ops.push({t:'add', text:at, ctx:ctxOf(A,b.a[0],b.a[b.a.length-1]), line:b.d.length?E[b.d[0]].line:(E[b.ei]||E[n-1]||{line:0}).line});
+    });
+    return ops;
+  }
+  const idK = s => String(s==null?'':s).toUpperCase().replace(/\s+/g,'');
+  /* コンテナ (セット): コンテナ番号で組み、セット単位で シール · Bales · 重量 · 風袋 */
+  function compareSets(aclRows, cpRows){
+    const filled=(cpRows||[]).filter(r=>String(r.crcf9_container_no||'').trim()), blank=(cpRows||[]).length-filled.length;
+    const A=new Map(), C=new Map(), dupA=[], dupC=[];
+    (aclRows||[]).forEach(r=>{ const k=idK(r.container); if(A.has(k)) dupA.push(r.container); A.set(k,r); });
+    filled.forEach(r=>{ const k=idK(r.crcf9_container_no); if(C.has(k)) dupC.push(r.crcf9_container_no); C.set(k,r); });
+    const sets=[], aclOnly=[], cpOnly=[];
+    C.forEach((c,k)=>{ const a=A.get(k); if(!a){ cpOnly.push(String(c.crcf9_container_no).trim()); return; }
+      const d=[];
+      if(a.conf!=='SURE') d.push({item:'読取', acl:'位置あいまい', cp:'', read:true});
+      if(String(a.seal||'').trim()!==String(c.crcf9_seal_no||'').trim()) d.push({item:'シール', acl:a.seal, cp:String(c.crcf9_seal_no||'').trim()});
+      if(a.bales!==(c.crcf9_quantity==null?null:+c.crcf9_quantity)) d.push({item:'Bales', acl:a.bales, cp:c.crcf9_quantity});
+      if(a.cargo!==(c.crcf9_n_w==null?null:+c.crcf9_n_w)) d.push({item:'重量', acl:a.cargo, cp:c.crcf9_n_w});
+      if(a.tare!==(c.crcf9_t_w==null?null:+c.crcf9_t_w)) d.push({item:'風袋', acl:a.tare, cp:c.crcf9_t_w});
+      sets.push({container:a.container, page:a.page, ok:!d.length, diffs:d, type:(a.size||'')+(a.type||''), cpType:c.crcf9_type||'', acl:a, cp:{seal:c.crcf9_seal_no, bales:c.crcf9_quantity, nw:c.crcf9_n_w, gw:c.crcf9_g_w, tw:c.crcf9_t_w}}); });
+    A.forEach((a,k)=>{ if(!C.has(k)) aclOnly.push(a.container); });
+    return {sets, aclOnly, cpOnly, blank, dupA, dupC, cpCount:filled.length,
+      cpBales:filled.reduce((s,r)=>s+(+r.crcf9_quantity||0),0), cpWeight:filled.reduce((s,r)=>s+(+r.crcf9_n_w||0),0)};
+  }
+  const stripLocode = s => norm(s).replace(/\s+[A-Z]{2}[A-Z0-9]{3}$/,'');
+  const XX_RE = /(?:^|[^A-Z0-9])XX(?:[^A-Z0-9]|KGS|BALES|MT|$)/;
+  const dash = s => (norm(s)==='-'?'':String(s==null?'':s));   // NACCS の「-」 = 記載なし
+
+  /* 1 件の照合 — acl = readNaccs() · cp = COMPASS 取得結果 → {verdict, items, kinds, sets, xx} */
+  function compareOne(acl, cp){
+    const ex=expected(cp), F=acl.fields, items=[], kinds={};
+    const kind=k=>{ kinds[k]=(kinds[k]||0)+1; };
+    const add=(group,key,label,status,expv,actv,detail,k)=>{ items.push({group,key,label,status,expected:expv==null?'':String(expv),actual:actv==null?'':String(actv),detail:detail||'',kind:k||''}); if(k) kind(k); };
+    const readOk=k=>F[k]&&F[k].conf==='SURE';
+    const readNote=k=>F[k]?(F[k].conf==='MISSING'?'ラベルなし':'位置あいまい'+((F[k].amb||[]).length?' ('+F[k].amb.join(' / ')+')':'')):'';
+    // 1. ブッキング番号
+    if(!readOk('booking')) add('ブッキング','booking','Booking No.','READ_CHECK',ex.booking,F.booking&&F.booking.text,readNote('booking'),'読取確認要:Booking No.');
+    else { const v=dash(F.booking.text).trim(); if(!v) add('ブッキング','booking','Booking No.','INFO',ex.booking,'','ACL に記載なし');
+      else if(v===String(ex.booking).trim()) add('ブッキング','booking','Booking No.','MATCH',ex.booking,v);
+      else add('ブッキング','booking','Booking No.','DIFF',ex.booking,v,'','BOOKING No. 相違'); }
+    // Master B/L (ACL に値があるときだけ)
+    if(readOk('masterBl')){ const v=dash(F.masterBl.text).trim(); if(v) add('ブッキング','masterBl','Master B/L No.',v===String(ex.masterBl).trim()?'MATCH':'DIFF',ex.masterBl,v,'',v===String(ex.masterBl).trim()?'':'B/L No. 相違'); }
+    // 2. 本船 · 航海 · 港
+    if(!readOk('vessel')||!readOk('voy')) add('本船・港','vessel','Ocean Vessel + Voy.No.','READ_CHECK',ex.vessel,[F.vessel.text,F.voy.text].join(' / '),readNote(!readOk('vessel')?'vessel':'voy'),'読取確認要:本船・航海');
+    else { const act=norm(dash(F.vessel.text)+' '+dash(F.voy.text)), r=compareText(ex.vessel, act);
+      add('本船・港','vessel','Ocean Vessel + Voy.No.',r.status==='MATCH'?'MATCH':r.status==='NOTATION'?'NOTATION':'DIFF',ex.vessel,act,r.status==='NOTATION'?r.note:'',r.status==='MATCH'?'':r.status==='NOTATION'?'表記差:本船・航海':'本船・航海 相違'); }
+    [['receipt','Place of Receipt'],['pol','Port of Loading']].forEach(([k,lb])=>{
+      if(!readOk(k)) return add('本船・港',k,lb,'READ_CHECK',ex.pol,F[k].text,readNote(k),'読取確認要:'+lb);
+      const v=stripLocode(dash(F[k].text)); add('本船・港',k,lb,v===ex.pol?'MATCH':norm(v)===norm(ex.pol)?'NOTATION':'DIFF',ex.pol,v,'',v===ex.pol?'':lb+' 相違'); });
+    [['pod','Port of Discharge'],['delivery','Place of Delivery']].forEach(([k,lb])=>{
+      if(!readOk(k)) return add('本船・港',k,lb,'READ_CHECK',ex.pod,F[k].text,readNote(k),'読取確認要:'+lb);
+      const v=stripLocode(dash(F[k].text)), words=s=>norm(s).toUpperCase().split(/[^A-Z0-9]+/).filter(Boolean);
+      const pw=words(ex.pod), vw=words(v), hit=pw.length&&vw.some((w,i)=>pw.every((p,j)=>vw[i+j]===p));
+      const cand=ex.podCands.filter(c=>norm(c.v)===norm(v)).map(c=>c.col);
+      add('本船・港',k,lb,!ex.pod?'INFO':hit?'MATCH':'DIFF','ブッキング POD: '+(ex.pod||'(なし)'),v,(cand.length?'S/I 候補にあり ('+cand.join(', ')+')':'S/I 候補になし')+(ex.pod&&hit?' · 港名一致':''),!ex.pod?'':hit?'':lb+' 相違 (ブッキング POD)'); });
+    // 3. コンテナ (セット)
+    const sc=compareSets(acl.rows, cp.containers);
+    sc.sets.forEach(s=>{ const rd=s.diffs.filter(d=>d.read), df=s.diffs.filter(d=>!d.read);
+      if(rd.length) add('コンテナ','set:'+s.container,'セット '+s.container,'READ_CHECK','','', '行の読み取り 位置あいまい','読取確認要:コンテナ行');
+      else if(!df.length) add('コンテナ','set:'+s.container,'セット '+s.container,'MATCH',`シール ${s.cp.seal} · ${s.cp.bales} BL · ${s.cp.nw} KG · 風袋 ${s.cp.tw}`,`シール ${s.acl.seal} · ${s.acl.bales} BL · ${s.acl.cargo} KG · 風袋 ${s.acl.tare}`,'Type '+s.type+' / COMPASS '+s.cpType);
+      else add('コンテナ','set:'+s.container,'セット '+s.container,'DIFF',df.map(d=>d.item+' '+d.cp).join(' · '),df.map(d=>d.item+' '+d.acl).join(' · '),'相違: '+df.map(d=>d.item).join(' · '),null);
+      df.forEach(d=>kind('セット相違:'+d.item)); if(df.length) kind('セット相違 (セット数)'); });
+    sc.aclOnly.forEach(n=>add('コンテナ','aclOnly:'+n,'ACL のみ '+n,'ADD','',n,'COMPASS に無いコンテナ','ACL のみのコンテナ'));
+    sc.cpOnly.forEach(n=>add('コンテナ','cpOnly:'+n,'COMPASS のみ '+n,'DROP',n,'','ACL に無いコンテナ','COMPASS のみのコンテナ'));
+    if(sc.blank) add('コンテナ','cpBlank','COMPASS 番号未入力','INFO',sc.blank+' 行','','照合から除外');
+    if(sc.dupA.length) add('コンテナ','dupA','ACL 内で重複','DIFF','',sc.dupA.join(', '),'','ACL 内部不整合');
+    const T=acl.totals, aclSumB=acl.rows.reduce((s,r)=>s+(r.bales||0),0), aclSumW=acl.rows.reduce((s,r)=>s+(r.cargo||0),0);
+    [['containers','コンテナ本数',T.containers,sc.cpCount],['bales','総 Bales',T.bales,sc.cpBales],['weight','総重量 (KG)',T.weight,sc.cpWeight]].forEach(([k,lb,av,cv])=>{
+      if(av==null) return add('合計','total:'+k,lb,'READ_CHECK',cv,'','ACL の合計を読めず','読取確認要:合計');
+      add('合計','total:'+k,lb,av===cv?'MATCH':'DIFF',cv,av,'',av===cv?'':'合計相違:'+lb); });
+    if(T.bales!=null&&T.bales!==aclSumB) add('合計','acl:bales','ACL 内 Bales (行の和 ↔ 合計)','DIFF',aclSumB,T.bales,'','ACL 内部不整合');
+    if(T.weight!=null&&T.weight!==aclSumW) add('合計','acl:weight','ACL 内 重量 (行の和 ↔ 合計)','DIFF',aclSumW,T.weight,'','ACL 内部不整合');
+    if(T.containers!=null&&T.containers!==acl.rows.length) add('合計','acl:count','ACL 内 本数 (行の数 ↔ 記載)','DIFF',acl.rows.length,T.containers,'','ACL 内部不整合');
+    // 4. S/I 文面 (両方向 · 行 → 文字)
+    [['shipper','Shipper'],['consignee','Consignee'],['notify','Notify Party'],['alsoNotify','Also Notify Party'],['description','Description of Goods'],['marks','Marks & No.']].forEach(([k,lb])=>{
+      if(!readOk(k)) return add('S/I 文面',k,lb,'READ_CHECK',ex[k],F[k]&&F[k].text,readNote(k),'読取確認要:'+lb);
+      const r=compareText(ex[k], dash(F[k].text));
+      const det=r.status==='NOTATION'?r.note:(r.ops||[]).map(o=>(o.t==='drop'?'脱落「':'追加「')+o.text+'」 … '+o.ctx).join(' / ')+((r.droppedLines||[]).length?' / 脱落行: '+r.droppedLines.join(' ⏎ '):'');
+      const k2=r.status==='MATCH'?'':r.status==='NOTATION'?'表記差:'+lb:r.status==='DROP'?'脱落:'+lb:r.status==='ADD'?'追加:'+lb:'相違:'+lb;
+      add('S/I 文面',k,lb,r.status,ex[k],dash(F[k].text),det,k2);
+      if(r.ops) items[items.length-1].ops=r.ops; });
+    // 6. 原本数 · Way Bill (S/I に B/L 種類の欄なし → 表示のみ)
+    add('B/L 種類','originals','Number of Original B(S)/L','INFO','(S/I に欄なし)',F.originals&&F.originals.text,'表示のみ');
+    add('B/L 種類','wayBill','Way Bill / Received B/L / Freight As Arranged','INFO','(S/I に欄なし)',['wayBill','received','freight'].map(k=>LABELS[k]+'='+(dash(F[k]&&F[k].text).trim()||'-')).join(' · '),'表示のみ');
+    // 7. XX 残存
+    const xx=HEAD_KEYS.filter(k=>F[k]&&XX_RE.test(F[k].text||'')).map(k=>LABELS[k]); xx.forEach(lb=>kind('XX残存:'+lb));
+    const st=items.map(i=>i.status), verdict=st.some(s=>s==='DIFF'||s==='DROP'||s==='ADD')?'相違あり':st.includes('READ_CHECK')?'読取確認要':st.includes('NOTATION')?'表記差のみ':'完全一致';
+    return {verdict, items, kinds, sets:sc, xx, expected:{sino:ex.sino, booking:ex.booking}};
+  }
+  const VERDICTS=['完全一致','表記差のみ','相違あり','読取確認要','読取対象外','COMPASS照会不可'];
+
+  /* ── 保存 ── */
+  function guardOut(p){ const s=String(p||''); if(s.indexOf(SP_OUT+'/')!==0||/(^|\/)\.\.(\/|$)/.test(s)) throw new Error('書き込み禁止の場所: '+s); return true; }
+  const runId = d => 'ACL_'+(d||new Date()).toISOString().replace(/[-:]/g,'').replace('T','-').replace(/\.\d+Z$/,'');
+  const csvCell = v => { const s=String(v==null?'':v); return /[",\n\r]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; };
+  function toCsv(run){
+    const H=['run_id','invoice','format','verdict','group','item','status','kind','expected','actual','detail','xx'], L=[H.join(',')];
+    (run.results||[]).forEach(r=>{ if(!r.items||!r.items.length){ L.push([run.run_id,r.invoice,r.format,r.verdict,'','','','',r.why||'','','',''].map(csvCell).join(',')); return; }
+      r.items.forEach(i=>L.push([run.run_id,r.invoice,r.format,r.verdict,i.group,i.label,i.status,i.kind,i.expected,i.actual,i.detail,(r.xx||[]).join(' · ')].map(csvCell).join(','))); });
+    return '﻿'+L.join('\r\n')+'\r\n';
+  }
+  function kindTable(results){
+    const k={}; (results||[]).forEach(r=>Object.keys(r.kinds||{}).forEach(x=>{ k[x]=k[x]||{inv:0,n:0}; k[x].inv++; k[x].n+=r.kinds[x]; }));
+    return Object.keys(k).sort((a,b)=>k[b].inv-k[a].inv||a.localeCompare(b)).map(x=>({kind:x, invoices:k[x].inv, count:k[x].n}));
+  }
+  function summaryMd(run){
+    const R=run.results||[], c={}; VERDICTS.forEach(v=>{ c[v]=R.filter(r=>r.verdict===v).length; });
+    const L=['# ACL 照合試験 — '+run.run_id,'','- 道具: acl_bench v'+run.version+' (토르 제작) · 実行者: '+(run.user||'?')+' · '+run.started+(run.finished?' ~ '+run.finished:''),
+      '- 対象: '+R.length+' 件 (ACL 一覧 '+(run.listed||0)+' 件 · 指定 '+(run.filter&&run.filter.length?run.filter.join(', '):'なし (NACCS 全部)')+')','- 基準: COMPASS S/I (sino 1) · ブッキング · コンテナ — 文面は D-03 v4.11 renderSI と同じ組み立て','',
+      '## 判定','','| 判定 | 件数 |','|---|---|'];
+    VERDICTS.forEach(v=>L.push('| '+v+' | '+c[v]+' |'));
+    L.push('','## 差の種類 (件数 = その差がある Invoice 数 · 回数 = 項目数)','','| 種類 | 件数 | 回数 |','|---|---|---|');
+    kindTable(R).forEach(x=>L.push('| '+x.kind+' | '+x.invoices+' | '+x.count+' |'));
+    L.push('','## Invoice 別','','| Invoice | 様式 | 判定 | 差の種類 | XX 残存 |','|---|---|---|---|---|');
+    R.forEach(r=>L.push('| '+r.invoice+' | '+r.format+' | '+r.verdict+' | '+Object.keys(r.kinds||{}).join(' · ').replace(/\|/g,'/')+(r.why?' '+r.why:'')+' | '+(r.xx||[]).join(' · ')+' |'));
+    L.push('','---','✦ Powered by LEENAI Automation System','');
+    return L.join('\n');
+  }
+  return {SP_OUT, SRC_DIRS, ISO, D03, LABELS, VERDICTS, invoiceOf, relPath, inSourceDirs, groupTargets, pageLines, pageText, phrases, layout, cellOf, classifyFormat, readNaccs,
+    substituteBlText1, productNameMap, aggregateItems, pickBlSi, descBlock, polText, expected, compareText, charDiff, compareSets, compareOne, stripLocode,
+    guardOut, runId, toCsv, kindTable, summaryMd};
+})();
+if(typeof module!=='undefined') module.exports=ACL;
+</script>
+
+<script id="acl-app">
+/* ============================================================
+   ACL 照合 — 通信 · 画面
+   COMPASS = 読むだけ (GET) · SharePoint 原本 = 読むだけ · 書き込み = ACL_bench/{run_id}/ の下だけ (ACL.guardOut)
+============================================================ */
+const AB_DV_API = 'https://orgde512c6f.crm7.dynamics.com/api/data/v9.2';
+const AB_GRAPH  = 'https://graph.microsoft.com/v1.0/';
+const AB_PDFJS  = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';   // D-01 と同じ版
+const abVersion = () => (document.title.match(/v([\d.]+)\s*$/)||[])[1]||'';
+const S = {list:null, pdf:{}, results:[], running:false, stop:false, run:null};
+const $ = id => document.getElementById(id);
+const escH = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+function logLine(msg, cls){ const el=$('abLog'); if(!el) return; const d=document.createElement('div'); d.className=cls||''; d.textContent=new Date().toLocaleTimeString('ja-JP')+'  '+msg; el.prepend(d); }
+async function mapLimit(arr, n, fn){ let i=0; const w=Array.from({length:Math.min(n,arr.length)},async()=>{ while(i<arr.length){ const k=i++; await fn(arr[k],k); } }); await Promise.all(w); }
+
+/* ── COMPASS (読むだけ) ── */
+async function dvGet(path, _r){
+  _r=_r||0; const tok=await LEENAI.auth.token('dataverse');
+  const res=await fetch(AB_DV_API+'/'+path,{headers:{'Authorization':'Bearer '+tok,'OData-MaxVersion':'4.0','OData-Version':'4.0','Accept':'application/json','Prefer':'odata.maxpagesize=5000'}});
+  if(!res.ok){ if((res.status===429||res.status>=500)&&_r<2){ await sleep(1500*(_r+1)); return dvGet(path,_r+1); } const e=await res.json().catch(()=>({})); throw new Error('DV '+res.status+': '+(e.error&&e.error.message||res.statusText)); }
+  return res.json();
+}
+async function dvAll(path){ let d=await dvGet(path), out=(d.value||[]).slice(); while(d['@odata.nextLink']){ d=await dvGet(d['@odata.nextLink'].replace(AB_DV_API+'/','')); out=out.concat(d.value||[]); } return out; }
+/* Invoice → ブッキング → 港 · コンテナ · S/I · S/I 明細 (D-01 fetchCompassShipment · D-03 の読み方) */
+async function fetchCompass(inv){
+  if(!/^[A-Za-z0-9_\-]+$/.test(inv)) return {ok:false, reason:'Invoice 番号の形が違う'};
+  const bk=await dvAll(`cr49f_bookings?$filter=cr49f_invoice_no eq '${inv}'&$select=cr49f_bookingid,cr49f_booking_no,cr49f_bl_number,cr49f_main_ship_name,cr49f_invoice_no,crcf9_delivery_location,_cr49f_sale_contract_id_value,_cr49f_region_japan_id_value,_cr49f_region_id_value`);
+  if(!bk.length) return {ok:false, reason:'COMPASS に Invoice '+inv+' のブッキングなし'};
+  const b=bk[0]; let pol='', pod='';
+  if(b._cr49f_region_japan_id_value){ try{ pol=(await dvGet(`crcf9_region_japans(${b._cr49f_region_japan_id_value})?$select=crcf9_pol`)).crcf9_pol||''; }catch(e){} }
+  if(b._cr49f_region_id_value){ try{ pod=(await dvGet(`cr49f_regions(${b._cr49f_region_id_value})?$select=cr49f_pod`)).cr49f_pod||''; }catch(e){} }
+  const containers=await dvAll(`crcf9_container_informations?$filter=_crcf9_booking_id_value eq ${b.cr49f_bookingid}&$select=crcf9_container_informationid,crcf9_container_no,crcf9_seal_no,crcf9_type,crcf9_quantity,crcf9_n_w,crcf9_g_w,crcf9_t_w,_crcf9_sale_detail_id_value`);
+  let sis=[]; const details={}; const cid=b._cr49f_sale_contract_id_value;
+  if(cid){
+    sis=await dvAll(`cr49f_s_is?$filter=_cr49f_sale_contract_id_value eq ${cid}&$select=cr49f_s_iid,crcf9_sino,cr49f_lc_no,crcf9_consignee,crcf9_notify_party,crcf9_address,crcf9_tel,crcf9_fax,crcf9_place_of_delivery_1,crcf9_place_of_delivery_2,crcf9_place_of_delivery_3,crcf9_pod_bl1,crcf9_pod_bl2,crcf9_pod_bl3,crcf9_bl_text1,crcf9_bl_text2,crcf9_shipper,crcf9_shipper_address,crcf9_shipper_tel,crcf9_shipper_fax,crcf9_shipping_mark,crcf9_local_agent_note&$orderby=crcf9_sino asc`);
+    for(const s of sis) details[s.cr49f_s_iid]=await dvAll(`crcf9_s_i_details?$filter=_crcf9_s_i_id_value eq ${s.cr49f_s_iid}&$select=crcf9_productname,_crcf9_sale_detail_id_value,crcf9_hs_code,modifiedon`);
+  }
+  return {ok:true, booking:b, bookings:bk.length, pol, pod, containers, sis, details};
+}
+
+/* ── SharePoint (Graph) ── */
+const spEnc = p => p.split('/').map(encodeURIComponent).join('/');
+const drv = () => AB_GRAPH+'drives/'+LEENAI.SP.DRIVE_ID;
+async function graphFetch(url, opts, _r){
+  _r=_r||0; const tok=await LEENAI.auth.token('graph');
+  const res=await fetch(url,Object.assign({},opts||{},{headers:Object.assign({'Authorization':'Bearer '+tok},(opts&&opts.headers)||{})}));
+  if(res.status===401&&_r===0) return graphFetch(url,opts,1);
+  if((res.status===429||res.status>=500)&&_r<3){ const ra=parseInt((res.headers&&res.headers.get('Retry-After'))||'',10); await sleep(Number.isFinite(ra)?Math.min(ra*1000,30000):1000*Math.pow(2,_r)); return graphFetch(url,opts,_r+1); }
+  return res;
+}
+async function graphJson(url){ const r=await graphFetch(url,{headers:{Accept:'application/json'}}); if(!r.ok) throw new Error('Graph '+r.status); return r.json(); }
+async function spPut(p, content, type){
+  ACL.guardOut(p);
+  const r=await graphFetch(drv()+'/root:/'+spEnc(p)+':/content',{method:'PUT',headers:{'Content-Type':type||'application/octet-stream'},body:new Blob([content],{type:type||'application/octet-stream'})});
+  if(!r.ok){ const e=await r.json().catch(()=>({})); throw new Error('SP PUT '+r.status+': '+(e.error&&e.error.message||'')); }
+  return r.json();
+}
+/* Graph 検索 「_ACL」 (ページ送り) · path が無い結果は項目を読んで補う */
+async function searchAcl(){
+  let url=drv()+"/root/search(q='_ACL')?$select=id,name,size,lastModifiedDateTime,parentReference,file&$top=200", out=[];
+  while(url){ const j=await graphJson(url); out=out.concat(j.value||[]); url=j['@odata.nextLink']||null; }
+  const pdfs=out.filter(x=>/_ACL/i.test(x.name||'')&&/\.pdf$/i.test(x.name||''));
+  await mapLimit(pdfs.filter(x=>!(x.parentReference&&x.parentReference.path)),6,async x=>{ try{ const it=await graphJson(drv()+'/items/'+x.id+'?$select=id,parentReference'); x.parentReference=it.parentReference; }catch(e){} });
+  return pdfs.map(x=>({id:x.id, name:x.name, size:x.size, lastModifiedDateTime:x.lastModifiedDateTime, path:(x.parentReference&&x.parentReference.path)||''}));
+}
+
+/* ── PDF (pdf.js · 座標つき文字) ── */
+async function ensurePdfJs(){
+  if(window.pdfjsLib) return;
+  await new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=AB_PDFJS+'pdf.min.js'; s.onload=()=>{ window.pdfjsLib.GlobalWorkerOptions.workerSrc=AB_PDFJS+'pdf.worker.min.js'; res(); }; s.onerror=rej; document.head.appendChild(s); });
+}
+async function readPdf(file){
+  const r=await graphFetch(drv()+'/items/'+file.id+'/content'); if(!r.ok) throw new Error('PDF 取得 '+r.status);
+  const buf=await r.arrayBuffer(); await ensurePdfJs();
+  const pdf=await window.pdfjsLib.getDocument({data:new Uint8Array(buf), cMapUrl:AB_PDFJS+'cmaps/', cMapPacked:true}).promise, pages=[];
+  for(let i=1;i<=pdf.numPages;i++){ const pg=await pdf.getPage(i), vp=pg.getViewport({scale:1}), tc=await pg.getTextContent();
+    pages.push({page:i, w:vp.width, items:tc.items.filter(it=>it.str&&it.str.trim()).map(it=>({s:it.str, x:Math.round(it.transform[4]*10)/10, y:Math.round(it.transform[5]*10)/10, w:Math.round((it.width||0)*10)/10}))}); }
+  return pages;
+}
+
+/* ── ① ACL 一覧 ── */
+async function runList(){
+  $('abList').disabled=true; $('abRun').disabled=true; S.pdf={}; const t0=Date.now();
+  try{
+    $('abListSt').textContent='Graph 検索 「_ACL」…';
+    const found=await searchAcl(), g=ACL.groupTargets(found);
+    $('abListSt').textContent='見つかった PDF '+found.length+' · 対象 Invoice '+g.targets.length+' — PDF を読んで様式を判定中…';
+    let k=0;
+    await mapLimit(g.targets,4,async t=>{ try{ const pages=await readPdf(t.file); S.pdf[t.invoice]=pages; const f=ACL.classifyFormat(pages); t.format=f.format; t.why=f.why; t.pages=pages.length; }
+      catch(e){ t.format='ERROR'; t.why='PDF を読めず: '+e.message; logLine(t.invoice+' PDF 読取失敗: '+e.message,'danger'); }
+      if(++k%10===0) $('abListSt').textContent='様式判定 '+k+'/'+g.targets.length+'…'; });
+    S.list=Object.assign(g,{found:found.length, at:new Date().toISOString(), ms:Date.now()-t0});
+    const c=f=>g.targets.filter(t=>t.format===f).length;
+    $('abListSt').innerHTML='完了 — 対象 '+g.targets.length+' 件 (NACCS <b>'+c('NACCS')+'</b> · スキャン '+c('SCAN')+' · その他 '+c('OTHER')+(c('ERROR')?' · <span class="ab-ng">読取失敗 '+c('ERROR')+'</span>':'')+') · 対象外の名前/場所 '+g.skipped.length+' · '+((Date.now()-t0)/1000).toFixed(0)+' 秒';
+    renderList(); logLine('ACL 一覧 '+g.targets.length+' 件 (NACCS '+c('NACCS')+')','ok');
+    $('abRun').disabled=!c('NACCS');
+    updateEst();
+  }catch(e){ $('abListSt').innerHTML='<span class="ab-ng">'+escH(e.message)+'</span>'; logLine('一覧 エラー: '+e.message,'danger'); }
+  $('abList').disabled=false;
+}
+function renderList(){
+  const g=S.list; if(!g) return;
+  $('abListOut').innerHTML='<details><summary class="ab-note">一覧 '+g.targets.length+' 件 (クリックで表示)</summary><div class="ab-scroll"><table class="ab-t"><tr><th>Invoice</th><th>様式</th><th>ページ</th><th>ファイル (最新)</th><th>更新</th><th>他のファイル</th></tr>'+
+    g.targets.map(t=>'<tr><td>'+escH(t.invoice)+'</td><td>'+escH(t.format||'')+(t.format!=='NACCS'?' <span class="ab-note">'+escH(t.why||'')+'</span>':'')+'</td><td>'+escH(t.pages||'')+'</td><td>'+escH(t.file.path+'/'+t.file.name)+'</td><td>'+escH(String(t.file.lastModifiedDateTime||'').slice(0,16))+'</td><td>'+escH(t.others.map(o=>o.path+'/'+o.name).join(' ・ '))+'</td></tr>').join('')+'</table></div>'+
+    (g.skipped.length?'<div class="ab-note">対象外: '+g.skipped.map(s=>escH(s.path+'/'+s.name+' ('+s.why+')')).join(' ・ ')+'</div>':'')+'</details>';
+}
+const filterList = () => $('abInv').value.split(/[\s,]+/).map(s=>s.trim().toUpperCase()).filter(Boolean);
+function chosen(){ const f=filterList(), all=(S.list&&S.list.targets)||[]; return f.length?all.filter(t=>f.indexOf(t.invoice.toUpperCase())>=0):all; }
+function updateEst(){
+  if(!S.list){ $('abRunSt').textContent=''; return; }
+  const ts=chosen(), n=ts.filter(t=>t.format==='NACCS').length;
+  $('abRunSt').textContent='照合 '+n+' 件 (NACCS) · 対象外 '+(ts.length-n)+' 件 · 予想 約 '+Math.max(1,Math.ceil(n*2/60))+' 分 (COMPASS 読み込み · 1 件 約 2 秒 · 同時 3)';
+}
+
+/* ── ② 照合 ── */
+async function runCompare(){
+  if(S.running) return; const ts=chosen(); if(!ts.length){ $('abRunSt').textContent='対象なし'; return; }
+  S.running=true; S.stop=false; $('abRun').disabled=true; $('abStop').disabled=false; $('abSave').disabled=true; $('abList').disabled=true;
+  const d=new Date(), t0=Date.now();
+  S.run={run_id:ACL.runId(d), version:abVersion(), user:(LEENAI.user&&LEENAI.user.email)||'', started:d.toISOString(), finished:null, listed:S.list.targets.length, filter:filterList(), results:[]};
+  const out=[]; let k=0;
+  await mapLimit(ts,3,async t=>{
+    if(S.stop) return;
+    const r={invoice:t.invoice, file:t.file.path+'/'+t.file.name, format:t.format, verdict:'', items:[], kinds:{}, xx:[]};
+    try{
+      if(t.format!=='NACCS'){ r.verdict='読取対象外'; r.why=t.why||''; r.kinds={['読取対象外:'+(t.format||'?')]:1}; }
+      else {
+        const cp=await fetchCompass(t.invoice);
+        if(!cp.ok){ r.verdict='COMPASS照会不可'; r.why=cp.reason; r.kinds={'COMPASS照会不可':1}; }
+        else { const acl=ACL.readNaccs(S.pdf[t.invoice]), c=ACL.compareOne(acl,cp);
+          Object.assign(r,c,{sino:c.expected.sino, bookings:cp.bookings}); delete r.expected; r.read={fields:acl.fields, rows:acl.rows, totals:acl.totals};
+          if(cp.bookings>1) r.items.push({group:'ブッキング',key:'multi',label:'同じ Invoice のブッキング',status:'INFO',expected:'',actual:cp.bookings+' 件',detail:'最初の 1 件で照合',kind:''}); }
+      }
+    }catch(e){ r.verdict='読取確認要'; r.why='エラー: '+e.message; r.kinds={'エラー':1}; logLine(t.invoice+' エラー: '+e.message,'danger'); }
+    out.push(r); k++; $('abRunSt').textContent='照合 '+k+'/'+ts.length+'…';
+  });
+  out.sort((a,b)=>a.invoice.localeCompare(b.invoice));
+  S.run.results=out; S.run.finished=new Date().toISOString(); S.run.ms=Date.now()-t0; S.run.stopped=S.stop; S.results=out;
+  $('abRunSt').textContent=(S.stop?'止めました — ':'完了 — ')+out.length+' 件 · '+((Date.now()-t0)/1000).toFixed(0)+' 秒 (保存は ④)';
+  renderResults(); logLine('照合 '+out.length+' 件'+(S.stop?' (途中で停止)':''),'ok');
+  S.running=false; $('abRun').disabled=false; $('abStop').disabled=true; $('abSave').disabled=!out.length; $('abList').disabled=false;
+}
+
+/* ── ③ 画面 ── */
+const ST_LABEL={MATCH:'一致',NOTATION:'表記差',DIFF:'相違',DROP:'脱落',ADD:'追加',READ_CHECK:'読取確認要',INFO:'参考'};
+function opsHtml(i){ if(!i.ops||!i.ops.length) return escH(i.detail); return i.ops.map(o=>'<span class="'+(o.t==='drop'?'ab-drop':'ab-add')+'">'+(o.t==='drop'?'脱落 ':'追加 ')+escH(o.text)+'</span> <span class="ab-note">'+escH(o.ctx)+'</span>').join('<br>'); }
+function renderResults(){
+  const R=S.results, c={}; ACL.VERDICTS.forEach(v=>{ c[v]=R.filter(r=>r.verdict===v).length; });
+  $('abKpis').innerHTML='<div class="ab-kpis">'+ACL.VERDICTS.map(v=>'<div><b>'+v+'</b>'+c[v]+'</div>').join('')+'</div>';
+  const kt=ACL.kindTable(R);
+  $('abKinds').innerHTML=kt.length?'<table class="ab-t" style="max-width:640px"><tr><th>差の種類</th><th>件数 (Invoice)</th><th>回数</th></tr>'+kt.map(x=>'<tr><td>'+escH(x.kind)+'</td><td>'+x.invoices+'</td><td>'+x.count+'</td></tr>').join('')+'</table>':'';
+  $('abResults').innerHTML='<div class="ab-scroll"><table class="ab-t"><tr><th>Invoice</th><th>様式</th><th>判定</th><th>差の種類</th><th>XX 残存</th><th></th></tr>'+
+    R.map((r,i)=>'<tr><td>'+escH(r.invoice)+'</td><td>'+escH(r.format)+'</td><td class="'+(r.verdict==='完全一致'?'ab-ok':r.verdict==='相違あり'?'ab-ng':'ab-warn')+'">'+escH(r.verdict)+'</td><td>'+escH(Object.keys(r.kinds||{}).join(' · '))+(r.why?' <span class="ab-note">'+escH(r.why)+'</span>':'')+'</td><td>'+escH((r.xx||[]).join(' · '))+'</td><td>'+(r.items&&r.items.length?'<button class="ab-btn ghost" data-i="'+i+'">項目</button>':'')+'</td></tr>'+
+      '<tr class="ab-d" id="abD'+i+'" style="display:none"><td colspan="6"></td></tr>').join('')+'</table></div>';
+  $('abResults').querySelectorAll('button[data-i]').forEach(b=>{ b.onclick=()=>toggleDetail(+b.dataset.i); });
+}
+function toggleDetail(i){
+  const tr=$('abD'+i); if(!tr) return; if(tr.style.display!=='none'){ tr.style.display='none'; return; }
+  const r=S.results[i];
+  tr.firstChild.innerHTML='<table class="ab-t"><tr><th>区分</th><th>項目</th><th>判定</th><th>COMPASS (期待)</th><th>ACL</th><th>差</th></tr>'+r.items.map(x=>'<tr><td>'+escH(x.group)+'</td><td>'+escH(x.label)+'</td><td class="'+(x.status==='MATCH'?'ab-ok':x.status==='INFO'?'':x.status==='NOTATION'||x.status==='READ_CHECK'?'ab-warn':'ab-ng')+'">'+escH(ST_LABEL[x.status]||x.status)+'</td><td class="v">'+escH(x.expected)+'</td><td class="v">'+escH(x.actual)+'</td><td class="v">'+opsHtml(x)+'</td></tr>').join('')+'</table>';
+  tr.style.display='';
+}
+
+/* ── ④ 保存 ── */
+async function runSave(){
+  if(!S.run) return; $('abSave').disabled=true; const dir=ACL.SP_OUT+'/'+S.run.run_id;
+  try{
+    const lite=Object.assign({},S.run,{results:S.run.results.map(r=>Object.assign({},r))});
+    await spPut(dir+'/results.json', JSON.stringify(lite,null,1), 'application/json');
+    await spPut(dir+'/results.csv', ACL.toCsv(S.run), 'text/csv;charset=utf-8');
+    await spPut(dir+'/summary.md', ACL.summaryMd(S.run), 'text/markdown');
+    let nc=0; if($('abSaveCoords').checked){ for(const r of S.run.results){ const p=S.pdf[r.invoice]; if(!p) continue; await spPut(dir+'/coords/'+r.invoice.replace(/[^A-Za-z0-9_\-]/g,'_')+'.json', JSON.stringify({invoice:r.invoice, file:r.file, pages:p}), 'application/json'); nc++; } }
+    $('abSaveSt').textContent='保存: SharePoint '+dir+'/ (results.json · results.csv · summary.md'+(nc?' · coords '+nc+' 件':'')+')'; logLine('保存 '+dir,'ok');
+  }catch(e){ $('abSaveSt').innerHTML='<span class="ab-ng">保存失敗: '+escH(e.message)+'</span>'; logLine('保存失敗: '+e.message,'danger'); }
+  $('abSave').disabled=false;
+}
+
+function startPage(){
+  $('abMain').style.display='';
+  $('abList').onclick=runList; $('abRun').onclick=runCompare; $('abStop').onclick=()=>{ S.stop=true; logLine('止める (実行中の件が終わり次第)','warn'); };
+  $('abSave').onclick=runSave; $('abInv').addEventListener('input',updateEst);
+  const dot=LEENAI.auth.status; logLine('接続: Dataverse '+dot.dataverse+' / Graph '+dot.graph);
+}
+
+LEENAI.init({
+  sys:'D-00', name:'ACL 照合試験', version:'0.1', date:'2026-11-17',
+  desc:'ACL (NACCS PDF) を座標で読み、COMPASS の S/I (sino 1) · ブッキング · コンテナ (セット) と 100% 照合 (読むだけ · AI なし)',
+  graphScopes:['Sites.ReadWrite.All'],
+  redirectUri:'https://mhlee205.github.io/CONTRACT_SEND/acl_bench.html',
+  onReady:startPage
+});
+</script>
+</body>
+</html>

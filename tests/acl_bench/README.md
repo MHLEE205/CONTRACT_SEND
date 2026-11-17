@@ -1,0 +1,30 @@
+# acl_bench 시험 (tests/acl_bench)
+
+`CONTRACT_SEND/acl_bench.html` (ACL (NACCS) ↔ COMPASS 엄격 대조 · 읽기만) 을 node 로 시험한다.
+**네트워크 없음 · 실제 COMPASS · SharePoint 없음 · 가짜 데이터만** — LEENAI 공통 · Dataverse (GET 만) · Graph (검색 · PDF · 저장) 를 가짜로, ACL PDF 는 **pdf-lib 로 만든 가짜 NACCS 양식** (회사 · 번호 · 컨테이너 모두 가짜), 읽기는 도구와 같은 **pdf.js 3.11.174**.
+
+## 돌리는 법 (명령 1줄)
+
+```bash
+cd tests/acl_bench && npm install && node run_all.js
+```
+
+- 필요: node 18 이상 · jsdom 30.1.2 · pdf-lib 1.17.1 · pdfjs-dist 3.11.174 (package.json 에 고정)
+- 마지막 줄이 `✅ ALL PASS` 면 통과
+
+## 파일
+
+| 파일 | 내용 |
+|---|---|
+| `run_all.js` | 아래 전부 + 가짜 데이터 확인 (GUID 가짜 모양 · 실제 ACL 실례의 값이 시험 파일 · 도구에 0건) |
+| `check.js` | 문법 · `version:'x.y'` 1곳 · 공통 파일 1회 · confirm/alert 0 · 보안 grep 0 · 푸터 |
+| `unit.js` | `<script id="acl-core">` — 대상 모으기 (두 폴더 · 최근 1개) · 좌표 셀 (값이 라벨보다 먼저 · 오른쪽/아래 라벨 · 넘침 → 位置あいまい · 같은 줄 값) · 형식 (NACCS / SCAN / OTHER) · **D-03 v4.11 기대 문면** (descBlock XX 치환 · 품명 최신 · `#` · `***` 그대로 · shipper 기본값 · Notify · POL) · 문면 비교 (完全一致 · 表記差 · 脱落 · 追加 · 相違) · 세트 비교 · 가짜 PDF → 읽기 → 비교 (부킹 번호 · Attached Sheet · 넘침) · 저장 문지기 · CSV · summary |
+| `e2e.js` | jsdom 통합 — 가짜 Invoice 13건: 완전 · 씰 다름 · Bales 다름 · 순서만 다름 · ACL 에만 컨테이너 · 부킹 번호 다름 · 한 줄 빠짐/더함 · 줄바꿈만 다름 · 컨테이너 20개 (2쪽) · 스캔 · 다른 양식 · 셀 넘침 · COMPASS 없음 / 검색 2쪽 · 경로 보충 · 옛 파일 · 폴더 밖 · 이름 모양 / 저장 경로 · 좌표 저장 · COMPASS GET 만 |
+| `fake_naccs.js` | 가짜 NACCS ACL PDF (라벨 = 셀 왼쪽 위 · 값 = 아래 · 그리는 순서 섞기 · Attached Sheet · 스캔 · 다른 양식 · 넘침) |
+| `fixtures.js` | 가짜 COMPASS (부킹 · 항구 · 컨테이너 · S/I sino 1·2 · S/I 명세) 와 그에 맞는 「완전한」 ACL spec |
+| `pdfread.js` | node 용 pdf.js 읽기 (도구의 readPdf 와 같은 모양) · jsdom 페이지용 pdfjsLib |
+
+> 가짜 NACCS 양식의 좌표는 **실제 NACCS 와 같지 않다** (실제 PDF 는 레포에 넣지 않음). 실제 좌표 확인은 도구의 「座標も保存」 으로 SharePoint 에 남긴 `coords/{Invoice}.json` 으로 한다.
+
+---
+✦ Powered by LEENAI Automation System
