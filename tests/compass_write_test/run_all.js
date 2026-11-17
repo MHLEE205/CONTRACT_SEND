@@ -12,6 +12,9 @@ function node(label, file, args, pat){
 node('기본 점검 (문법 · 버전 '+ver+' 1곳 · 공통 파일 1회 · confirm/alert 0 · 보안 grep 0 · 푸터)','check.js',[html,ver],/\{.*\}/);
 node('단위 (칸 분류 · 문지기 · 비교 · 확인 ① · 감지 · summary)','unit.js',[html],/unit pass \d+ fail \d+/);
 node('통합 jsdom (허용 밖 · 다른 엔터티 · 시작 확인 멈춤 · 정상 흐름 · 실패→되돌리기만 · 취소 · 저장 경로)','e2e.js',[html],/e2e pass \d+ fail \d+/);
+/* v0.3 신규 입력 시험 (지시서 D00_COMPASS신규입력시험v0.3 1-3 #1~#8) */
+node('신규 입력 단위 (메타데이터 · 만들기/지우기 문지기 · 본문 · 확인 · summary)','unit_create.js',[html],/unit_create pass \d+ fail \d+/);
+node('신규 입력 통합 jsdom (TEST01 밖 잠김 · 문지기 · 시작 확인 멈춤 · 방법 A · 명세 실패 · 방법 B deep insert · 지우기 순서 · 엄격한 가짜 DV)','e2e_create.js',[html],/e2e_create pass \d+ fail \d+/);
 /* 회귀 (v0.2): v0.1 은 엄격한 가짜 Dataverse 에서 「읽기」 가 MaxLength 400 으로 실패해야 하고, 지금 버전은 성공해야 함 */
 { const os=require('os'); let oldHtml=null;
   try{ oldHtml=cp.execFileSync('git',['show','83758fe:compass_write_test.html'],{cwd:__dirname,encoding:'utf8',maxBuffer:1<<26}); }catch(e){}
@@ -21,7 +24,7 @@ node('통합 jsdom (허용 밖 · 다른 엔터티 · 시작 확인 멈춤 · �
     rows.push([okR?'PASS':'FAIL','회귀 — v0.1(83758fe) 은 MaxLength 400 으로 「읽기」 실패 · 지금 버전은 성공', (o.slice(0,90)+' … / 지금: '+n.slice(0,40))]); }
   else rows.push(['PASS','회귀 — (git 기록 없음 · 생략)','']); }
 /* 가짜 데이터 확인 — 시험 파일의 GUID 는 모두 00000000-0000-4000-8000-… 모양 */
-const guids=['fixtures.js','unit.js','e2e.js'].map(f=>fs.readFileSync(path.join(__dirname,f),'utf8')).join('\n').match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi)||[];
+const guids=['fixtures.js','unit.js','e2e.js','fixtures_create.js','unit_create.js','e2e_create.js'].map(f=>fs.readFileSync(path.join(__dirname,f),'utf8')).join('\n').match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi)||[];
 const real=guids.filter(g=>!/^00000000-0000-4000-8000-/.test(g)); if(real.length) bad++;
 rows.push([real.length?'FAIL':'PASS','가짜 데이터 — 시험 파일 GUID 가 모두 가짜 모양',`GUID ${guids.length}개 · 가짜 아닌 것 ${real.length}`]);
 rows.forEach(r=>console.log(r[0]+'  '+r[1]+'  — '+r[2]));

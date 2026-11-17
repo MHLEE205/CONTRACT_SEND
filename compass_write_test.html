@@ -36,9 +36,9 @@
 <main id="cwMain" style="display:none;max-width:1200px;margin:0 auto;padding:20px 16px">
 
   <div class="cw-card">
-    <h3>COMPASS S/I 쓰기 시험 — 변경(PATCH) 시험 (만든 이: MAC-토르)</h3>
+    <h3>COMPASS S/I 쓰기 시험 — 변경(PATCH) 시험 · 신규 입력(POST) 시험 (만든 이: 토르)</h3>
     <div class="cw-note">계약 1건의 모든 sino 의 <code>cr49f_s_i</code> · <code>crcf9_s_i_detail</code> 를 ① 「1」 로 바꾸고 확인 → ② <b>저장본(원래 값)으로 되돌리고 확인</b> 합니다 (형님 결정 W1).<br>
-    이것은 <b>「변경」 시험</b>입니다 — 새 행을 만들지 않습니다 (W2). 쓰는 곳은 위 두 테이블 · 허용 계약 <code id="cwAllowed"></code> 뿐, 기록은 SharePoint <code>古紙/-. AI 活用/D-00/A1_bench/compass_write_test/</code> 아래에만 저장합니다.</div>
+    ①② 는 <b>「변경」 시험</b>입니다 — 새 행을 만들지 않습니다 (W2). 새 행 만들기는 아래 <b>③ 신규 입력 시험</b> (TEST01 만) 에서 따로 합니다. 변경 시험이 쓰는 곳은 위 두 테이블 · 허용 계약 <code id="cwAllowed"></code> 뿐, 기록은 SharePoint <code>古紙/-. AI 活用/D-00/A1_bench/compass_write_test/</code> 아래에만 저장합니다.</div>
   </div>
 
   <div class="cw-card">
@@ -69,6 +69,30 @@
     </div>
     <div id="cwStepSt" class="cw-note"></div>
     <div id="cwResult"></div>
+  </div>
+
+  <div class="cw-card" id="cnCard">
+    <h3>③ 신규 입력 시험 (POST · DELETE) — v0.3</h3>
+    <div class="cw-note">시험용 계약 <code id="cnAllowed"></code> 에 S/I · S/I 명세를 <b>새로 만들고</b> 확인한 뒤, <b>이번에 만든 행만</b> 지웁니다 (형님 W5 · W6).<br>
+    만드는 곳: <code>cr49f_s_is</code> · <code>crcf9_s_i_details</code> 뿐 · 연결은 TEST01 판매계약 · 판매 명세 · 품목 GUID 로만 · 판매계약 · 판매 명세는 지우지 않습니다. 기록: <code>compass_write_test/cnew_…/</code></div>
+    <div class="cw-row">
+      <label>계약번호 <input id="cnNo" class="cw-in" style="width:150px"></label>
+      <span id="cnLockNote" class="cw-note" style="margin:0"></span>
+    </div>
+    <div class="cw-steps">
+      <button id="cnS1" class="cw-btn" disabled>1. 시작 확인</button>
+      <button id="cnS2" class="cw-btn" disabled>2. 방법 A (차례로 · sino 1)</button>
+      <button id="cnS3" class="cw-btn" disabled>3. 방법 B (한 번에 · sino 2)</button>
+      <button id="cnS4" class="cw-btn" disabled>4. 확인</button>
+      <button id="cnS5" class="cw-btn danger" disabled>5. 지우기 (이번 실행 행만)</button>
+      <button id="cnS6" class="cw-btn" disabled>6. 최종 확인</button>
+    </div>
+    <div class="cw-row" style="margin-top:12px">
+      <button id="cnClean" class="cw-btn danger" disabled>남은 시험 행 지우기</button>
+      <span class="cw-note" style="margin:0">시작 확인에서 TEST01 에 S/I 가 남아 있을 때만 열립니다. 이전 실행 기록(<code>cnew_…/log.json</code>)에 있는 ID 만 지웁니다.</span>
+    </div>
+    <div id="cnStepSt" class="cw-note"></div>
+    <div id="cnResult"></div>
   </div>
 
   <div class="cw-card">
@@ -113,23 +137,26 @@ const CW = (()=>{
 
   /* 칸 나누기 — attrs: EntityDefinitions/Attributes 응답 ({LogicalName,AttributeType,IsValidForUpdate,MaxLength,AttributeOf,SourceType})
      ranges: {LogicalName:{min,max}} (숫자 칸 · 없으면 검사 안 함) · keyAttrs: 대체 키에 든 칸 · snapKeys: 저장본 행에 있는 칸 (없으면 되돌릴 수 없어 쓰지 않음) */
+  /* v0.3: opts.create=true 면 「만들기」 기준 — IsValidForCreate (없으면 IsValidForUpdate) · 글자 값 opts.textValue (MaxLength 가 그 길이보다 짧으면 애매) */
   function classify(attrs, opts){
-    opts=opts||{}; const ranges=opts.ranges||{}, keyAttrs=opts.keyAttrs||[], snapKeys=opts.snapKeys||null;
+    opts=opts||{}; const ranges=opts.ranges||{}, keyAttrs=opts.keyAttrs||[], snapKeys=opts.snapKeys||null, tv=opts.textValue||'1';
     const write=[], skip=[], unclear=[];
     (attrs||[]).slice().sort((a,b)=>String(a.LogicalName).localeCompare(String(b.LogicalName))).forEach(a=>{
       const n=a.LogicalName, t=a.AttributeType, it={name:n, type:t};
       if(SYSTEM_FIELDS.indexOf(n)>=0) return skip.push({...it, why:'시스템 칸'});
       if(SKIP_TYPES.indexOf(t)>=0) return skip.push({...it, why:t});
       if(TEXT_TYPES.indexOf(t)<0 && NUM_TYPES.indexOf(t)<0) return unclear.push({...it, why:'정하지 않은 종류 '+t});
-      if(a.IsValidForUpdate===false) return skip.push({...it, why:'IsValidForUpdate=false'});
+      if(opts.create){ const c=(a.IsValidForCreate===true||a.IsValidForCreate===false)?a.IsValidForCreate:a.IsValidForUpdate;
+        if(c===false) return skip.push({...it, why:(a.IsValidForCreate===false?'IsValidForCreate':'IsValidForUpdate')+'=false'}); }
+      else if(a.IsValidForUpdate===false) return skip.push({...it, why:'IsValidForUpdate=false'});
       if(a.AttributeOf) return skip.push({...it, why:'딸린 칸 (AttributeOf '+a.AttributeOf+')'});
       if(a.SourceType===1||a.SourceType===2) return skip.push({...it, why:a.SourceType===1?'계산 칸':'집계 칸'});
       if(keyAttrs.indexOf(n)>=0) return unclear.push({...it, why:'대체 키 칸 (같은 값 「1」 이 겹칠 수 있음)'});
       const r=ranges[n];
       if(NUM_TYPES.indexOf(t)>=0 && r && ((r.min!=null && r.min>1)||(r.max!=null && r.max<1))) return unclear.push({...it, why:'1 이 허용 범위 밖 ('+r.min+'~'+r.max+')'});
-      if(TEXT_TYPES.indexOf(t)>=0 && a.MaxLength!=null && a.MaxLength<1) return unclear.push({...it, why:'MaxLength '+a.MaxLength});
+      if(TEXT_TYPES.indexOf(t)>=0 && a.MaxLength!=null && a.MaxLength<tv.length) return unclear.push({...it, why:'MaxLength '+a.MaxLength});
       if(snapKeys && snapKeys.indexOf(n)<0) return skip.push({...it, why:'저장본에 없음 (되돌릴 값 없음)'});
-      write.push({...it, value:TEXT_TYPES.indexOf(t)>=0?'1':1});
+      write.push({...it, value:TEXT_TYPES.indexOf(t)>=0?tv:1});
     });
     return {write, skip, unclear};
   }
@@ -223,8 +250,152 @@ const CW = (()=>{
     L.push('','---','✦ Powered by LEENAI Automation System','');
     return L.join('\n');
   }
+  /* ============================================================
+     v0.3 「신규 입력」 시험 — 형님 W5 (가짜 판매계약) · W6 (TEST01) · 지시서 D00_COMPASS신규입력시험v0.3
+     만드는 곳 = 허용 계약(TEST01)의 S/I · S/I 명세뿐. 연결은 아래 GUID 로만. 지우기 = 이번 실행 기록에 있는 ID 만.
+  ============================================================ */
+  const CREATE_ALLOWED = {'TEST01':{contract:'dede2116-1fe2-f111-84e8-7c1e5223afee', saleDetail:'d369811b-1fe2-f111-84e8-7c1e5223a1c8', item:'d48cbf12-b15b-f011-bec2-000d3a786f70'}};
+  /* 엔터티 세트 이름은 실행 때 EntityDefinitions 에서 읽는다 (추측 금지) — 여기는 논리 이름만 */
+  const CREATE_LOGICAL = {si:'cr49f_s_i', detail:'crcf9_s_i_detail', contract:'cr49f_sale_contract', saleDetail:'cr49f_sale_detail', item:'cr49f_item'};
+  /* 연결 (리나이 F3): [어느 엔터티, 조회 칸, 가리키는 엔터티] — 탐색 이름은 ManyToOneRelationships 에서 읽음 */
+  const CREATE_LOOKUPS = {contract:['cr49f_s_i','cr49f_sale_contract_id','cr49f_sale_contract'], si:['crcf9_s_i_detail','crcf9_s_i_id','cr49f_s_i'],
+    saleDetail:['crcf9_s_i_detail','crcf9_sale_detail_id','cr49f_sale_detail'], item:['crcf9_s_i_detail','crcf9_item_id','cr49f_item']};
+  const NAV_DETAILS_F3 = 'crcf9_s_i_detail_s_i_id_cr49f_s_i';
+  const CREATE_SETS = {si:'cr49f_s_is', detail:'crcf9_s_i_details'};   // 이 도구가 만들고 지우는 두 테이블 (TABLES 와 같은 이름이어야 함)
+  const createTarget = no => Object.prototype.hasOwnProperty.call(CREATE_ALLOWED, normNo(no)) ? CREATE_ALLOWED[normNo(no)] : null;
+  const isCreateAllowed = no => !!createTarget(no);
+  const cnewRunId = d => 'cnew_'+(d||new Date()).toISOString().replace(/[-:]/g,'').replace(/\.\d+Z$/,'');
+  const bindPath = (set,id) => '/'+set+'('+id+')';
+  const lc = s => String(s==null?'':s).toLowerCase();
+
+  /* 메타데이터 → 세트 이름 · 탐색 이름 · 컬렉션 이름. problems 가 있으면 만들기 금지 */
+  function resolveCreateMeta(setsBy, m2o, o2m){
+    const problems=[], notes=[], sets={}, nav={};
+    Object.keys(CREATE_LOGICAL).forEach(k=>{ sets[k]=(setsBy||{})[CREATE_LOGICAL[k]]||null; if(!sets[k]) problems.push(CREATE_LOGICAL[k]+' 엔터티 세트 이름 못 읽음'); });
+    Object.keys(CREATE_SETS).forEach(k=>{ if(sets[k] && sets[k]!==CREATE_SETS[k]) problems.push(CREATE_LOGICAL[k]+' 세트 이름이 '+sets[k]+' (도구는 '+CREATE_SETS[k]+' 만 다룸)'); });
+    Object.keys(CREATE_LOOKUPS).forEach(k=>{ const L=CREATE_LOOKUPS[k], r=(((m2o||{})[L[0]])||[]).filter(x=>x.ReferencingAttribute===L[1]&&x.ReferencedEntity===L[2]);
+      if(r.length!==1||!r[0].ReferencingEntityNavigationPropertyName) problems.push(L[0]+'.'+L[1]+' → '+L[2]+' 연결 '+r.length+'개 (1개여야 함)'); else nav[k]=r[0].ReferencingEntityNavigationPropertyName; });
+    const c=(o2m||[]).filter(x=>x.ReferencingEntity==='crcf9_s_i_detail'&&x.ReferencingAttribute==='crcf9_s_i_id'), collection=c.length===1?c[0].ReferencedEntityNavigationPropertyName||null:null;
+    if(!collection) problems.push('S/I → 명세 컬렉션 탐색 이름 못 찾음 ('+c.length+'개)');
+    else if(collection!==NAV_DETAILS_F3) notes.push('컬렉션 탐색 이름 '+collection+' — 리나이 F3 '+NAV_DETAILS_F3+' 와 다름 (읽은 값을 씀)');
+    return {sets, nav, collection, problems, notes};
+  }
+  /* 만들기 본문 — 쓸 칸(글자 = label · 숫자 = 1) + 연결. kind 'si' | 'detail' · o: {meta, t, sino, siId, nested} */
+  function createBody(kind, cls, label, o){
+    const m=o.meta, b={};
+    (cls&&cls.write||[]).forEach(f=>{ b[f.name]=typeof f.value==='string'?label:1; });
+    if(kind==='si'){ b.crcf9_sino=o.sino; b[m.nav.contract+'@odata.bind']=bindPath(m.sets.contract,o.t.contract); }
+    else { if(!o.nested) b[m.nav.si+'@odata.bind']=bindPath(m.sets.si,o.siId);
+      b[m.nav.saleDetail+'@odata.bind']=bindPath(m.sets.saleDetail,o.t.saleDetail); b[m.nav.item+'@odata.bind']=bindPath(m.sets.item,o.t.item); }
+    return b;
+  }
+  /* 쓴 값만 (연결 · 컬렉션 빼고) — 확인 단계에서 비교 */
+  const fieldsOf = (b, meta) => Object.keys(b||{}).filter(k=>!/@odata\.bind$/.test(k)&&!(meta&&k===meta.collection)).reduce((o,k)=>(o[k]=b[k],o),{});
+  /* 기록용 본문 요약 — 칸 수 · 글자 값 · 연결 · 명세 줄 수 */
+  function bodySummary(b, meta){
+    const f=fieldsOf(b,meta), binds={}; Object.keys(b||{}).filter(k=>/@odata\.bind$/.test(k)).forEach(k=>{ binds[k]=b[k]; });
+    const texts=[...new Set(Object.keys(f).filter(k=>typeof f[k]==='string').map(k=>f[k]))];
+    const s={fields:Object.keys(f).length, text:texts.join(' · '), binds}; if('crcf9_sino' in f) s.sino=f.crcf9_sino;
+    if(meta&&Array.isArray(b[meta.collection])) s.details=b[meta.collection].map(d=>bodySummary(d,meta));
+    return s;
+  }
+  /* 만들기 문지기 — 어긋나면 예외 (fetch 전에 막는다).
+     ctx: {contract, meta, write:{cr49f_s_is:[칸], crcf9_s_i_details:[칸]}, created:{cr49f_s_is:[id], …}} */
+  function guardCreate(set, body, ctx){
+    const t=ctx&&createTarget(ctx.contract); if(!t) throw new Error('신규 입력 허용 계약 밖: '+(ctx&&ctx.contract));
+    if(set!==CREATE_SETS.si && set!==CREATE_SETS.detail) throw new Error('만들기 금지 엔터티: '+set);
+    if(!ctx.meta||(ctx.meta.problems||[]).length) throw new Error('메타데이터 확인 안 됨 — 만들기 금지');
+    checkCreateRow(set===CREATE_SETS.si?'si':'detail', body, ctx, t, false); return true;
+  }
+  function checkCreateRow(kind, body, ctx, t, nested){
+    const m=ctx.meta, keys=Object.keys(body||{}), set=CREATE_SETS[kind], allow=(ctx.write&&ctx.write[set])||[], want={}, siKey=m.nav.si+'@odata.bind';
+    if(!body||typeof body!=='object'||Array.isArray(body)||!keys.length) throw new Error('빈 본문');
+    if(kind==='si') want[m.nav.contract+'@odata.bind']=bindPath(m.sets.contract,t.contract);
+    else { want[m.nav.saleDetail+'@odata.bind']=bindPath(m.sets.saleDetail,t.saleDetail); want[m.nav.item+'@odata.bind']=bindPath(m.sets.item,t.item); }
+    keys.forEach(k=>{
+      if(/@odata\.bind$/.test(k)){
+        if(kind==='detail' && !nested && k===siKey){ const id=(String(body[k]).match(/\(([^)]*)\)$/)||[])[1];
+          if(lc(body[k])!==lc(bindPath(m.sets.si,id))||!isGuid(id)) throw new Error('S/I 연결 모양이 다름: '+body[k]);
+          if(!(((ctx.created||{})[CREATE_SETS.si])||[]).some(x=>lc(x)===lc(id))) throw new Error('이번 실행에서 만든 S/I 가 아님: '+id); return; }
+        if(!Object.prototype.hasOwnProperty.call(want,k)) throw new Error('허용 밖 연결: '+k);
+        if(lc(body[k])!==lc(want[k])) throw new Error('허용 밖 GUID 연결: '+k+' → '+body[k]); return; }
+      if(kind==='si' && k===m.collection){ if(!Array.isArray(body[k])||!body[k].length) throw new Error('명세 컬렉션이 비었음');
+        body[k].forEach(d=>checkCreateRow('detail', d, ctx, t, true)); return; }
+      if(kind==='si' && k==='crcf9_sino'){ if(!Number.isInteger(body[k])||body[k]<1) throw new Error('crcf9_sino 가 1 이상 정수가 아님'); return; }
+      if(allow.indexOf(k)<0) throw new Error('만들 수 없는 칸: '+k);
+      const v=body[k]; if(!(typeof v==='string'||v===1)) throw new Error('값 모양이 다름: '+k);
+    });
+    Object.keys(want).forEach(k=>{ if(!(k in body)) throw new Error('연결 빠짐: '+k); });
+    if(kind==='si' && !('crcf9_sino' in body)) throw new Error('crcf9_sino 빠짐');
+    if(kind==='detail' && !nested && !(siKey in body)) throw new Error('S/I 연결 빠짐: '+siKey);
+  }
+  /* 지우기 문지기 — 실행 기록에 있는 ID 만. 판매계약 · 판매 명세 · 품목은 절대 아님 */
+  function guardDelete(set, id, ctx){
+    const t=ctx&&createTarget(ctx.contract); if(!t) throw new Error('신규 입력 허용 계약 밖: '+(ctx&&ctx.contract));
+    if(set!==CREATE_SETS.si && set!==CREATE_SETS.detail) throw new Error('지우기 금지 엔터티: '+set);
+    if(!isGuid(id)) throw new Error('행 ID 가 GUID 가 아님: '+id);
+    if([t.contract,t.saleDetail,t.item].some(g=>lc(g)===lc(id))) throw new Error('판매계약 · 판매 명세 · 품목은 지우지 않음: '+id);
+    if(!(((ctx.created||{})[set])||[]).some(x=>lc(x)===lc(id))) throw new Error('실행 기록에 없는 행: '+id);
+    return true;
+  }
+  /* 실행 기록(log.json) → 만든 ID 목록 */
+  function createdFromLogs(logs){
+    const out={}; out[CREATE_SETS.si]=[]; out[CREATE_SETS.detail]=[];
+    (logs||[]).forEach(l=>{ const c=(l&&l.created)||{}; Object.keys(out).forEach(set=>(c[set]||[]).forEach(r=>{ const id=r&&r.id; if(isGuid(id)&&!out[set].some(x=>lc(x)===lc(id))) out[set].push(id); })); });
+    return out;
+  }
+  /* 확인 — now: {si:[S/I 행], det:[명세 행]} · created: {cr49f_s_is:[{id,sino,fields}], crcf9_s_i_details:[{id,si,fields}]} · userId: WhoAmI */
+  function checkCreated(now, created, t, userId){
+    const rows=[], add=(what,want,got,okv)=>rows.push({what, want:fmtV(want), now:fmtV(got), ok:!!okv});
+    const cs=created[CREATE_SETS.si]||[], cd=created[CREATE_SETS.detail]||[], si=now.si||[], det=now.det||[];
+    add('TEST01 의 S/I 줄 수', cs.length, si.length, si.length===cs.length);
+    add('TEST01 의 S/I 명세 줄 수', cd.length, det.length, det.length===cd.length);
+    const sameVal=(v,w)=>typeof w==='string'?v===w:Number(v)===w&&typeof v==='number';
+    cs.forEach(c=>{ const r=si.find(x=>lc(x.cr49f_s_iid)===lc(c.id)), tag='S/I sino '+c.sino+' ('+c.method+')';
+      if(!r) return add(tag,'있음','없음',false);
+      add(tag+' · sino', c.sino, r.crcf9_sino, r.crcf9_sino===c.sino);
+      add(tag+' · 판매계약 연결', t.contract, r._cr49f_sale_contract_id_value, lc(r._cr49f_sale_contract_id_value)===lc(t.contract));
+      const f=c.fields||{}, bad=Object.keys(f).filter(k=>k!=='crcf9_sino'&&!sameVal(r[k],f[k]));
+      add(tag+' · 쓴 값 '+(Object.keys(f).length-('crcf9_sino' in f?1:0))+'칸', 'TEST 값 그대로', bad.length?bad.map(k=>k+'='+fmtV(r[k])).join(', '):'그대로', !bad.length);
+      add(tag+' · 만든이', userId, r._createdby_value, !!userId&&lc(r._createdby_value)===lc(userId));
+      const mine=det.filter(d=>lc(d._crcf9_s_i_id_value)===lc(c.id)); add(tag+' · 명세 줄 수', 1, mine.length, mine.length===1); });
+    cd.forEach(c=>{ const r=det.find(x=>lc(x.crcf9_s_i_detailid)===lc(c.id)), tag='명세 ('+c.method+')';
+      if(!r) return add(tag,'있음','없음',false);
+      add(tag+' · S/I 연결', c.si, r._crcf9_s_i_id_value, lc(r._crcf9_s_i_id_value)===lc(c.si));
+      add(tag+' · 판매 명세 연결', t.saleDetail, r._crcf9_sale_detail_id_value, lc(r._crcf9_sale_detail_id_value)===lc(t.saleDetail));
+      add(tag+' · 품목 연결', t.item, r._crcf9_item_id_value, lc(r._crcf9_item_id_value)===lc(t.item));
+      const f=c.fields||{}, bad=Object.keys(f).filter(k=>!sameVal(r[k],f[k]));
+      add(tag+' · 쓴 값 '+Object.keys(f).length+'칸', 'TEST 값 그대로', bad.length?bad.map(k=>k+'='+fmtV(r[k])).join(', '):'그대로', !bad.length);
+      add(tag+' · 만든이', userId, r._createdby_value, !!userId&&lc(r._createdby_value)===lc(userId)); });
+    return {ok:rows.every(r=>r.ok), rows};
+  }
+  /* 한 행 그대로인지 (자동 칸 · 주석 제외) — 판매계약 · 판매 명세 */
+  function sameRow(before, now){
+    if(!before||!now) return [{field:'(행)', want:before?'있음':'없음', now:now?'있음':'없음'}];
+    return Object.keys(before).filter(cmpKey).filter(k=>!same(before[k],now[k])).map(k=>({field:k, want:before[k], now:now[k]===undefined?null:now[k]}));
+  }
+  function summaryCreateMd(log){
+    const st=n=>(log.steps||[]).filter(s=>s.step===n).pop(), mark=s=>s?(s.ok?'✅ 성공':'❌ 실패'):'(안 함)', sec=s=>s?(s.ms/1000).toFixed(1)+'초':'-';
+    const L=['# COMPASS S/I 신규 입력 시험 — '+log.run_id,'',
+      '- 도구: compass_write_test v'+log.version+' (토르 제작)','- 계약: '+log.contract+' ('+log.contract_id+') · 실행자: '+(log.user||'?')+(log.user_id?' ('+log.user_id+')':'')+' · 시작 '+log.started+(log.finished?' · 끝 '+log.finished:''),''];
+    const m=log.meta||{};
+    L.push('## 메타데이터 (실행 때 읽음)','','- 엔터티 세트: '+Object.keys(m.sets||{}).map(k=>k+' = `'+m.sets[k]+'`').join(' · '),
+      '- 연결 탐색 이름: '+Object.keys(m.nav||{}).map(k=>k+' = `'+m.nav[k]+'`').join(' · '),'- S/I → 명세 컬렉션: `'+(m.collection||'?')+'`');
+    (m.notes||[]).forEach(n=>L.push('- ⚠️ '+n));
+    L.push('','## 결과','','| 단계 | 결과 | 걸린 시간 | 메모 |','|---|---|---|---|');
+    ['시작 확인','방법 A — 차례로 만들기','방법 B — 한 번에 만들기','확인','지우기','최종 확인','남은 시험 행 지우기'].forEach(n=>{ const s=st(n); if(s||!/남은/.test(n)) L.push('| '+n+' | '+mark(s)+' | '+sec(s)+' | '+String(s&&s.note||'').replace(/\|/g,'/')+' |'); });
+    L.push('','## 만든 행','','| 테이블 | ID | 방법 | 지움 |','|---|---|---|---|');
+    const del=log.deleted||{}; Object.keys(log.created||{}).forEach(set=>(log.created[set]||[]).forEach(r=>L.push('| '+set+' | '+r.id+' | '+r.method+(r.sino?' · sino '+r.sino:'')+' | '+((del[set]||[]).some(x=>lc(x)===lc(r.id))?'✅':'—')+' |')));
+    L.push('','## 요청','','| 단계 | 요청 | 엔터티 | 응답 | 만든/지운 ID | 메모 |','|---|---|---|---|---|---|');
+    (log.steps||[]).forEach(s=>(s.requests||[]).forEach(q=>L.push('| '+s.step+' | '+q.method+' | '+q.set+' | '+q.status+' | '+(q.id||'')+' | '+String(q.message||'').replace(/\|/g,'/')+' |')));
+    L.push('','---','✦ Powered by LEENAI Automation System','');
+    return L.join('\n');
+  }
+
   return {ALLOWED, TABLES, SP_DIR, SYSTEM_FIELDS, AUTO_KEYS, isGuid, normNo, isAllowed, classify, skipByKind, snapRows, snapIds, checkSnap, diffRows, diffAll,
-    bodyOne, bodyRestore, check1, detectOutsideChange, modifiedMap, guardPatch, guardSpPath, runId, fmtV, summaryMd};
+    bodyOne, bodyRestore, check1, detectOutsideChange, modifiedMap, guardPatch, guardSpPath, runId, fmtV, summaryMd,
+    CREATE_ALLOWED, CREATE_LOGICAL, CREATE_LOOKUPS, CREATE_SETS, NAV_DETAILS_F3, createTarget, isCreateAllowed, cnewRunId, bindPath, resolveCreateMeta, createBody, fieldsOf, bodySummary,
+    guardCreate, guardDelete, createdFromLogs, checkCreated, sameRow, summaryCreateMd};
 })();
 if(typeof module!=='undefined') module.exports=CW;
 </script>
@@ -285,15 +456,16 @@ async function dvPatch(set, id, body){
 /* v0.2: 기본 목록은 기본형 AttributeMetadata 에 있는 속성만 (MaxLength 를 넣으면 DV 400 — 실제 오류 2026-11-16).
    AttributeOf · SourceType 이 없는 환경이면 400 → 그 속성을 빼고 한 번만 다시 읽음 (빠진 속성 = 「모름」, 애매로 보지 않음) */
 const CW_META_BASE = ['LogicalName','AttributeType','IsValidForUpdate','AttributeOf','SourceType'];
-const CW_META_OPTIONAL = ['AttributeOf','SourceType'];
-async function readMeta(logical){
+const CW_META_OPTIONAL = ['AttributeOf','SourceType','IsValidForCreate'];
+/* v0.3: extra = 더 읽을 기본형 속성 (신규 입력 시험은 IsValidForCreate) — 변경 시험은 v0.2 와 같은 요청 */
+async function readMeta(logical, extra){
   const base="EntityDefinitions(LogicalName='"+logical+"')";
-  let props=CW_META_BASE.slice(), missing=[], a;
+  let props=CW_META_BASE.concat(extra||[]), missing=[], a;
   try{ a=await dvGet(base+'/Attributes?$select='+props.join(',')); }
   catch(e){
     if(!/^DV 400/.test(e.message)) throw e;
     const named=(e.message.match(/property named '(\w+)'/)||[])[1];
-    missing=CW_META_OPTIONAL.indexOf(named)>=0?[named]:CW_META_OPTIONAL.slice();
+    missing=CW_META_OPTIONAL.indexOf(named)>=0?[named]:CW_META_OPTIONAL.filter(p=>props.indexOf(p)>=0);
     props=props.filter(p=>missing.indexOf(p)<0);
     logLine('메타데이터: '+missing.join(' · ')+' 못 읽음 → 빼고 다시 읽음 ('+e.message+')','warn');
     a=await dvGet(base+'/Attributes?$select='+props.join(','));
@@ -370,14 +542,14 @@ function rowsTable(rows){
 }
 function showResult(html){ $('cwResult').innerHTML=html; }
 function setStepButtons(){
-  const loaded=!!(S.contract&&S.snap&&S.ctx), allowed=loaded&&CW.isAllowed(S.contract.no), d=S.done;
-  $('cwS1').disabled=!allowed||S.busy;
-  $('cwS2').disabled=!allowed||S.busy||!d.start;
-  $('cwS3').disabled=!allowed||S.busy||!d.one;
-  $('cwS4').disabled=!allowed||S.busy||!d.one;
-  $('cwS5').disabled=!allowed||S.busy||!d.restore;
-  $('cwS6').disabled=!allowed||S.busy||!d.check2;
-  $('cwRestoreOnly').disabled=!allowed||S.busy;
+  const loaded=!!(S.contract&&S.snap&&S.ctx), allowed=loaded&&CW.isAllowed(S.contract.no), d=S.done, busy=S.busy||N.busy;
+  $('cwS1').disabled=!allowed||busy;
+  $('cwS2').disabled=!allowed||busy||!d.start;
+  $('cwS3').disabled=!allowed||busy||!d.one;
+  $('cwS4').disabled=!allowed||busy||!d.one;
+  $('cwS5').disabled=!allowed||busy||!d.restore;
+  $('cwS6').disabled=!allowed||busy||!d.check2;
+  $('cwRestoreOnly').disabled=!allowed||busy;
 }
 function renderFields(){
   let h='<table class="cw-t"><tr><th>테이블</th><th>행</th><th>쓸 칸</th><th>건너뛸 칸 (종류별)</th><th>메타데이터</th></tr>';
@@ -424,7 +596,7 @@ async function loadContract(){
 }
 
 /* 단계 실행 틀 — busy 잠금 · 오류 잡기 */
-async function step(fn){ if(S.busy) return; S.busy=true; setStepButtons(); try{ await fn(); }catch(e){ $('cwStepSt').innerHTML='<span class="cw-ng">오류: '+escH(e.message)+'</span>'; logLine('오류: '+e.message,'danger'); } S.busy=false; setStepButtons(); }
+async function step(fn){ if(S.busy||N.busy) return; S.busy=true; setStepButtons(); cnSetButtons(); try{ await fn(); }catch(e){ $('cwStepSt').innerHTML='<span class="cw-ng">오류: '+escH(e.message)+'</span>'; logLine('오류: '+e.message,'danger'); } S.busy=false; setStepButtons(); cnSetButtons(); }
 
 /* 1. 시작 확인 — 지금 값 = 저장본 이어야 함 */
 async function stepStart(){ await step(async()=>{
@@ -511,8 +683,251 @@ async function stepDetect(){ await step(async()=>{
   showResult('<table class="cw-t"><tr><th>테이블</th><th>행</th><th>저장한 modifiedon</th><th>지금</th><th>판정</th></tr>'+r.rows.map(x=>'<tr class="'+(x.changed?'cw-bad':'')+'"><td>'+escH(x.set)+'</td><td>'+escH(x.id)+'</td><td>'+escH(x.saved)+'</td><td>'+escH(x.now)+'</td><td>'+(x.changed?'TOOL 밖에서 바뀜':'그대로')+'</td></tr>').join('')+'</table>');
 }); }
 
+/* ============================================================
+   ③ 신규 입력 시험 (v0.3) — POST · DELETE 는 CW.guardCreate · CW.guardDelete 를 통과한 것만. 재시도 없음 (같은 행 두 번 만들기 방지)
+============================================================ */
+const N = {no:null, t:null, meta:null, cls:{}, ctx:null, run:null, busy:false, done:{}, userId:null, saleDetailBefore:null, contractBefore:null, prevCreated:null};
+const CN_LABEL = {A:'TEST-A', B:'TEST-B'};
+const cnCreatedLeft = () => Object.keys(CW.CREATE_SETS).some(k=>{ const set=CW.CREATE_SETS[k], del=(N.run&&N.run.deleted[set])||[];
+  return ((N.run&&N.run.created[set])||[]).some(r=>!del.some(x=>x.toLowerCase()===r.id.toLowerCase())); });
+function cnSetButtons(){
+  const allowed=CW.isCreateAllowed($('cnNo').value), b=N.busy||S.busy, d=N.done, left=cnCreatedLeft();
+  $('cnLockNote').innerHTML=allowed?'':'<span class="cw-ng">신규 입력 허용 계약('+escH(Object.keys(CW.CREATE_ALLOWED).join(', '))+') 이 아님 — 버튼 잠김</span>';
+  $('cnS1').disabled=!allowed||b;
+  $('cnS2').disabled=!allowed||b||!d.start||!!d.a||!!d.fail;
+  $('cnS3').disabled=!allowed||b||!d.a||!!d.b||!!d.fail;
+  $('cnS4').disabled=!allowed||b||!d.b;
+  $('cnS5').disabled=!allowed||b||!left;
+  $('cnS6').disabled=!allowed||b||!d.del;
+  $('cnClean').disabled=!allowed||b||!d.dirty;
+}
+async function nstep(fn){ if(N.busy||S.busy) return; N.busy=true; cnSetButtons(); setStepButtons();
+  try{ await fn(); }catch(e){ $('cnStepSt').innerHTML='<span class="cw-ng">오류: '+escH(e.message)+'</span>'; logLine('신규 입력 오류: '+e.message,'danger'); if(N.run){ addNStep('오류',Date.now(),false,{note:e.message}); await saveCnLog(); } }
+  N.busy=false; cnSetButtons(); setStepButtons(); }
+function addNStep(step, t0, ok, extra){ const s=Object.assign({step, at:new Date().toISOString(), ms:Date.now()-t0, ok}, extra||{}); N.run.steps.push(s); return s; }
+async function saveCnLog(){
+  const dir=CW.SP_DIR+'/'+N.run.run_id;
+  try{ await spPut(dir+'/log.json', JSON.stringify(N.run,null,1), 'application/json'); await spPut(dir+'/summary.md', CW.summaryCreateMd(N.run), 'text/markdown');
+    $('cwSaveNote').textContent='기록 저장: SharePoint '+dir+'/ (log.json · summary.md)'; }
+  catch(e){ $('cwSaveNote').textContent='기록 저장 실패: '+e.message; logLine('기록 저장 실패: '+e.message,'danger'); }
+}
+function cnRecord(set, rec){ N.run.created[set].push(rec); N.ctx.created[set].push(rec.id); }
+const cnReq = (method, set, res, extra) => Object.assign({method, set, status:res.status, id:res.id||null, message:res.message||''}, extra||{});
+
+/* POST — 문지기 통과한 것만. Prefer: return=representation → 응답 본문의 ID (없으면 OData-EntityId 머리말) */
+async function dvPost(set, body){
+  CW.guardCreate(set, body, N.ctx);
+  const tok=await LEENAI.auth.token('dataverse');
+  const res=await fetch(CW_DV_API+'/'+set,{method:'POST',headers:{'Authorization':'Bearer '+tok,'OData-MaxVersion':'4.0','OData-Version':'4.0',
+    'Accept':'application/json','Content-Type':'application/json; charset=utf-8','Prefer':'return=representation'},body:JSON.stringify(body)});
+  let msg='', id=null;
+  if(res.ok){ const rep=await res.json().catch(()=>null); id=rep&&rep[CW.TABLES[set].id]||null;
+    if(!id){ const loc=(res.headers&&res.headers.get('OData-EntityId'))||''; id=(loc.match(/\(([0-9a-f-]{36})\)\s*$/i)||[])[1]||null; }
+    if(!CW.isGuid(id)) msg='만들기 응답에 새 ID 없음 — COMPASS 화면에서 확인 필요'; }
+  else { const e=await res.json().catch(()=>({})); msg=(e.error&&e.error.message)||res.statusText||''; }
+  return {ok:res.ok&&CW.isGuid(id), status:res.status, message:msg, id:CW.isGuid(id)?id:null};
+}
+/* DELETE — 실행 기록에 있는 ID 만. 404 = 이미 없음 (성공으로 봄) */
+async function dvDelete(set, id, ctx){
+  CW.guardDelete(set, id, ctx);
+  const tok=await LEENAI.auth.token('dataverse');
+  const res=await fetch(CW_DV_API+'/'+set+'('+id+')',{method:'DELETE',headers:{'Authorization':'Bearer '+tok,'OData-MaxVersion':'4.0','OData-Version':'4.0','Accept':'application/json'}});
+  let msg=''; if(!res.ok){ const e=await res.json().catch(()=>({})); msg=(e.error&&e.error.message)||res.statusText||''; }
+  return {ok:res.ok||res.status===404, status:res.status, message:res.status===404?'이미 없음':msg, id};
+}
+/* 엔터티 세트 · 연결 탐색 이름 · 컬렉션 이름 (실행 때 읽음 — 추측 금지) */
+async function readCreateMeta(){
+  const setsBy={};
+  for(const lg of Object.values(CW.CREATE_LOGICAL)){ const d=await dvGet("EntityDefinitions(LogicalName='"+lg+"')?$select=LogicalName,EntitySetName"); setsBy[lg]=d.EntitySetName; }
+  const m2o={};
+  for(const ent of ['cr49f_s_i','crcf9_s_i_detail']){ m2o[ent]=(await dvGet("EntityDefinitions(LogicalName='"+ent+"')/ManyToOneRelationships?$select=ReferencingAttribute,ReferencedEntity,ReferencingEntityNavigationPropertyName")).value||[]; }
+  const o2m=(await dvGet("EntityDefinitions(LogicalName='cr49f_s_i')/OneToManyRelationships?$select=ReferencingEntity,ReferencingAttribute,ReferencedEntityNavigationPropertyName")).value||[];
+  return CW.resolveCreateMeta(setsBy, m2o, o2m);
+}
+/* TEST01 의 지금 S/I · 명세 — S/I 아래 명세 + 판매 명세(2491)에 붙은 명세 (겹침 제거) */
+async function readTest01(){
+  const t=N.t, m=N.meta;
+  const si=await dvAll(m.sets.si+'?$filter=_cr49f_sale_contract_id_value eq '+t.contract+'&$orderby=crcf9_sino asc');
+  let det=[]; for(const h of si){ det=det.concat(await dvAll(m.sets.detail+'?$filter=_crcf9_s_i_id_value eq '+h.cr49f_s_iid)); }
+  const bySale=await dvAll(m.sets.detail+'?$filter=_crcf9_sale_detail_id_value eq '+t.saleDetail);
+  bySale.forEach(d=>{ if(!det.some(x=>x.crcf9_s_i_detailid===d.crcf9_s_i_detailid)) det.push(d); });
+  return {si, det};
+}
+const cnRowsTable = rows => '<table class="cw-t"><tr><th>확인</th><th>기대</th><th>지금</th><th>판정</th></tr>'+rows.map(r=>'<tr class="'+(r.ok?'':'cw-bad')+'"><td>'+escH(r.what)+'</td><td class="v">'+escH(r.want)+'</td><td class="v">'+escH(r.now)+'</td><td>'+(r.ok?'✅':'❌')+'</td></tr>').join('')+'</table>';
+const cnReqTable = reqs => '<table class="cw-t"><tr><th>요청</th><th>엔터티</th><th>HTTP</th><th>ID</th><th>메시지</th></tr>'+reqs.map(q=>'<tr class="'+(q.status>=200&&q.status<300||q.status===404&&q.method==='DELETE'?'':'cw-bad')+'"><td>'+escH(q.method)+'</td><td>'+escH(q.set)+'</td><td>'+escH(q.status)+'</td><td>'+escH(q.id||'')+'</td><td>'+escH(q.message||'')+'</td></tr>').join('')+'</table>';
+const cnExistTable = now => '<table class="cw-t"><tr><th>테이블</th><th>ID</th><th>sino / S/I</th><th>만든이</th><th>만든 시각</th></tr>'+
+  now.si.map(r=>'<tr><td>S/I</td><td>'+escH(r.cr49f_s_iid)+'</td><td>'+escH(r.crcf9_sino)+'</td><td>'+escH(r['_createdby_value@OData.Community.Display.V1.FormattedValue']||r._createdby_value||'')+'</td><td>'+escH(r.createdon||'')+'</td></tr>').join('')+
+  now.det.map(r=>'<tr><td>명세</td><td>'+escH(r.crcf9_s_i_detailid)+'</td><td>'+escH(r._crcf9_s_i_id_value||'')+'</td><td>'+escH(r['_createdby_value@OData.Community.Display.V1.FormattedValue']||r._createdby_value||'')+'</td><td>'+escH(r.createdon||'')+'</td></tr>').join('')+'</table>';
+async function cnConfirm(what, detail){
+  return (await askBox('<b>'+escH(what)+'</b><br>계약 <b>'+escH(N.no)+'</b> — '+detail+'<br>계약번호를 똑같이 입력해야 「실행」 이 눌립니다.',['실행','취소'], N.no))===0;
+}
+
+/* 1. 시작 확인 — 계약 · 판매 명세 · 메타데이터 · 로그인 계정 읽기 → TEST01 S/I 0건 · 명세 0건 */
+async function cnStart(){ await nstep(async()=>{
+  const t0=Date.now(), no=CW.normNo($('cnNo').value), t=CW.createTarget(no); if(!t) throw new Error('신규 입력 허용 계약 밖: '+no);
+  N.no=no; N.t=t; N.done={}; N.cls={}; N.meta=null; N.ctx=null; N.prevCreated=null;
+  const d=new Date(), rid=CW.cnewRunId(d);
+  N.run={run_id:rid, kind:'create', version:cwVersion(), contract:no, contract_id:t.contract, user:(LEENAI.user&&LEENAI.user.email)||'', user_id:null, started:d.toISOString(), finished:null,
+    meta:null, fields:{}, created:{cr49f_s_is:[], crcf9_s_i_details:[]}, deleted:{cr49f_s_is:[], crcf9_s_i_details:[]}, steps:[]};
+  N.meta=await readCreateMeta(); N.run.meta=N.meta;
+  if(N.meta.problems.length) throw new Error('메타데이터 문제 — 만들지 않음: '+N.meta.problems.join(' / '));
+  N.meta.notes.forEach(x=>logLine('메타데이터: '+x,'warn'));
+  const c=await dvGet(N.meta.sets.contract+'('+t.contract+')');
+  if(CW.normNo(c.cr49f_sale_contract_no)!==no) throw new Error('계약 ID '+t.contract+' 의 번호가 '+c.cr49f_sale_contract_no+' (≠ '+no+')');
+  N.contractBefore=c; N.saleDetailBefore=await dvGet(N.meta.sets.saleDetail+'('+t.saleDetail+')');
+  const who=await dvGet('WhoAmI()'); N.userId=who.UserId; N.run.user_id=who.UserId;
+  for(const set of Object.values(CW.CREATE_SETS)){
+    const m=await readMeta(CW.TABLES[set].logical,['IsValidForCreate']);
+    N.cls[set]=CW.classify(m.attrs,{ranges:m.ranges, keyAttrs:m.keyAttrs, create:true, textValue:CN_LABEL.A}); N.cls[set].metaMissing=m.missing;
+    N.run.fields[set]={write:N.cls[set].write.map(f=>({name:f.name,type:f.type})), skip:N.cls[set].skip, unclear:N.cls[set].unclear, meta_missing:m.missing};
+  }
+  N.ctx={contract:no, meta:N.meta, write:Object.values(CW.CREATE_SETS).reduce((o,set)=>(o[set]=N.cls[set].write.map(f=>f.name),o),{}), created:{cr49f_s_is:[], crcf9_s_i_details:[]}};
+  const now=await readTest01();
+  if(now.si.length||now.det.length){
+    N.done.dirty=true; addNStep('시작 확인', t0, false, {note:'S/I '+now.si.length+'건 · 명세 '+now.det.length+'건 남아 있음 — 멈춤'}); await saveCnLog();
+    $('cnStepSt').innerHTML='<span class="cw-ng">1. 시작 확인: TEST01 에 S/I '+now.si.length+'건 · 명세 '+now.det.length+'건이 있습니다 — 멈춤. 만들지 않았습니다. 「남은 시험 행 지우기」 로 이전 실행 기록에 있는 행만 지울 수 있습니다.</span>';
+    $('cnResult').innerHTML=cnExistTable(now); logLine('신규 입력 시작 확인: 남은 행 있음 — 멈춤','danger'); return;
+  }
+  addNStep('시작 확인', t0, true, {note:'S/I 0건 · 명세 0건 · 쓸 칸 S/I '+N.cls.cr49f_s_is.write.length+' · 명세 '+N.cls.crcf9_s_i_details.write.length}); await saveCnLog();
+  N.done.start=true;
+  const fl=set=>N.cls[set].write.map(f=>f.name+(typeof f.value==='string'?'':' (숫자)')).join(', ')||'(없음)';
+  $('cnStepSt').innerHTML='<span class="cw-ok">1. 시작 확인: TEST01 S/I 0건 · 명세 0건 ✅ — 이번 실행 '+escH(rid)+'. 다음: 「2. 방법 A」</span>';
+  $('cnResult').innerHTML='<div class="cw-note">엔터티 세트: '+escH(Object.keys(N.meta.sets).map(k=>k+'='+N.meta.sets[k]).join(' · '))+'<br>연결: '+escH(Object.keys(N.meta.nav).map(k=>k+'='+N.meta.nav[k]).join(' · '))+' · 컬렉션 '+escH(N.meta.collection)+
+    (N.meta.notes.length?'<br><span class="cw-warn">'+escH(N.meta.notes.join(' / '))+'</span>':'')+'<br>S/I 쓸 칸: '+escH(fl('cr49f_s_is'))+'<br>명세 쓸 칸: '+escH(fl('crcf9_s_i_details'))+'</div>';
+  logLine('신규 입력 시작 확인 OK — '+rid,'ok');
+}); }
+
+/* 2. 방법 A — S/I POST → 응답 ID 로 명세 POST */
+async function cnMethodA(){
+  if(!(await cnConfirm('방법 A — 차례로 만들기 (sino 1)','S/I 1행을 만들고, 그 ID 로 S/I 명세 1행을 만듭니다 (COMPASS 신규 입력).'))){ logLine('방법 A 취소'); return; }
+  await nstep(async()=>{
+    const t0=Date.now(), req=[], m=N.meta;
+    const siBody=CW.createBody('si', N.cls.cr49f_s_is, CN_LABEL.A, {meta:m, t:N.t, sino:1});
+    const r1=await dvPost('cr49f_s_is', siBody); req.push(cnReq('POST','cr49f_s_is',r1,{body:CW.bodySummary(siBody,m)}));
+    logLine('방법 A: S/I POST → '+r1.status+(r1.id?' '+r1.id:' '+r1.message), r1.ok?'':'danger');
+    if(!r1.ok){ N.done.fail=true; addNStep('방법 A — 차례로 만들기', t0, false, {requests:req, note:'S/I 만들기 실패 — 멈춤'}); await saveCnLog();
+      $('cnStepSt').innerHTML='<span class="cw-ng">2. 방법 A: S/I 만들기 실패 — 멈춤'+(r1.status>=200&&r1.status<300?' (응답에 ID 없음: COMPASS 화면에서 TEST01 확인 필요)':'')+'</span>'; $('cnResult').innerHTML=cnReqTable(req); return; }
+    cnRecord('cr49f_s_is', {id:r1.id, sino:1, method:'A', fields:CW.fieldsOf(siBody,m)}); await saveCnLog();   // 만든 즉시 기록 (명세가 실패해도 지울 수 있게)
+    const dBody=CW.createBody('detail', N.cls.crcf9_s_i_details, CN_LABEL.A, {meta:m, t:N.t, siId:r1.id});
+    const r2=await dvPost('crcf9_s_i_details', dBody); req.push(cnReq('POST','crcf9_s_i_details',r2,{body:CW.bodySummary(dBody,m)}));
+    logLine('방법 A: 명세 POST → '+r2.status+(r2.id?' '+r2.id:' '+r2.message), r2.ok?'':'danger');
+    if(!r2.ok){ N.done.fail=true; N.run.leftover=[{set:'cr49f_s_is', id:r1.id, why:'방법 A 명세 만들기 실패 — S/I 만 있는 반쪽 상태'}];
+      addNStep('방법 A — 차례로 만들기', t0, false, {requests:req, note:'명세 만들기 실패 — S/I '+r1.id+' 남은 시험 행 (「5. 지우기」 로 정리)'}); await saveCnLog();
+      $('cnStepSt').innerHTML='<span class="cw-ng">2. 방법 A: 명세 만들기 실패 — 멈춤. 방금 만든 S/I '+escH(r1.id)+' 는 남은 시험 행으로 기록했습니다 (반쪽 상태 — COMPASS 화면 확인 후 「5. 지우기」).</span>'; $('cnResult').innerHTML=cnReqTable(req); return; }
+    cnRecord('crcf9_s_i_details', {id:r2.id, si:r1.id, method:'A', fields:CW.fieldsOf(dBody,m)});
+    addNStep('방법 A — 차례로 만들기', t0, true, {requests:req, note:'S/I '+r1.id+' · 명세 '+r2.id}); await saveCnLog();
+    N.done.a=true;
+    $('cnStepSt').innerHTML='<span class="cw-ok">2. 방법 A 완료 ✅ — S/I(sino 1) · 명세 1행. 다음: 「3. 방법 B」</span>'; $('cnResult').innerHTML=cnReqTable(req);
+  });
+}
+/* 3. 방법 B — deep insert (S/I 본문에 명세 컬렉션) → 다시 읽어 명세 ID */
+async function cnMethodB(){
+  if(!(await cnConfirm('방법 B — 한 번에 만들기 (sino 2)','S/I 1행 + 명세 1행을 요청 한 번(deep insert)으로 만듭니다 (COMPASS 신규 입력).'))){ logLine('방법 B 취소'); return; }
+  await nstep(async()=>{
+    const t0=Date.now(), req=[], m=N.meta;
+    const body=CW.createBody('si', N.cls.cr49f_s_is, CN_LABEL.B, {meta:m, t:N.t, sino:2});
+    const dBody=CW.createBody('detail', N.cls.crcf9_s_i_details, CN_LABEL.B, {meta:m, t:N.t, nested:true});
+    body[m.collection]=[dBody];
+    const r=await dvPost('cr49f_s_is', body); req.push(cnReq('POST','cr49f_s_is',r,{body:CW.bodySummary(body,m), deep_insert:true}));
+    logLine('방법 B: S/I deep insert POST → '+r.status+(r.id?' '+r.id:' '+r.message), r.ok?'':'danger');
+    if(!r.ok){ N.done.fail=true; addNStep('방법 B — 한 번에 만들기', t0, false, {requests:req, note:'deep insert 실패 — 멈춤'}); await saveCnLog();
+      $('cnStepSt').innerHTML='<span class="cw-ng">3. 방법 B: 만들기 실패 — 멈춤. 방법 A 로 만든 행은 「5. 지우기」 로 정리하세요.</span>'; $('cnResult').innerHTML=cnReqTable(req); return; }
+    cnRecord('cr49f_s_is', {id:r.id, sino:2, method:'B', fields:CW.fieldsOf(body,m)}); await saveCnLog();
+    const ds=await dvAll(m.sets.detail+'?$filter=_crcf9_s_i_id_value eq '+r.id);
+    ds.forEach(d=>cnRecord('crcf9_s_i_details', {id:d.crcf9_s_i_detailid, si:r.id, method:'B', fields:CW.fieldsOf(dBody,m)}));
+    req.push({method:'GET', set:m.sets.detail, status:200, id:ds.map(d=>d.crcf9_s_i_detailid).join(' · '), message:'S/I '+r.id+' 아래 명세 '+ds.length+'행'});
+    const ok=ds.length===1;
+    addNStep('방법 B — 한 번에 만들기', t0, ok, {requests:req, note:'S/I '+r.id+' · 명세 '+ds.length+'행'+(ok?'':' (1행이어야 함)')}); await saveCnLog();
+    N.done.b=true;
+    $('cnStepSt').innerHTML=ok?'<span class="cw-ok">3. 방법 B 완료 ✅ — S/I(sino 2) + 명세 1행이 한 번에 만들어짐. 다음: 「4. 확인」</span>'
+      :'<span class="cw-ng">3. 방법 B: S/I 는 만들어졌으나 명세가 '+ds.length+'행 — 「4. 확인」 후 「5. 지우기」</span>';
+    $('cnResult').innerHTML=cnReqTable(req);
+  });
+}
+/* 4. 확인 — 다시 읽어 표 · 멈춤 (형님 COMPASS 화면 확인) */
+async function cnCheck(){ await nstep(async()=>{
+  const t0=Date.now(), now=await readTest01(), r=CW.checkCreated(now, N.run.created, N.t, N.userId);
+  addNStep('확인', t0, r.ok, {checks:r.rows, note:r.ok?'S/I 2줄 · 명세 각 1줄 · 연결 · 값 · 만든이 모두 맞음':'어긋남 '+r.rows.filter(x=>!x.ok).length+'개'}); await saveCnLog();
+  N.done.check=true;
+  $('cnStepSt').innerHTML=r.ok?'<span class="cw-ok">4. 확인 ✅ — 형님이 COMPASS S/I 화면에서 TEST01 의 S/I ①② · 명세를 확인한 뒤 「5. 지우기」</span>'
+    :'<span class="cw-ng">4. 확인: 어긋남 '+r.rows.filter(x=>!x.ok).length+'개 — 표를 보고 「5. 지우기」 로 정리하세요.</span>';
+  $('cnResult').innerHTML=cnRowsTable(r.rows);
+}); }
+/* 지우기 공통 — 명세 먼저, 그다음 S/I. 명세가 실패하면 S/I 는 지우지 않고 멈춤 */
+async function cnDeleteIds(ids, ctx, req){
+  for(const set of [CW.CREATE_SETS.detail, CW.CREATE_SETS.si]){
+    for(const id of ids[set]||[]){
+      const r=await dvDelete(set, id, ctx); req.push(cnReq('DELETE',set,r));
+      logLine('지우기 '+set+' '+id+' → '+r.status+(r.message?' '+r.message:''), r.ok?'':'danger');
+      if(!r.ok) return false;
+      if(!N.run.deleted[set].some(x=>x.toLowerCase()===id.toLowerCase())) N.run.deleted[set].push(id);
+    }
+  }
+  return true;
+}
+/* 5. 지우기 — 이번 실행에서 만든 행만 */
+async function cnDelete(){
+  const left=set=>N.run.created[set].map(r=>r.id).filter(id=>!N.run.deleted[set].some(x=>x.toLowerCase()===id.toLowerCase()));
+  if(!(await cnConfirm('지우기 (이번 실행에서 만든 행만)','명세 '+left('crcf9_s_i_details').length+'행 → S/I '+left('cr49f_s_is').length+'행 순서로 DELETE 합니다. 판매계약 · 판매 명세는 지우지 않습니다.'))){ logLine('지우기 취소'); return; }
+  await nstep(async()=>{
+    const t0=Date.now(), req=[], ok=await cnDeleteIds({crcf9_s_i_details:left('crcf9_s_i_details'), cr49f_s_is:left('cr49f_s_is')}, N.ctx, req);
+    addNStep('지우기', t0, ok, {requests:req, note:ok?'명세 → S/I 순서로 모두 지움':'실패에서 멈춤'}); await saveCnLog();
+    if(ok) N.done.del=true;
+    $('cnStepSt').innerHTML=ok?'<span class="cw-ok">5. 지우기 완료 ✅ — 다음: 「6. 최종 확인」</span>':'<span class="cw-ng">5. 지우기 실패 — 멈춤. 표를 보고 다시 「5. 지우기」 를 누르세요.</span>';
+    $('cnResult').innerHTML=cnReqTable(req);
+  });
+}
+/* 6. 최종 확인 — TEST01 S/I 0 · 명세 0 · 판매계약 · 판매 명세 그대로 */
+async function cnFinal(){ await nstep(async()=>{
+  const t0=Date.now(), now=await readTest01(), rows=[];
+  const add=(what,want,got,ok)=>rows.push({what, want:CW.fmtV(want), now:CW.fmtV(got), ok});
+  add('TEST01 S/I', 0, now.si.length, !now.si.length); add('TEST01 · 판매 명세 2491 의 S/I 명세', 0, now.det.length, !now.det.length);
+  const get=async p=>{ try{ return await dvGet(p); }catch(e){ return null; } };
+  const c=await get(N.meta.sets.contract+'('+N.t.contract+')'), sd=await get(N.meta.sets.saleDetail+'('+N.t.saleDetail+')');
+  const dc=CW.sameRow(N.contractBefore,c), ds=CW.sameRow(N.saleDetailBefore,sd);
+  add('판매계약 '+N.no+' 그대로', '시작 때와 같음', dc.length?dc.map(x=>x.field).join(', '):'같음', !dc.length);
+  add('판매 명세 2491 그대로', '시작 때와 같음', ds.length?ds.map(x=>x.field).join(', '):'같음', !ds.length);
+  const ok=rows.every(r=>r.ok);
+  addNStep('최종 확인', t0, ok, {checks:rows, note:ok?'S/I 0 · 명세 0 · 판매계약 · 판매 명세 그대로':'어긋남'}); if(ok) N.run.finished=new Date().toISOString(); await saveCnLog();
+  if(ok) N.done.final=true;
+  $('cnStepSt').innerHTML=ok?'<span class="cw-ok">6. 최종 확인 ✅ — TEST01 S/I 0건 · 명세 0건 · 판매계약 · 판매 명세 그대로. 시험 끝</span>':'<span class="cw-ng">6. 최종 확인: 어긋남 — 표를 보세요.</span>';
+  $('cnResult').innerHTML=cnRowsTable(rows);
+}); }
+/* 남은 시험 행 지우기 — 이전 실행 기록(cnew_… 폴더의 log.json)에 있는 ID 만 · 기록에 없는 행은 지우지 않고 표시 */
+async function spChildren(p){
+  let url=spItem(p)+':/children?$select=name,folder&$top=999', out=[];
+  while(url){ const r=await graphFetch(url,{headers:{Accept:'application/json'}}); if(!r.ok) throw new Error('SP 목록 '+r.status+' '+p); const j=await r.json(); out=out.concat(j.value||[]); url=j['@odata.nextLink']||null; }
+  return out;
+}
+async function cnCleanup(){
+  let plan=null;
+  await nstep(async()=>{
+    const names=(await spChildren(CW.SP_DIR)).map(x=>x.name).filter(n=>/^cnew_\d{8}T\d{6}$/.test(n)&&n!==N.run.run_id).sort(), logs=[];
+    for(const n of names){ try{ logs.push(await spGetJson(CW.SP_DIR+'/'+n+'/log.json')); }catch(e){ logLine('기록 못 읽음: '+n+' — '+e.message,'warn'); } }
+    const rec=CW.createdFromLogs(logs), now=await readTest01(), has=(set,id)=>rec[set].some(x=>x.toLowerCase()===String(id).toLowerCase());
+    plan={rec, logs:names, del:{crcf9_s_i_details:now.det.filter(d=>has('crcf9_s_i_details',d.crcf9_s_i_detailid)).map(d=>d.crcf9_s_i_detailid), cr49f_s_is:now.si.filter(s=>has('cr49f_s_is',s.cr49f_s_iid)).map(s=>s.cr49f_s_iid)},
+      keep:now.det.filter(d=>!has('crcf9_s_i_details',d.crcf9_s_i_detailid)).map(d=>'명세 '+d.crcf9_s_i_detailid).concat(now.si.filter(s=>!has('cr49f_s_is',s.cr49f_s_iid)).map(s=>'S/I '+s.cr49f_s_iid))};
+    $('cnResult').innerHTML='<div class="cw-note">읽은 기록 '+names.length+'개 · 지울 행: 명세 '+plan.del.crcf9_s_i_details.length+' · S/I '+plan.del.cr49f_s_is.length+
+      (plan.keep.length?'<br><span class="cw-ng">기록에 없는 행 — 지우지 않음 (형님 확인): '+escH(plan.keep.join(' · '))+'</span>':'')+'</div>'+cnExistTable(now);
+  });
+  if(!plan) return;
+  if(!plan.del.crcf9_s_i_details.length && !plan.del.cr49f_s_is.length){ $('cnStepSt').innerHTML='<span class="cw-ng">지울 행 없음 — 남은 행이 모두 실행 기록 밖입니다 (지우지 않음 · 형님 확인).</span>'; return; }
+  if(!(await cnConfirm('남은 시험 행 지우기','이전 실행 기록에 있는 명세 '+plan.del.crcf9_s_i_details.length+'행 → S/I '+plan.del.cr49f_s_is.length+'행을 DELETE 합니다.'+(plan.keep.length?' 기록에 없는 '+plan.keep.length+'행은 지우지 않습니다.':'')))){ logLine('남은 시험 행 지우기 취소'); return; }
+  await nstep(async()=>{
+    const t0=Date.now(), req=[], ctx={contract:N.no, created:plan.rec}, ok=await cnDeleteIds(plan.del, ctx, req);
+    addNStep('남은 시험 행 지우기', t0, ok, {requests:req, from_logs:plan.logs, kept:plan.keep, note:ok?'이전 기록의 행 지움'+(plan.keep.length?' · 기록 밖 '+plan.keep.length+'행 남김':''):'실패에서 멈춤'}); await saveCnLog();
+    if(ok) N.done.dirty=false;
+    $('cnStepSt').innerHTML=ok?'<span class="cw-ok">남은 시험 행 지우기 완료 ✅ — 「1. 시작 확인」 을 다시 누르세요.</span>':'<span class="cw-ng">남은 시험 행 지우기 실패 — 표를 보세요.</span>';
+    $('cnResult').innerHTML=cnReqTable(req);
+  });
+}
+
 function startPage(){
   $('cwMain').style.display='';
+  $('cnAllowed').textContent=Object.keys(CW.CREATE_ALLOWED).join(', '); $('cnNo').value=Object.keys(CW.CREATE_ALLOWED)[0];
+  $('cnNo').addEventListener('input',cnSetButtons);
+  $('cnS1').onclick=cnStart; $('cnS2').onclick=cnMethodA; $('cnS3').onclick=cnMethodB; $('cnS4').onclick=cnCheck; $('cnS5').onclick=cnDelete; $('cnS6').onclick=cnFinal; $('cnClean').onclick=cnCleanup;
+  cnSetButtons();
   $('cwAllowed').textContent=CW.ALLOWED.join(', ');
   $('cwNo').value=CW.ALLOWED[0]; $('cwSnapPath').value=CW_SNAP_DEFAULT[CW.ALLOWED[0]]||'';
   $('cwNo').addEventListener('change',()=>{ const d=CW_SNAP_DEFAULT[CW.normNo($('cwNo').value)]; if(d) $('cwSnapPath').value=d; });
@@ -525,8 +940,8 @@ function startPage(){
 }
 
 LEENAI.init({
-  sys:'D-00', name:'COMPASS S/I 書込試験', version:'0.2', date:'2026-11-16',
-  desc:'COMPASS S/I を 1 契約だけ「1」に変更 → 保存本の値に戻して確認 (変更試験・新規作成なし)',
+  sys:'D-00', name:'COMPASS S/I 書込試験', version:'0.3', date:'2026-11-17',
+  desc:'COMPASS S/I を 1 契約だけ「1」に変更 → 保存本の値に戻して確認 (変更試験) · 試験用契約 TEST01 に S/I・明細を新規作成 → 確認 → 作った行だけ削除 (新規入力試験)',
   graphScopes:['Sites.ReadWrite.All'],
   redirectUri:'https://mhlee205.github.io/CONTRACT_SEND/compass_write_test.html',
   onReady:startPage
