@@ -29,7 +29,7 @@ function perfectSpec(ACL, cp){
   const vs=String(cp.booking.cr49f_main_ship_name).split(' '), voy=vs.pop();
   return retotal({order:'valuesFirst', rows, invoice:cp.invoice,
     fields:{shipper:lines(ex.shipper), consignee:lines(ex.consignee), notify:lines(ex.notify), alsoNotify:['-'], description:lines(ex.description), marks:lines(ex.marks),
-      booking:[cp.booking.cr49f_booking_no], carrier:['TSTC'], masterBl:['-'], refNo:['REF-'+cp.invoice], originals:['3'], wayBill:[''], received:[''], freight:['1'],
+      booking:[cp.booking.cr49f_booking_no], carrier:['TSTC'], masterBl:['-'], refNo:['REF-'+cp.invoice], originals:['3'], wayBill:[''], received:[''], freight:['1'], agentSign:['1'], shipperMail:['DOCS@EXAMPLE.TEST'],
       vessel:[vs.join(' ')], voy:[voy], receipt:['TOKYO, JAPAN'], pol:['TOKYO, JAPAN'], pod:['CAT LAI PORT IN VIETNAM'], delivery:['CAT LAI PORT IN VIETNAM'], finalDest:['-'], hsMain:['-']}});
 }
 /* 합계 칸을 행에 맞춤 (ACL 안에서는 맞는 상태) */

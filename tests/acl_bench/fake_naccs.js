@@ -44,7 +44,7 @@ async function build(spec){
   val(0,one('carrier')||'TSTC',259.2,766.4); val(0,one('booking'),355.9,766.4); val(0,'-',435.5,766.6);
   if(one('masterBl')&&one('masterBl')!=='-') val(0,one('masterBl'),260.6,738.3);
   (F.consignee||[]).forEach((l,i)=>val(0,l,40.8,679.3-i*9)); val(0,'9TST1',310.9,693.6);
-  val(0,one('wayBill'),304.9,668.2); val(0,one('received'),398,668.2); val(0,one('freight'),510.5,668.2); val(0,'1',333.5,638.9);
+  val(0,one('wayBill'),304.9,668.2); val(0,one('received'),398,668.2); val(0,one('freight'),510.5,668.2); val(0,F.agentSign?one('agentSign'):'1',333.5,638.9);   // v0.3: Agent Signature (빈칸 = 아무것도 없음)
   val(0,one('refNo'),294.4,622.3);
   (F.notify||[]).forEach((l,i)=>val(0,l,40.8,i===0?593.9:574.3-(i-1)*9));
   (F.alsoNotify||[]).filter(l=>l!=='-').forEach((l,i)=>val(0,l,260.6,593.9-i*9));
@@ -78,6 +78,7 @@ async function build(spec){
   [['Fax No.',37.7,778.9],['Shipper\'s Mail Address',37.7,751.8],['Invoice No.',37.7,697.8],['Shipper\'s Section Code',37.7,669.4],["Shipper's Reference No.",212.5,669.4],
    ['Transmitting Code To Shipper',387.2,669.4],['Order No.',37.7,640.8],['L/C No.',212.5,640.8],['Cargo Type Code',387.2,640.8],['Person in Charge',37.7,611.5],['Remarks',241,610.8],
    ['Cargo No.',37.7,497.5],['Nvocc Code And Booking No. For House Loading',37.7,309.2],['Transmission Identifier',434.5,309.2],['Contact User',42.1,118.7],['Booking No.',404.5,794.6]].forEach(([s,x,y])=>lab(1,s,x,y));
+  ['1)','2)','3)'].forEach((m,i)=>val(1,m,40.7,739.1-i*11.25)); (F.shipperMail||[]).forEach((l,i)=>val(1,l,56.6,738.6-i*11.25));   // v0.3: Shipper's Mail Address (2쪽 · 1)~3) 칸 · 빈칸 = 표시만)
   val(1,spec.invoice||'',37.8,684.6); val(1,one('booking'),459.5,794.2); val(1,'-',539,794.4); val(1,'2 / '+pages,536.6,805.3);
   for(let a=0;a<nAtt;a++){ const pg=2+a;
     HEAD.forEach(([s,x,dy])=>lab(pg,s,x,774.4+dy)); lab(pg,'Booking No.',404.5,794.6); val(pg,one('booking'),459.5,794.2); val(pg,'-',539,794.4); val(pg,(pg+1)+' / '+pages,536.6,805.3);
