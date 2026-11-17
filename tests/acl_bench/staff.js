@@ -72,6 +72,7 @@ console.log('5 訂正 쌍');
   eq(ACL.extractDispRequests("Agent Signature Request Identifierは空欄のままでお願いします。").map(p=>[p.field,p.after]),[['agentSign','']],'⑤ 「空欄のままで」 → 빈칸이 값');
   eq(ACL.extractDispRequests('ACL Agent Signature Request Identifierは空欄のままで、 Freight As Arrangedに 1 のご入力をお願いできますでしょうか。').map(p=>[p.field,p.after]),[['agentSign',''],['freight','1']],'⑤ 한 문장에 「空欄のまま」 + 다른 칸 값 → 칸마다 따로 (句 「、」 단위)');
   eq(ACL.extractDispRequests('Agent Signature Request Identifier、Freight As Arrangedへ 1 表記をお願いいたします。').map(p=>[p.field,p.after]),[['agentSign','1'],['freight','1']],'⑤ 칸 이름 2개 「、」 + 값 하나 → 둘 다');
+  eq(ACL.extractDispRequests('ACL Way Bill欄に1を、 Number of Original B(S)/L欄を 1 へご訂正をお願いいたします。').map(p=>[p.field,p.after]),[['wayBill','1'],['originals','1']],'⑤ 「欄に1を、…欄を 1 へご訂正」 모양');
   const r=res(1,{F:{notify:fld('SAMPLE CO.,LTD')}}), st=p=>ACL.pairState(Object.assign({src:'→'},p),r);
   eq([st({field:'notify',before:'SAMPLE CO.,LTD',after:'SAMPLE CO,.LTD'}),st({field:'notify',before:'SAMPLE CO,.LTD',after:'SAMPLE CO.,LTD'}),st({field:'notify',before:'AAA',after:'BBB'})],['訂正前のACL','訂正後のACL','判定不可'],'⑤ 訂正前のACL / 訂正後のACL / 判定不可');
 }

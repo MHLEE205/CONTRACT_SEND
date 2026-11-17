@@ -580,7 +580,7 @@ const ACL = (()=>{
       sen.split(/[、,]\s*(?=[^0-9])/).forEach(cl=>{
         PAIR_FIELDS.slice(0,6).forEach(([re,key])=>{ re.lastIndex=0; if(re.test(cl)&&fs.indexOf(key)<0) fs.push(key); });
         if(!fs.length) return;
-        const m=cl.match(/(?:欄)?(?:に|へ|と)?\s*([0-9]+|[\w.+\-]+@[\w.\-]+)\s*(?:の)?\s*(?:ご)?(?:記載|入力|追加|表記|追記)/), blank=/空欄のまま/.test(cl);
+        const m=cl.match(/(?:欄)?(?:に|へ|と|を)?\s*([0-9]+|[\w.+\-]+@[\w.\-]+)\s*(?:の)?\s*(?:ご)?(?:記載|入力|追加|表記|追記|を|へ\s*(?:ご)?(?:訂正|変更))/), blank=/空欄のまま/.test(cl);   // 「欄に 1 の記載」 · 「欄に1を」 · 「欄を 1 へご訂正」
         if(!m&&!blank) return;
         fs.forEach(k=>out.push({field:k, before:null, after:m?m[1]:'', incomplete:false, why:'', src:'表示欄'})); fs=[]; }); });
     return out;
