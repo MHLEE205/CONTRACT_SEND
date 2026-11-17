@@ -1,14 +1,14 @@
 /* a1_bench 시험 전부 — node tests/a1_bench/run_all.js [--old <비교할 이전 버전 html>] [--skip-old]
    ① 문법 · 버전 · 공통 파일 · confirm/alert · 보안  ② 단위 v0.6 · v0.7  ③ 통합 (jsdom · mock — 네트워크 없음)
-   ④ 이전 버전과 문자 단위 비교 (--old 없으면 git show 8704035:a1_bench.html = v0.10 · v0.11 에서 바꿈)
+   ④ 이전 버전과 문자 단위 비교 (--old 없으면 git show 039faf7:a1_bench.html = v0.11 · v0.12 에서 바꿈)
    필요: node 18 이상 · 이 폴더에서 npm install (jsdom 30.1.2 고정) */
 const fs=require('fs'),path=require('path'),os=require('os'),cp=require('child_process');
 const here=__dirname, repo=path.join(here,'../..'), html=path.join(repo,'a1_bench.html');
 const args=process.argv.slice(2), opt=k=>{ const i=args.indexOf(k); return i>=0?args[i+1]:null; };
-const OLD_COMMIT='8704035', out=fs.mkdtempSync(path.join(os.tmpdir(),'a1_bench_tests_'));   // v0.11: 비교 기준 = v0.10 (이전: 09ce7df = v0.9 · 188ba74 = v0.8 · 1191185 = v0.7)
+const OLD_COMMIT='039faf7', out=fs.mkdtempSync(path.join(os.tmpdir(),'a1_bench_tests_'));   // v0.12: 비교 기준 = v0.11 (이전: 8704035 = v0.10 · 09ce7df = v0.9 · 188ba74 = v0.8 · 1191185 = v0.7)
 const ver=(fs.readFileSync(html,'utf8').match(/version:'(\d+\.\d+)'/)||[])[1];
 let fails=0; const results=[];
-const node=(script,argv,label)=>{ try{ const s=cp.execFileSync(process.execPath,[path.join(here,script)].concat(argv),{encoding:'utf8',stdio:['ignore','pipe','pipe'],maxBuffer:1<<26}); results.push(['PASS',label,s.trim().split('\n').pop()]); return s; }
+const node=(script,argv,label,env)=>{ try{ const s=cp.execFileSync(process.execPath,[path.join(here,script)].concat(argv),{encoding:'utf8',stdio:['ignore','pipe','pipe'],maxBuffer:1<<26,env:Object.assign({},process.env,{A1_SI_RULE:''},env||{})}); /* v0.12: env.A1_SI_RULE = 가짜 S/I ルールマスター */ results.push(['PASS',label,s.trim().split('\n').pop()]); return s; }
   catch(e){ fails++; results.push(['FAIL',label,String(e.stdout||'').split('\n').filter(l=>/FAIL|DIFF|Error/.test(l)).slice(0,8).join(' / ')+String(e.stderr||'').slice(0,300)]); return null; } };
 const assert=(label,cond,info)=>{ if(cond) results.push(['PASS',label,'']); else { fails++; results.push(['FAIL',label,info===undefined?'':JSON.stringify(info).slice(0,300)]); } };
 const J=f=>JSON.parse(fs.readFileSync(f,'utf8'));
@@ -26,6 +26,7 @@ node('unit_v08.js',[html],'② 단위 v0.8 (지급 조건 · HS 前回値 · 예
 node('unit_v09.js',[html],'② 단위 v0.9 (LC 지정 문구 · 나라 기본 · 새 업체 빌려 쓰기 · Step 1·2 는 v0.10 규칙으로 기대값 고침)');
 node('unit_v010.js',[html],'② 단위 v0.10 (POD 1~3 나눠 쓰기 · po_vo 종류 · 판매계약 번호 칸 · 2606MG1 예외 · v0.11 에서 POD 규칙 문구 2곳 새 문구도 받게)');
 node('unit_v011.js',[html],'② 단위 v0.11 (外す港 먼저 · po_vo 실적에 2025년 · 누설 금지 · 2603TJ1 보고)');
+node('unit_v012.js',[html],'② 단위 v0.12 (S/I ルールマスター 4규칙 · 못 읽음 → 내장값 · 자동보다 우선 · マスター草案 「ルールマスターと違う」)');
 // legacy (v0.3 ~ v0.5, 집 Mac 에서 옮김 · 가짜 데이터) — 2026-11-16
 node('legacy_v03_v05_unit.js',[html],'② legacy 단위 v0.3~v0.5 (154)');
 node('legacy_v03_v05_pdf.js',[html],'② legacy PDF 0 복원 · NET/SET (합성 PDF)');
@@ -80,7 +81,7 @@ if(node('harness.js',[html,'r2',r2ex,'on','LRS-2605SG1'],'③ 하네스 r2 (예�
   const o=J(r2ex), csvT=o.bench.find(b=>b.file==='results.csv').text, md=o.bench.find(b=>b.file==='summary.md').text;
   const rows=parseCsv(csvT), h=rows[0], iC=h.indexOf('contract'), iE=h.indexOf('exception');
   const ex=rows.slice(1).filter(r=>r[iC]==='LRS-2605SG1'), nonEx=rows.slice(1).filter(r=>/^LRS-260[34]SG1$/.test(r[iC]));
-  assert('③ v0.10 CSV exception 열 — 예외 계약 행만 표시',h[h.length-1]==='exception'&&ex.length>0&&ex.every(r=>r[iE]==='TEST 例外')&&nonEx.length>0&&nonEx.every(r=>r[iE]===''),[h.slice(-2),ex.length,nonEx.length]);
+  assert('③ v0.10 CSV exception 열 — 예외 계약 행만 표시',h.indexOf('exception')>=0&&h.slice(h.indexOf('exception')+1).every(c=>c==='si_rule')&&ex.length>0&&ex.every(r=>r[iE]==='TEST 例外')&&nonEx.length>0&&nonEx.every(r=>r[iE]===''),[h.slice(-2),ex.length,nonEx.length]);
   assert('③ v0.10 summary — 칸별 예외 제외 표 · §12 R1/R2 예외 제외 두 줄',/### 칸별 \(전 회차 합계 · 예외 제외\)/.test(md)&&/※ 예외 계약 \(집계 표시 · 제외\): LRS-2605SG1 — TEST 例外/.test(md)&&/\| R2 \(예외 제외\) \| 2 \|/.test(md)&&/\| R1 \(예외 제외\) \|/.test(md),(md.match(/## 12\.[\s\S]{0,600}/)||[''])[0]);
 }
 // ③ v0.8 전체 실행 · 이어서 실행 (6건 · 2건 뒤 강제 중단 → 새 페이지에서 이어서)
@@ -98,6 +99,27 @@ if(node('harness.js',[html,'resume',rsm,'on'],'③ 하네스 resume (전체 실�
   assert('③ 중간 요약 줄 (n/전체 · 실패 · 一致率)',o.logA.some(l=>/중간 요약 6\/6 · 실패 0 · 지금까지 一致率 R1 [\d.]+% · R2 [\d.]+%/.test(l)));
   node('cmp.js',[rsm.replace(/\.json$/,'.ref.json'),rsm.replace(/\.json$/,'.resumed.json'),'all'],'③ 이어서 실행 최종 결과 = 끊김 없는 실행 (실행 ID · 시각 제외)');
 }
+// ③ v0.12 S/I ルールマスター — 가짜 규칙 4건 (si_rule_r2.json · 바이어 DELTA / 코드 SG) · R2만 3건 · マスター草案
+function csvRows(text){ const out=[]; let row=[],cur='',q=false; const t=String(text).replace(/^﻿/,'');
+  for(let i=0;i<t.length;i++){ const c=t[i]; if(q){ if(c==='"'&&t[i+1]==='"'){cur+='"';i++;} else if(c==='"') q=false; else cur+=c; } else if(c==='"') q=true; else if(c===','){row.push(cur);cur='';} else if(c==='\r'&&t[i+1]==='\n'){row.push(cur);out.push(row);row=[];cur='';i++;} else cur+=c; }
+  row.push(cur); out.push(row); const h=out[0]; return out.slice(1).filter(r=>r.length===h.length).map(r=>Object.fromEntries(h.map((k,i)=>[k,r[i]]))); }
+const RULE_R2=path.join(here,'si_rule_r2.json'), r2r=path.join(out,'r2rule.json');
+if(node('harness.js',[html,'r2',r2r,'on'],'③ 하네스 r2 (S/I ルールマスター 가짜 규칙 4건)',{A1_SI_RULE:RULE_R2})){
+  const o=J(r2r), csvT=o.bench.find(b=>b.file==='results.csv').text, md=o.bench.find(b=>b.file==='summary.md').text, rows=csvRows(csvT), R2=rows.filter(r=>r.round==='R2');
+  const blk=lc=>o.assemblePrompts.filter(p=>p.lcNo===lc).map(p=>p.txt).join('\n');
+  const LINE='ルールマスター (人が決めた規則 · 自動より優先): 2 件 適用 (po_vo_fixed DELTA="FIXED-PO-9" · contract_po_label SG="S/C NO: ")';
+  assert('③ v0.12 화면: S/I ルールマスター 4 件 (규칙별 수)',/S\/I ルールマスター: 4 件 \(pod_exclude 1 · po_vo_fixed 1 · contract_po_label 1 · exception 1\)/.test(o.ruleStatus||''),o.ruleStatus);
+  assert('③ v0.12 ③ 블록: 2604 · 2605 에 「ルールマスター … 2 件 適用」 · 2603 (마스터 없음) 없음',blk('ILC0002').indexOf(LINE)>=0&&blk('ILC0003').indexOf(LINE)>=0&&blk('ILC0001').indexOf('ルールマスター')<0);
+  assert('③ v0.12 ③ 블록: po_vo [ルールマスター] · 번호 칸 이름표 (ルールマスター の名札)',/sino 1 固定値型 \(FIXED-PO-9\) \[ルールマスター/.test(blk('ILC0003'))&&/「S\/C NO: \{CONTRACT_PO\}」\(ルールマスター の名札/.test(blk('ILC0003')));
+  const pv=R2.filter(r=>r.col==='crcf9_po_vo'&&r.sino==='1'&&/2604|2605/.test(r.contract));
+  assert('③ v0.12 결과 CSV: po_vo (sino 1) = 규칙 값 FIXED-PO-9 · si_rule 칸에 규칙',pv.length>0&&pv.every(r=>r.rec==='FIXED-PO-9'&&r.si_rule==='po_vo_fixed DELTA="FIXED-PO-9"'),pv.map(r=>[r.contract,r.rec,r.si_rule]));
+  assert('③ v0.12 결과 CSV: remark (sino 1) si_rule = contract_po_label · sino 2 po_vo · 2603 · R1 행은 빈칸',R2.filter(r=>r.col==='crcf9_remark'&&r.sino==='1'&&/2604|2605/.test(r.contract)).every(r=>/^contract_po_label SG/.test(r.si_rule))&&R2.filter(r=>r.col==='crcf9_po_vo'&&r.sino==='2').every(r=>!r.si_rule)&&rows.filter(r=>/2603/.test(r.contract)||r.round!=='R2').every(r=>!r.si_rule));
+  assert('③ v0.12 exception (contract) = 마스터 값 — 2604SG1 만',rows.filter(r=>r.contract==='LRS-2604SG1').every(r=>r.exception==='TEST 例外 (マスター)')&&rows.filter(r=>r.contract!=='LRS-2604SG1').every(r=>!r.exception)&&/※ 예외 계약 \(집계 표시 · 제외\): LRS-2604SG1 — TEST 例外 \(マスター\)/.test(md));
+  assert('③ v0.12 summary 한 줄: 4 件 読込 · 2 件 適用 (계약별)',md.indexOf('\n- ルールマスター: 4 件 読込 · 2 件 適用 (contract_po_label SG="S/C NO: " → LRS-2604SG1, LRS-2605SG1 / po_vo_fixed DELTA="FIXED-PO-9" → LRS-2604SG1, LRS-2605SG1)\n')>=0,md.split('\n').filter(l=>/ルール/.test(l)));
+}
+const igr=path.join(out,'integ_rule.json');
+if(node('harness.js',[html,'integ',igr],'③ 하네스 integ (S/I ルールマスター)',{A1_SI_RULE:RULE_R2})){ const o=J(igr), o0=J(path.join(out,'integ.json'));
+  assert('③ v0.12 マスター草案 「ルールマスターと違う」 (DELTA 자동 ≠ 규칙) · 마스터 없으면 표시 없음',o.ruleDiff.some(d=>d.some(x=>/^po_vo sino 1: 自動 .* \/ ルール 固定値型 FIXED-PO-9$/.test(x)))&&/ルールマスターと違う \(v0\.12/.test(o.masterHtml)&&!/ルールマスターと違う/.test(o0.masterHtml||''),o.ruleDiff); }
 // ④ 이전 버전과 비교 (R1 · R0 불변 · 스위치 끈 R2 = 이전 R2)
 if(args.indexOf('--skip-old')<0){
   let old=opt('--old');
@@ -105,10 +127,22 @@ if(args.indexOf('--skip-old')<0){
   if(old){
     const b0=path.join(out,'b_old.json'), bOff=path.join(out,'b_new_off.json'), bOn=path.join(out,'b_new_on.json');
     if(node('harness.js',[old,'bench',b0,'off'],'④ bench 이전 버전 (마스터 스위치가 있으면 끔)')&&node('harness.js',[html,'bench',bOff,'off'],'④ bench 새 버전 (마스터 끔)')&&node('harness.js',[html,'bench',bOn,'on'],'④ bench 새 버전 (마스터 켬)')){
-      node('cmp.js',[b0,bOff,'all'],'④ 스위치 끔 = v0.10 (산출물 전부 + R0 — 문자 단위)');
+      node('cmp.js',[b0,bOff,'all'],'④ 스위치 끔 = v0.11 (산출물 전부 + R0 — 문자 단위)');
       node('cmp.js',[b0,bOn,'r1r0'],'④ 스위치 켬 — R1 행 · R0 불변');
+      // v0.12 Part 4 #1 · #3: ルールマスター = 내장값과 같은 규칙 / 못 읽음 → v0.11 (켬) 과 산출물 문자 단위 같음
+      const b0on=path.join(out,'b_old_on.json'), bSame=path.join(out,'b_new_same.json'), bThrow=path.join(out,'b_new_throw.json');
+      if(node('harness.js',[old,'bench',b0on,'on'],'④ bench 이전 버전 (마스터 켬)')){
+        if(node('harness.js',[html,'bench',bSame,'on'],'④ bench 새 버전 — ルールマスター = 내장값과 같은 규칙',{A1_SI_RULE:path.join(here,'si_rule_same.json')})){
+          node('cmp.js',[b0on,bSame,'all'],'④ #1 ルールマスター (내장값과 같은 값) = v0.11 (켬 · 산출물 전부 + R0 — 문자 단위)');
+          const mdS=J(bSame).bench.find(b=>b.file==='summary.md').text;
+          assert('④ #1 summary 「2 件 読込 · 0 件 適用」 · 화면 2 件',/\n- ルールマスター: 2 件 読込 · 0 件 適用\n/.test(mdS)&&/S\/I ルールマスター: 2 件/.test(J(bSame).ruleStatus||''),J(bSame).ruleStatus); }
+        if(node('harness.js',[html,'bench',bThrow,'on'],'④ bench 새 버전 — ルールマスター 읽기 실패',{A1_SI_RULE:'throw'})){
+          node('cmp.js',[b0on,bThrow,'all'],'④ #3 ルールマスター 못 읽음 → 내장값 = v0.11 (켬 · 산출물 전부 + R0 — 문자 단위)');
+          const mdT=J(bThrow).bench.find(b=>b.file==='summary.md').text;
+          assert('④ #3 못 읽음 → 화면 경고 · summary 한 줄',/S\/I ルールマスター: 読めず — 内蔵値で動作/.test(J(bThrow).ruleStatus||'')&&/\n- ルールマスター: 読めず — 内蔵値で動作 \(SP master 404\)\n/.test(mdT),J(bThrow).ruleStatus); }
+      }
       { const P=f=>J(f).otherPrompts||[], p0=P(b0), pOff=P(bOff), pOn=P(bOn);   // v0.9 Step 6-2: R1 · R0 입력 문자 단위
-        assert('④ R1 · R0 입력(프롬프트) v0.10 과 문자 단위로 같음 (끔 · 켬) — '+p0.length+'개',p0.length>0&&JSON.stringify(p0)===JSON.stringify(pOff)&&JSON.stringify(p0)===JSON.stringify(pOn),[p0.length,pOff.length,pOn.length]); }
+        assert('④ R1 · R0 입력(프롬프트) v0.11 과 문자 단위로 같음 (끔 · 켬) — '+p0.length+'개',p0.length>0&&JSON.stringify(p0)===JSON.stringify(pOff)&&JSON.stringify(p0)===JSON.stringify(pOn),[p0.length,pOff.length,pOn.length]); }
     }
   }
 }

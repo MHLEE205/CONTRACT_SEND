@@ -1,0 +1,12 @@
+{
+  "master": "si_rule",
+  "title": "S/I ルール (試験用 — v0.11 内蔵値と同じ規則)",
+  "schema_version": 1,
+  "note": "tests/a1_bench 用の偽データ。pod_exclude VIETNAM SP-ITC と exception LRS-2606MG1 は v0.11 の内蔵値と同じ値",
+  "fields": [{"key":"scope_type"},{"key":"scope"},{"key":"rule"},{"key":"value"},{"key":"target"},{"key":"note"},{"key":"decided_by"},{"key":"decided_at"}],
+  "unique": ["scope_type","scope","rule"],
+  "items": [
+    {"scope_type":"country","scope":"VIETNAM","rule":"pod_exclude","value":"SP-ITC","target":"place_of_delivery_1-3","note":"test","decided_by":"TEST","decided_at":"2026-11-17"},
+    {"scope_type":"contract","scope":"LRS-2606MG1","rule":"exception","value":"PO 2件","target":"po_vo","note":"test","decided_by":"TEST","decided_at":"2026-11-17"}
+  ]
+}

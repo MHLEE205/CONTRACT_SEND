@@ -1,0 +1,14 @@
+{
+  "master": "si_rule",
+  "title": "S/I ルール (試験用 — 偽バイヤー DELTA / SG)",
+  "schema_version": 1,
+  "note": "tests/a1_bench 用の偽データ (harness の DELTA = バイヤーコード SG)",
+  "fields": [{"key":"scope_type"},{"key":"scope"},{"key":"rule"},{"key":"value"},{"key":"target"},{"key":"note"},{"key":"decided_by"},{"key":"decided_at"}],
+  "unique": ["scope_type","scope","rule"],
+  "items": [
+    {"scope_type":"country","scope":"VIETNAM","rule":"pod_exclude","value":"SP-ITC","target":"place_of_delivery_1-3","note":"test","decided_by":"TEST","decided_at":"2026-11-17"},
+    {"scope_type":"buyer","scope":"DELTA","rule":"po_vo_fixed","value":"FIXED-PO-9","target":"po_vo (sino 1)","note":"test","decided_by":"TEST","decided_at":"2026-11-17"},
+    {"scope_type":"buyer","scope":"SG","rule":"contract_po_label","value":"S/C NO: ","target":"sino 1 remark","note":"test","decided_by":"TEST","decided_at":"2026-11-17"},
+    {"scope_type":"contract","scope":"LRS-2604SG1","rule":"exception","value":"TEST 例外 (マスター)","target":"po_vo","note":"test","decided_by":"TEST","decided_at":"2026-11-17"}
+  ]
+}

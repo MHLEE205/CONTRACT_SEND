@@ -5,10 +5,12 @@
 const fs=require('fs'), path=require('path');
 let JSDOM; try{ ({JSDOM}=require('jsdom')); }catch(e){ ({JSDOM}=require(path.join(process.env.APPDATA||'','npm/node_modules/jsdom'))); }   // 이 폴더의 npm install 우선 · 없으면 전역(Windows)
 const [,,htmlPath,mode,outPath,masterSw,exceptionNo]=process.argv;   // v0.10: exceptionNo = 시험용으로 A1_EXCEPTIONS 에 더할 계약 (r2 모드)
+/* v0.12: A1_SI_RULE = 가짜 S/I ルールマスター (json 파일 경로 · 'throw' = 읽기 실패). 없으면 v0.11 과 같음 (si_rule 이 배열이 아님 → 내장값) */
+const SIR=process.env.A1_SI_RULE||'', SIR_JS=!SIR?'null':SIR==='throw'?'"throw"':JSON.stringify(JSON.parse(fs.readFileSync(SIR,'utf8')).items);
 const prompts=[];   // Anthropic 호출 입력 (system 종류 · 사용자 텍스트)
 let html=fs.readFileSync(htmlPath,'utf8');
 const FAKE=`<script>window.LEENAI={auth:{token:async()=>'tok',status:{dataverse:'ok',graph:'ok'}},SP:{DRIVE_ID:'drv'},
-  master:{get:async n=>n==='hscode'?[{item:'OCC',hs:'4707.10'}]:{AT_SIGHT:'AT SIGHT'}},
+  master:{get:async n=>{ if(n==='si_rule'){ const v=${SIR_JS}; if(v==='throw') throw new Error('SP master 404'); if(v) return JSON.parse(JSON.stringify(v)); } return n==='hscode'?[{item:'OCC',hs:'4707.10'}]:{AT_SIGHT:'AT SIGHT'}; }},
   init:function(o){ document.title='LEENAI '+o.sys+' '+o.name+' v'+o.version; setTimeout(function(){ document.getElementById('app').style.display=''; o.onReady(); },0); }};</script>`;
 const before=html.length;
 html=html.replace(/<script src="https:\/\/mhlee205\.github\.io\/LEENAI_COMMON\/v1\/leenai-common\.js"><\/script>/,FAKE).replace(/<link rel="stylesheet"[^>]*>/,'');
@@ -134,6 +136,9 @@ const clickAsk=async(pg,matchFn,label)=>{ await until(()=>pg.$('a1Ask').style.di
     out.keyList=ev('S.master.keys.map(k=>[k.buyer,k.bank,k.applicant,k.contracts.join(" "),k.counts.確実,k.counts.確認要,k.counts.単発,k.lc_diff.length].join(" | "))');
     w.document.querySelector('#a1MasterTable tr.a1-mk').click(); out.detailShown=$('a1MkD0').style.display===''; out.detailHasPh=/a1-ph/.test($('a1MkD0').innerHTML);
     out.master=JSON.parse(ev('JSON.stringify(S.master)'));
+    out.ruleStatus=$('a1RuleStatus')?$('a1RuleStatus').textContent:'';   // v0.12
+    out.ruleDiff=JSON.parse(ev('JSON.stringify(A1M.ruleDiffForKey?S.master.keys.map(k=>A1M.ruleDiffForKey(k)):[])'));
+    ev('S.master.keys.forEach((k,i)=>toggleMasterRow(i))'); out.masterHtml=$('a1MasterTable').textContent;
     const w0=writes.length;
     $('a1BtnMasterSave').click(); await until(()=>$('a1Ask').style.display==='flex',3000,'ask1');
     out.askText=$('a1AskBody').textContent; $('a1AskBtn1').click(); await sleep(200);
@@ -151,6 +156,7 @@ const clickAsk=async(pg,matchFn,label)=>{ await until(()=>pg.$('a1Ask').style.di
     $('a1RunPilot').click(); await until(()=>$('a1Ask').style.display==='flex',5000,'askRun'); out.estHtml=$('a1AskBody').innerHTML; $('a1AskBtn0').click();
     await until(()=>ev('S.lastOut')&&!ev('S.running'),60000,'run');
     out.bench=writes.filter(x=>/A1_bench\/A1_/.test(x.path)).map(x=>({file:x.path.replace(/^.*A1_bench\/A1_[^/]+\//,''),text:x.text}));
+    out.ruleStatus=$('a1RuleStatus')?$('a1RuleStatus').textContent:'';   // v0.12
     // R0 (UI 에서는 withR0:false) — 함수 직접 호출로 같은 mock 비교
     out.otherPrompts=prompts.filter(p=>p.kind!=='r2_extract'&&!/^【L\/C から抜き出し/.test(p.txt)&&!/^次は COMPASS S\/I の欄ごとの「正解/.test(p.txt)).map(p=>p.txt).sort();   // v0.9: R1 · R0 입력 (R2 ①③ · AI 판정(R2 결과가 들어감) 제외 — 문자 단위 불변 확인용 · 순서 무관하게 정렬)
     out.r0=JSON.parse(await ev(`(async()=>{ const t=S.targets.find(x=>x.no==='LRS-2605SG1'); const lcp=await parseContractLc(t.no); await ensureBuyerSis(t); const rec=await runR0(t,lcp,{r0Source:'new',maxTokens:32000}); rec.rows=compareRun(t,S.siByContract[t.no],rec); return JSON.stringify(rec); })()`));
@@ -165,6 +171,7 @@ const clickAsk=async(pg,matchFn,label)=>{ await until(()=>pg.$('a1Ask').style.di
     await until(()=>ev('S.lastOut')&&!ev('S.running'),60000,'run');
     out.bench=writes.filter(x=>/A1_bench\/A1_/.test(x.path)).map(x=>({file:x.path.replace(/^.*A1_bench\/A1_[^/]+\//,''),text:x.text}));
     out.assemblePrompts=prompts.filter(p=>p.kind==='r2_assemble').map(p=>({lcNo:p.lcNo,txt:p.txt}));
+    out.ruleStatus=$('a1RuleStatus')?$('a1RuleStatus').textContent:'';   // v0.12
     out.est12=JSON.parse(ev(`(()=>{ const o=readOpts(); o.useR2=true; o.models=[]; const tok=r2MasterTokens(S.targets,o); const off=Object.assign({},o,{r2Master:false}); return JSON.stringify({tok, on:planOf(12,o,tok), off:planOf(12,off,r2MasterTokens(S.targets,off))}); })()`));
   }
   if(mode==='resume'){

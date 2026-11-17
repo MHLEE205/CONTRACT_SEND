@@ -8,7 +8,7 @@ const [,,fa,fb,modeArg]=process.argv, mode=modeArg||'all';
 const [a,b]=[fa,fb].map(f=>JSON.parse(fs.readFileSync(f,'utf8')));
 const norm=s=>String(s).replace(/A1_\d{8}-\d{6}_(?:pilot|full)/g,'RUNID').replace(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z/g,'TS')
   .replace(/"(ms|_ms)": ?\d+/g,'"$1":0').replace(/,\d+\r?$/gm,',MS').replace(/v0\.\d+\b/g,'vX').replace(/"version": ?"0\.\d+"/g,'"version":"X"').replace(/\d+초/g,'N초').replace(/\| \d+ms/g,'| ms')
-  .replace(/,\s*"r2Master": ?false/g,'');
+  .replace(/,\s*"r2Master": ?false/g,'').replace(/^- ルールマスター[^\n]*\n/gm,'');   // v0.12: summary 의 ルールマスター 한 줄 (읽음 · 못 읽음) 은 비교에서 뺌
 /* CSV: master_check 열이 모두 빈 값이면 열을 뺀다 (값이 있으면 그대로 두어 차이로 드러나게) */
 /* CSV 를 레코드로 (따옴표 안 줄바꿈 포함) */
 function parseCsv(text){
@@ -22,7 +22,7 @@ const toCsv=rows=>rows.map(r=>r.map(v=>/[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""
 /* rowFilter 로 고른 행에서 master_check 가 모두 비면 그 열을 뺀다 */
 function csvDrop(text, rowFilter){
   const rows=parseCsv(text), h=rows[0], body=rows.slice(1).filter(r=>!rowFilter||rowFilter(r,h));
-  ['master_check','exception'].forEach(col=>{ const i=h.indexOf(col); if(i>=0 && !body.some(r=>r[i])){ h.splice(i,1); body.forEach(r=>r.splice(i,1)); } });   // v0.10: exception 열 (값이 모두 비면)
+  ['master_check','exception','si_rule'].forEach(col=>{ const i=h.indexOf(col); if(i>=0 && !body.some(r=>r[i])){ h.splice(i,1); body.forEach(r=>r.splice(i,1)); } });   // v0.10: exception 열 (값이 모두 비면)
   return toCsv([h].concat(body));
 }
 const prep=f=>norm(/\.csv$/.test(f.file)?csvDrop(f.text):f.text);
