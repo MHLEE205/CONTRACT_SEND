@@ -1,11 +1,11 @@
 /* a1_bench 시험 전부 — node tests/a1_bench/run_all.js [--old <비교할 이전 버전 html>] [--skip-old]
    ① 문법 · 버전 · 공통 파일 · confirm/alert · 보안  ② 단위 v0.6 · v0.7  ③ 통합 (jsdom · mock — 네트워크 없음)
-   ④ 이전 버전과 문자 단위 비교 (--old 없으면 git show 09ce7df:a1_bench.html = v0.9 · v0.10 에서 바꿈)
+   ④ 이전 버전과 문자 단위 비교 (--old 없으면 git show 8704035:a1_bench.html = v0.10 · v0.11 에서 바꿈)
    필요: node 18 이상 · 이 폴더에서 npm install (jsdom 30.1.2 고정) */
 const fs=require('fs'),path=require('path'),os=require('os'),cp=require('child_process');
 const here=__dirname, repo=path.join(here,'../..'), html=path.join(repo,'a1_bench.html');
 const args=process.argv.slice(2), opt=k=>{ const i=args.indexOf(k); return i>=0?args[i+1]:null; };
-const OLD_COMMIT='09ce7df', out=fs.mkdtempSync(path.join(os.tmpdir(),'a1_bench_tests_'));   // v0.10: 비교 기준 = v0.9 (이전: 188ba74 = v0.8 · 1191185 = v0.7)
+const OLD_COMMIT='8704035', out=fs.mkdtempSync(path.join(os.tmpdir(),'a1_bench_tests_'));   // v0.11: 비교 기준 = v0.10 (이전: 09ce7df = v0.9 · 188ba74 = v0.8 · 1191185 = v0.7)
 const ver=(fs.readFileSync(html,'utf8').match(/version:'(\d+\.\d+)'/)||[])[1];
 let fails=0; const results=[];
 const node=(script,argv,label)=>{ try{ const s=cp.execFileSync(process.execPath,[path.join(here,script)].concat(argv),{encoding:'utf8',stdio:['ignore','pipe','pipe'],maxBuffer:1<<26}); results.push(['PASS',label,s.trim().split('\n').pop()]); return s; }
@@ -24,7 +24,8 @@ node('unit_v06.js',[html],'② 단위 v0.6 (42)');
 node('unit_v07.js',[html],'② 단위 v0.7');
 node('unit_v08.js',[html],'② 단위 v0.8 (지급 조건 · HS 前回値 · 예상 시간 · 설정 비교)');
 node('unit_v09.js',[html],'② 단위 v0.9 (LC 지정 문구 · 나라 기본 · 새 업체 빌려 쓰기 · Step 1·2 는 v0.10 규칙으로 기대값 고침)');
-node('unit_v010.js',[html],'② 단위 v0.10 (POD 1~3 나눠 쓰기 · po_vo 종류 · 판매계약 번호 칸 · 2606MG1 예외)');
+node('unit_v010.js',[html],'② 단위 v0.10 (POD 1~3 나눠 쓰기 · po_vo 종류 · 판매계약 번호 칸 · 2606MG1 예외 · v0.11 에서 POD 규칙 문구 2곳 새 문구도 받게)');
+node('unit_v011.js',[html],'② 단위 v0.11 (外す港 먼저 · po_vo 실적에 2025년 · 누설 금지 · 2603TJ1 보고)');
 // legacy (v0.3 ~ v0.5, 집 Mac 에서 옮김 · 가짜 데이터) — 2026-11-16
 node('legacy_v03_v05_unit.js',[html],'② legacy 단위 v0.3~v0.5 (154)');
 node('legacy_v03_v05_pdf.js',[html],'② legacy PDF 0 복원 · NET/SET (합성 PDF)');
@@ -104,10 +105,10 @@ if(args.indexOf('--skip-old')<0){
   if(old){
     const b0=path.join(out,'b_old.json'), bOff=path.join(out,'b_new_off.json'), bOn=path.join(out,'b_new_on.json');
     if(node('harness.js',[old,'bench',b0,'off'],'④ bench 이전 버전 (마스터 스위치가 있으면 끔)')&&node('harness.js',[html,'bench',bOff,'off'],'④ bench 새 버전 (마스터 끔)')&&node('harness.js',[html,'bench',bOn,'on'],'④ bench 새 버전 (마스터 켬)')){
-      node('cmp.js',[b0,bOff,'all'],'④ 스위치 끔 = v0.9 (산출물 전부 + R0 — 문자 단위)');
+      node('cmp.js',[b0,bOff,'all'],'④ 스위치 끔 = v0.10 (산출물 전부 + R0 — 문자 단위)');
       node('cmp.js',[b0,bOn,'r1r0'],'④ 스위치 켬 — R1 행 · R0 불변');
       { const P=f=>J(f).otherPrompts||[], p0=P(b0), pOff=P(bOff), pOn=P(bOn);   // v0.9 Step 6-2: R1 · R0 입력 문자 단위
-        assert('④ R1 · R0 입력(프롬프트) v0.9 와 문자 단위로 같음 (끔 · 켬) — '+p0.length+'개',p0.length>0&&JSON.stringify(p0)===JSON.stringify(pOff)&&JSON.stringify(p0)===JSON.stringify(pOn),[p0.length,pOff.length,pOn.length]); }
+        assert('④ R1 · R0 입력(프롬프트) v0.10 과 문자 단위로 같음 (끔 · 켬) — '+p0.length+'개',p0.length>0&&JSON.stringify(p0)===JSON.stringify(pOff)&&JSON.stringify(p0)===JSON.stringify(pOn),[p0.length,pOff.length,pOn.length]); }
     }
   }
 }
