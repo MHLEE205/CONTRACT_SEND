@@ -129,7 +129,7 @@ const ACL = (()=>{
   }
 
   /* ── 座標: 項目 → 行 · 句 ── items: [{s,x,y,w}] (pdf.js textContent · 左下原点) ── */
-  const LINE_TOL=1.6, GAP=4.5;
+  const LINE_TOL=1.6, GAP=5.5;   // v0.2: 実際の NACCS は Courier 約 7.7pt (空白 1 つ ≈ 4.63pt) — 語の間 1 空白までは同じ句
   function pageLines(items){
     const ls=[]; (items||[]).filter(i=>String(i.s).trim()).slice().sort((a,b)=>(b.y-a.y)||(a.x-b.x)).forEach(it=>{ const l=ls.find(L=>Math.abs(L.y-it.y)<=LINE_TOL); if(l) l.p.push(it); else ls.push({y:it.y,p:[it]}); });
     return ls.map(l=>l.p.sort((a,b)=>a.x-b.x).map(p=>String(p.s).trim()).join(' '));
@@ -148,7 +148,8 @@ const ACL = (()=>{
     return out;
   }
 
-  /* NACCS のラベル (セルの左上に印字される見出し)。値の区切りに使うため、取り出さない見出しも並べる */
+  /* NACCS のラベル (セルの左上に印字される見出し) — v0.2: 実際の NACCS ACL (2026-11-17 coords 5 件) にあるラベルを全部並べる。
+     SOFT = セルの中の小見出し (Gross / Net · 2 行目の続き 等) — 値ではないが、セルの境目にも使わない */
   const LABELS = {
     shipper:'Shipper', consignee:'Consignee', notify:'Notify Party', alsoNotify:'Also Notify Party', booking:'Booking No.', carrier:'Carrier/Shipping Agent',
     masterBl:'Master B/L No.', refNo:'Ref No.', vessel:'Ocean Vessel', voy:'Voy.No.', preCarriage:'Pre-Carriage By', receipt:'Place of Receipt', pol:'Port of Loading',
@@ -156,43 +157,56 @@ const ACL = (()=>{
     payPlace:'Place of Payment', wayBill:'Way Bill', received:'Received B/L', freight:'Freight As Arranged', forwarder:"Forwarder's Name", hsMain:'HS Code(Main)', hs:'HS Code',
     marks:'Marks & No.', description:'Description of Goods', totalContainers:'Total Number of Containers', totalPkgs:'Total Number and Kind of Packages',
     totalWeight:'Total Weight', totalMeasure:'Total Measurement', pkgs2:'Number and Kind of Packages', attached:'Attached Sheet', cyCfs:'CY/CFS Code',
-    agentSign:'Agent Signature', requestId:'Request Identifier', regDate:'Registration Date', registrant:'Registrant', invoiceNo:'Invoice No.', lcNo:'L/C No.', orderNo:'Order No.',
-    remarks:'Remarks', cargoNo:'Cargo No.',
+    agentSign:'Agent Signature Request Identifier', agentSign1:'Agent Signature', requestId:'Request Identifier', regDate:'Registration Date', registrant:'Registrant',
+    blInstr:'B/L Instructions（Container Vessel Only）', blInstr2:'B/L Instructions(Container Vessel Only)', numberOf:'Number of',
+    overLength:'OVER LENGTH', overWidth:'OVER WIDTH', overHeight:'OVER HEIGHT', pieces:'Number of Pieces',
+    invoiceNo:'Invoice No.', lcNo:'L/C No.', orderNo:'Order No.', remarks:'Remarks', cargoNo:'Cargo No.', contactUser:'Contact User', faxNo:'Fax No.', personInCharge:'Person in Charge',
+    transId:'Transmission Identifier', nvocc:'Nvocc Code And Booking No. For House Loading', cargoType:'Cargo Type Code', transCode:'Transmitting Code To Shipper',
+    shipperRef:"Shipper's Reference No.", shipperSection:"Shipper's Section Code", shipperMail:"Shipper's Mail Address",
     colContainer:'Container No.', colSeal:'Seal No.', colType:'Type', colSize:'Size', colPkgs:'Number and kind', colCargo:'Cargo Weight', colMeasure:'Measurement', colTare:'Tare', colTemp:'Temp',
-    gross:'Gross', net:'Net', weight:'Weight', ofPackages:'of Packages', numberOf:'Number of', containers:'Containers', ofPackages2:'Packages'
+    gross:'Gross', net:'Net', weight:'Weight', ofPackages:'of Packages', containers:'Containers', ofPackages2:'Packages', inWords:'or Packages(In Words)', ams:'(AMS)'
   };
-  const LABEL_KEY = {}; Object.keys(LABELS).forEach(k=>{ LABEL_KEY[lc(LABELS[k])]=k; });
-  const labelKey = s => LABEL_KEY[lc(norm(s))]||null;
+  const SOFT = new Set(['gross','net','weight','ofPackages','containers','ofPackages2','inWords','ams']);
+  const LABEL_KEY = {}; Object.keys(LABELS).forEach(k=>{ LABEL_KEY[LABELS[k]]=k; });   // v0.2: 大文字・小文字も区別 (値は大文字 — 「CONTAINERS」 を見出し「Containers」 と取り違えない)
+  const labelKey = s => LABEL_KEY[norm(s)]||null;
   const isNoise = s => /^\d\)$/.test(s);
   const COLS = ['colContainer','colSeal','colType','colSize','colPkgs','colCargo','colMeasure','colTare','colTemp'];
+  const CODE_GAP = 25;   // v0.2: 値の行の右端に大きく離れて置かれた短い記号 (例「51」) = 小欄のコード — 本文に入れない
 
-  /* ページを解析: 句 · ラベル */
+  /* ページを解析: 句 · ラベル (soft = 小見出し) */
   function layout(items, pageW){
-    const ph=phrases(items); ph.forEach(p=>{ p.label=labelKey(p.s); p.noise=!p.label&&isNoise(p.s); });
-    return {ph, labels:ph.filter(p=>p.label), pageW:pageW||Math.max(612,...ph.map(p=>p.x2+1))};
+    const ph=phrases(items); ph.forEach(p=>{ p.label=labelKey(p.s); p.soft=!!p.label&&SOFT.has(p.label); p.noise=!p.label&&isNoise(p.s); });
+    return {ph, labels:ph.filter(p=>p.label&&!p.soft), pageW:pageW||Math.max(612,...ph.map(p=>p.x2+1))};
   }
-  /* セル: ラベル L の左上から、右 = 同じ行で右にある次のラベル、下 = 横に重なる下の次のラベル */
+  /* セル (v0.2 — 実際の NACCS 座標で確認):
+     ・ラベル = セルの左上。値はラベルの「下の行」から (ラベルと同じ行の右にある語 = 小欄のコード: UN/LOCODE · 呼出符号 · 「-」 → inline に分けて、本文には入れない)
+     ・右 = 同じ行で右の次のラベル · 下 = 横に重なる下の次のラベル (小見出し Gross / Net 等は境目にしない)
+     ・「-」 だけの句 = 記載なし の印 → 捨てる · 行の右端に CODE_GAP 以上離れた短い記号 → codes (本文に入れない)
+     ・本文が空で inline に値があれば inline を本文に (例: Ref No. はラベルの右に値) */
   function cellOf(pg, L){
     const x1=L.x1-2, right=pg.labels.filter(o=>o!==L&&Math.abs(o.y-L.y)<=4&&o.x1>L.x1+5).reduce((m,o)=>Math.min(m,o.x1),pg.pageW+1), x2=right-1;
     const below=pg.labels.filter(o=>o!==L&&o.y<L.y-3&&o.x1<x2&&o.x2>x1).reduce((m,o)=>Math.max(m,o.y),-1e9);
     const bottom=below>-1e9?below+2:-1e9;
-    const inY=p=>p.y<=L.y+2&&p.y>bottom;
-    const vals=[], amb=[];
-    pg.ph.forEach(p=>{ if(p===L||p.label||p.noise||!inY(p)) return;
-      if(p.y>=L.y-2 && p.x1<L.x2) return;   // ラベルと同じ行でラベルより左
-      const starts=p.x1>=x1-1&&p.x1<x2;
-      if(starts && p.x2>x2+3) amb.push(p);              // 右のセルにはみ出す (左のセルから入り込んだ値は、始まったセルの側で 位置あいまい になる)
-      if(starts) vals.push(p); });
+    const vals=[], inline=[], amb=[];
+    pg.ph.forEach(p=>{ if(p===L||p.label||p.noise||p.y>L.y+2||p.y<=bottom) return;
+      const starts=p.x1>=x1-1&&p.x1<x2; if(!starts) return;
+      if(p.y>=L.y-2){ if(p.x1>=L.x2-1&&p.s!=='-') inline.push(p.s); return; }   // ラベルと同じ行
+      if(p.x2>x2+3) amb.push(p);   // 右のセルにはみ出す
+      vals.push(p); });
     const lines=[]; vals.slice().sort((a,b)=>(b.y-a.y)||(a.x1-b.x1)).forEach(p=>{ const l=lines.find(q=>Math.abs(q.y-p.y)<=LINE_TOL); if(l) l.p.push(p); else lines.push({y:p.y,p:[p]}); });
-    const text=lines.map(l=>l.p.sort((a,b)=>a.x1-b.x1).map(p=>p.s).join(' ')).join('\n');
-    return {text, x1, x2, top:L.y+2, bottom, open:bottom===-1e9, conf:amb.length?'AMBIGUOUS':'SURE', amb:amb.map(p=>p.s)};
+    const codes=[], outLines=[];
+    lines.forEach(l=>{ const ps=l.p.sort((a,b)=>a.x1-b.x1).filter(p=>p.s!=='-'); const keep=[];
+      ps.forEach((p,i)=>{ const prev=keep[keep.length-1]; if(i>0&&prev&&p.x1-prev.x2>=CODE_GAP&&/^[A-Z0-9]{1,6}$/.test(p.s)) codes.push(p.s); else keep.push(p); });
+      if(keep.length) outLines.push(keep.map(p=>p.s).join(' ')); });
+    let text=outLines.join('\n'); if(!text&&inline.length) text=inline.join(' ');
+    return {text, inline, codes, x1, x2, top:L.y+2, bottom, open:bottom===-1e9, conf:amb.length?'AMBIGUOUS':'SURE', amb:amb.map(p=>p.s)};
   }
 
   /* ── Step 2: NACCS ACL を読む ── pages: [{page, items, w}] ── */
-  const HEAD_KEYS=['shipper','consignee','notify','alsoNotify','booking','masterBl','refNo','vessel','voy','receipt','pol','pod','delivery','finalDest','originals','issuePlace','wayBill','received','freight','hsMain','description','marks','totalContainers','totalPkgs','totalWeight','totalMeasure'];
+  const HEAD_KEYS=['shipper','consignee','notify','alsoNotify','booking','masterBl','refNo','vessel','voy','receipt','pol','pod','delivery','finalDest','originals','issuePlace','wayBill','received','freight','hsMain','description','marks','totalContainers','numberOf','totalPkgs','totalWeight','totalMeasure'];
   const num = s => { const m=String(s||'').replace(/,/g,'').match(/-?\d+(?:\.\d+)?/); return m?+m[0]:null; };
-  function tokensOn(items, y){   // 行の語 (各語の x を文字位置から推定)
-    const out=[]; items.filter(i=>Math.abs(i.y-y)<=2.5).forEach(it=>{ const s=String(it.s), w=+it.w||s.length*4, cw=s.length?w/s.length:4; let re=/\S+/g, m; while((m=re.exec(s))) out.push({s:m[0], x:it.x+m.index*cw}); });
+  function tokensOn(items, y){   // 行の語 (各語の x · 幅を文字位置から推定)
+    const out=[]; items.filter(i=>Math.abs(i.y-y)<=2.5).forEach(it=>{ const s=String(it.s), w=+it.w||s.length*4, cw=s.length?w/s.length:4; let re=/\S+/g, m; while((m=re.exec(s))) out.push({s:m[0], x:it.x+m.index*cw, w:m[0].length*cw}); });
     return out.sort((a,b)=>a.x-b.x);
   }
   function readNaccs(pages){
@@ -201,12 +215,12 @@ const ACL = (()=>{
     HEAD_KEYS.forEach(k=>{
       let hit=null; lays.some((pg,pi)=>{ const Ls=pg.labels.filter(l=>l.label===k).sort((a,b)=>b.y-a.y); if(Ls.length){ hit={pg, L:Ls[0], page:pi+1}; return true; } return false; });
       if(!hit){ fields[k]={text:'', conf:'MISSING', page:null}; return; }
-      const c=cellOf(hit.pg, hit.L); fields[k]={text:c.text, conf:c.conf, page:hit.page, amb:c.amb};
+      const c=cellOf(hit.pg, hit.L); fields[k]={text:c.text, conf:c.conf, page:hit.page, amb:c.amb, inline:c.inline, codes:c.codes};
     });
-    // コンテナ (セット) — ページごとの見出し列 (無ければ前ページの列を引き継ぐ)
+    // コンテナ (セット) — v0.2: 見出しは列の上に「中央寄せ」(値が見出しより左から始まる列がある) → 語の中心に一番近い見出しの列。見出しの無いページは前ページの列
     let cols=null; const rows=[];
     lays.forEach((pg,pi)=>{
-      const hs=COLS.map(k=>{ const L=pg.labels.filter(l=>l.label===k).sort((a,b)=>b.y-a.y)[0]; return L?{k, x:L.x1, y:L.y}:null; }).filter(Boolean);
+      const hs=COLS.map(k=>{ const L=pg.labels.filter(l=>l.label===k).sort((a,b)=>b.y-a.y)[0]; return L?{k, x:L.x1, c:(L.x1+L.x2)/2, y:L.y}:null; }).filter(Boolean);
       let inherited=false;
       if(hs.some(h=>h.k==='colContainer')) cols=hs.slice().sort((a,b)=>a.x-b.x); else if(cols) inherited=true; else return;
       const headY=inherited?1e9:Math.min(...cols.map(c=>c.y));
@@ -214,18 +228,19 @@ const ACL = (()=>{
       const anchors=[]; items.forEach(it=>{ tokensOn([it], it.y).forEach(t=>{ if(ISO.test(t.s)&&it.y<headY-2) anchors.push({s:t.s, x:t.x, y:it.y}); }); });
       anchors.sort((a,b)=>b.y-a.y).forEach(a=>{
         const toks=tokensOn(items, a.y), byCol={};
-        toks.forEach(t=>{ const c=cols.filter(c=>c.x<=t.x+3).pop(); if(c) (byCol[c.k]=byCol[c.k]||[]).push(t.s); });
+        toks.filter(t=>!isNoise(t.s)).forEach(t=>{ const cx=t.x+t.w/2;   /* 行の印「1)」等は除く */ let best=null; cols.forEach(c=>{ if(!best||Math.abs(c.c-cx)<Math.abs(best.c-cx)) best=c; }); if(best) (byCol[best.k]=byCol[best.k]||[]).push(t.s); });
         const g=k=>(byCol[k]||[]).join(' ');
         const pk=byCol.colPkgs||[], pkN=pk.filter(x=>/^\d+$/.test(x)), bales=pkN.length?+pkN[pkN.length-1]:null;
-        const row={page:pi+1, container:a.s, seal:(byCol.colSeal||[]).join(' '), type:g('colType'), size:g('colSize'), kind:pk.filter(x=>!/^\d+$/.test(x)&&x!=='BL').join(' '),
+        const row={page:pi+1, container:a.s, seal:(byCol.colSeal||[]).filter(x=>!ISO.test(x)).join(' '), type:g('colType'), size:g('colSize'), kind:pk.filter(x=>!/^\d+$/.test(x)&&x!=='BL').join(' '),
           bales, cargo:num(g('colCargo')), measure:num(g('colMeasure')), tare:num(g('colTare')), inherited};
         row.conf=(row.seal&&row.bales!=null&&row.cargo!=null)?'SURE':'AMBIGUOUS';
         rows.push(row); });
     });
     const fullText=(pages||[]).map(p=>pageText(p.items||[])).join('\n');
     const tc=fields.totalContainers.text||'', m=tc.match(/\((\d+)\)/)||norm(fullText).match(/\((\d+)\)\s*CONTAINERS?\s*ONLY/i);
+    const cnt=/^\d+$/.test(norm(fields.numberOf.text))?+norm(fields.numberOf.text):null;   // v0.2: 「Number of / Containers」 欄の数字 (予備)
     const tp=(fields.totalPkgs.text||'').split(/\s+/).filter(x=>/^\d+$/.test(x));
-    const totals={containers:m?+m[1]:null, bales:tp.length?+tp[tp.length-1]:null, weight:num(fields.totalWeight.text), measure:num(fields.totalMeasure.text)};
+    const totals={containers:m?+m[1]:cnt, containersBox:cnt, bales:tp.length?+tp[tp.length-1]:null, weight:num(fields.totalWeight.text), measure:num(fields.totalMeasure.text)};
     return {fields, rows, totals, fullText};
   }
 
@@ -367,7 +382,8 @@ const ACL = (()=>{
     return {sets, aclOnly, cpOnly, blank, dupA, dupC, cpCount:filled.length,
       cpBales:filled.reduce((s,r)=>s+(+r.crcf9_quantity||0),0), cpWeight:filled.reduce((s,r)=>s+(+r.crcf9_n_w||0),0)};
   }
-  const stripLocode = s => norm(s).replace(/\s+[A-Z]{2}[A-Z0-9]{3}$/,'');
+  /* v0.2: UN/LOCODE はラベルの行 (inline) に分かれるので本文には来ない。最後の行が 5 文字コードだけのときだけ除く (v0.1 は「TOKYO, JAPAN」の JAPAN まで消していた) */
+  const stripLocode = s => { const ls=String(s==null?'':s).replace(/\r/g,'').split('\n').map(norm).filter(Boolean); if(ls.length>1&&/^[A-Z]{2}[A-Z0-9]{3}$/.test(ls[ls.length-1])) ls.pop(); return ls.join(' '); };
   const XX_RE = /(?:^|[^A-Z0-9])XX(?:[^A-Z0-9]|KGS|BALES|MT|$)/;
   const dash = s => (norm(s)==='-'?'':String(s==null?'':s));   // NACCS の「-」 = 記載なし
 
@@ -654,7 +670,7 @@ function startPage(){
 }
 
 LEENAI.init({
-  sys:'D-00', name:'ACL 照合試験', version:'0.1', date:'2026-11-17',
+  sys:'D-00', name:'ACL 照合試験', version:'0.2', date:'2026-11-17',
   desc:'ACL (NACCS PDF) を座標で読み、COMPASS の S/I (sino 1) · ブッキング · コンテナ (セット) と 100% 照合 (読むだけ · AI なし)',
   graphScopes:['Sites.ReadWrite.All'],
   redirectUri:'https://mhlee205.github.io/CONTRACT_SEND/acl_bench.html',

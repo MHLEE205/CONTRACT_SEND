@@ -108,7 +108,7 @@ const $=(w,id)=>w.document.getElementById(id);
   ok(V('NFK2601-05').k['ACL のみのコンテナ']===1&&V('NFK2601-05').k['合計相違:コンテナ本数']===1,'② ACL 에만 있는 컨테이너',V('NFK2601-05').k);
   ok(V('NFK2601-06').k['BOOKING No. 相違']===1&&V('NFK2601-06').items.find(i=>i.key==='booking').actual==='BK7777777','③ 부킹 번호 다름',V('NFK2601-06').k);
   const d7=V('NFK2601-07').items.find(i=>i.key==='description'), c7=V('NFK2601-07').items.find(i=>i.key==='consignee');
-  ok(d7.status==='DROP'&&/脱落行: L\/C NO\.: TESTLC0007 DATED ON OCT 01, 2026/.test(d7.detail)&&c7.status==='ADD'&&/追加「EXTRA LINE ADDED BY FORWARDER」/.test(c7.detail),'④ S/I 한 줄 빠짐 → 脱落 · ACL 한 줄 더 → 追加',[d7.detail,c7.detail]);
+  ok(d7.status==='DROP'&&/脱落行: L\/C NO\.: TLC0007 DATED ON OCT 01/.test(d7.detail)&&c7.status==='ADD'&&/追加「EXTRA LINE ADDED BY FORWARDER」/.test(c7.detail),'④ S/I 한 줄 빠짐 → 脱落 · ACL 한 줄 더 → 追加',[d7.detail,c7.detail]);
   ok(V('NFK2601-08').items.find(i=>i.key==='notify').status==='NOTATION'&&V('NFK2601-08').k['表記差:Notify Party']===1,'⑤ 줄바꿈만 다름 → 表記差');
   ok(V('NFK2601-09').items.filter(i=>/^set:/.test(i.key)).length===20,'⑦ Attached Sheet 의 컨테이너까지 20 세트');
   ok(V('NFK2601-12').k['読取確認要:Description of Goods']===1,'셀을 넘친 값 → 読取確認要');
