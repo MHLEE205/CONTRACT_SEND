@@ -94,7 +94,7 @@ const $=(w,id)=>w.document.getElementById(id);
 
 (async()=>{
   const W=await world(), w=await page(W);
-  const VER=(HTML.match(/version:'(\d+\.\d+)'/)||[])[1];
+  const VER=(HTML.match(/version:'(\d+(?:\.\d+)+)'/)||[])[1];
   ok(w.document.title==='LEENAI D-00 ACL 照合試験 v'+VER&&w.__cfg.redirectUri==='https://mhlee205.github.io/CONTRACT_SEND/acl_bench.html','제목 v'+VER+' · 리디렉션 URI = 이 페이지');
   ok($(w,'abRun').disabled&&$(w,'abSave').disabled,'처음: 照合 · 保存 잠김');
   console.log('Step 1 ACL 一覧');

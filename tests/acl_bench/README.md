@@ -25,6 +25,7 @@ cd tests/acl_bench && npm install && node run_all.js
 | `regress.js` | (v0.2) 회귀 — 실제 NACCS 위치 관계의 가짜 PDF 를 v0.1 (`60c2909`) 규칙으로 읽으면 실제와 같은 실패 (씰 빈칸 · 총 중량 · 「-」/코드 섞임) · v0.2 규칙은 完全一致 |
 | `fake_naccs.js` | 가짜 NACCS ACL PDF — **v0.2: 실제 NACCS (2026-11-17 좌표 5건) 의 라벨 좌표 · 값 자리 · 라벨 줄 코드 (LOCODE · 호출 부호 · 「-」) · 값 줄 끝 「51」 · 가운데 정렬 컨테이너 머리 · 합계 칸 Gross/Net · 1쪽 1줄 + 3쪽부터 12줄 을 그대로 흉내 냄 (Courier)**. 값 · 회사 · 번호는 가짜 · 그리는 순서 섞기 · 스캔 · 다른 양식 · 넘침 |
 | `fixtures.js` | 가짜 COMPASS (부킹 · 항구 · 컨테이너 · S/I sino 1·2 · S/I 명세) 와 그에 맞는 「완전한」 ACL spec |
+| `pdfclose.js` | (v0.3.1) `readPdf` 가 다 읽은 PDF 를 닫는지 — 도구의 `readPdf` · `mapLimit` · ① 一覧 콜백을 원문 그대로 꺼내 가짜 pdf.js 로: 정상 · 열기 실패 · 페이지 읽기 실패 → `destroy` 정확히 1번 · 원래 오류 그대로 (`t.format='ERROR'`) · 닫기 오류는 로그 1줄 / 가짜 PDF 400개 `mapLimit(4)` → 끝에 열린 문서 0 · 최대 4 / 실제 pdf.js 로 가짜 NACCS PDF 의 `pages` 가 v0.3 (`a8c6199`) 과 바이트까지 같음 |
 | `pdfread.js` | node 용 pdf.js 읽기 (도구의 readPdf 와 같은 모양) · jsdom 페이지용 pdfjsLib |
 
 > v0.3: 담당자 메일 CSV 는 **가짜만** (회사 · 주소 · 번호 · 메일 주소 모두 `example.test` / SAMPLE). 실제 메일 (`mail_docstaff_*.csv`) 의 값은 `run_all` 이 시험 파일 · 도구에 0건인지 확인한다.

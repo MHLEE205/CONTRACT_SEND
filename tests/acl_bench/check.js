@@ -5,8 +5,8 @@ const re=/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g; let m,n=0,fail=0;
 while((m=re.exec(html))){ n++; const f=path.join(os.tmpdir(),'abchk_'+n+'.js'); fs.writeFileSync(f,m[1]); try{ cp.execFileSync(process.execPath,['--check',f],{stdio:'pipe'}); }catch(e){ fail++; console.log('FAIL script',n,String(e.stderr).slice(0,500)); } }
 const code=html.replace(/\/\*[\s\S]*?\*\//g,'').replace(/(^|[^:'"`])\/\/[^\n]*/g,'$1');   // 주석 제외
 const res={scripts:n, syntaxFail:fail,
-  versionTarget:(html.match(new RegExp("version:'"+ver.replace('.','\\.')+"'",'g'))||[]).length,
-  versionAny:(html.match(/version:'\d+\.\d+'/g)||[]).length,
+  versionTarget:(html.match(new RegExp("version:'"+ver.replace(/\./g,'\\.')+"'",'g'))||[]).length,
+  versionAny:(html.match(/version:'\d+(?:\.\d+)+'/g)||[]).length,
   commonJs:(html.match(/leenai-common\.js/g)||[]).length,
   confirmAlertCalls:(code.match(/\b(?:window\.)?(?:confirm|alert)\s*\(/g)||[]).length,
   secrets:(html.match(/ghp_|github_pat_|sk-ant|client_secret|AKIA[0-9A-Z]{12}/g)||[]).length,

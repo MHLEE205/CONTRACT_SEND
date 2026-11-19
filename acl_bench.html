@@ -885,10 +885,16 @@ async function ensurePdfJs(){
 async function readPdf(file){
   const r=await graphFetch(drv()+'/items/'+file.id+'/content'); if(!r.ok) throw new Error('PDF 取得 '+r.status);
   const buf=await r.arrayBuffer(); await ensurePdfJs();
-  const pdf=await window.pdfjsLib.getDocument({data:new Uint8Array(buf), cMapUrl:AB_PDFJS+'cmaps/', cMapPacked:true}).promise, pages=[];
-  for(let i=1;i<=pdf.numPages;i++){ const pg=await pdf.getPage(i), vp=pg.getViewport({scale:1}), tc=await pg.getTextContent();
-    pages.push({page:i, w:vp.width, items:tc.items.filter(it=>it.str&&it.str.trim()).map(it=>({s:it.str, x:Math.round(it.transform[4]*10)/10, y:Math.round(it.transform[5]*10)/10, w:Math.round((it.width||0)*10)/10}))}); }
-  return pages;
+  /* v0.3.1: 読み終えたら (失敗しても) 必ず閉じる — 開きっぱなしが 350 件分たまり Chrome タブが落ちた */
+  let task=null, pdf=null;
+  try{
+    task=window.pdfjsLib.getDocument({data:new Uint8Array(buf), cMapUrl:AB_PDFJS+'cmaps/', cMapPacked:true}); pdf=await task.promise; const pages=[];
+    for(let i=1;i<=pdf.numPages;i++){ const pg=await pdf.getPage(i), vp=pg.getViewport({scale:1}), tc=await pg.getTextContent();
+      pages.push({page:i, w:vp.width, items:tc.items.filter(it=>it.str&&it.str.trim()).map(it=>({s:it.str, x:Math.round(it.transform[4]*10)/10, y:Math.round(it.transform[5]*10)/10, w:Math.round((it.width||0)*10)/10}))}); }
+    return pages;
+  }finally{
+    const h=pdf||task; if(h) try{ await h.destroy(); }catch(e){ logLine((file.name||file.id)+' PDF を閉じる時の警告: '+e.message,'warn'); }
+  }
 }
 
 /* ── ① ACL 一覧 ── */
@@ -1057,7 +1063,7 @@ function startPage(){
 }
 
 LEENAI.init({
-  sys:'D-00', name:'ACL 照合試験', version:'0.3', date:'2026-11-17',
+  sys:'D-00', name:'ACL 照合試験', version:'0.3.1', date:'2026-11-19',
   desc:'ACL (NACCS PDF) を座標で読み、COMPASS の S/I (sino 1) · ブッキング · コンテナ (セット) · 表示欄 (S/I ルールマスター) と 100% 照合 · 担当者メールの実績と突き合わせ (読むだけ · AI なし)',
   graphScopes:['Sites.ReadWrite.All'],
   redirectUri:'https://mhlee205.github.io/CONTRACT_SEND/acl_bench.html',
