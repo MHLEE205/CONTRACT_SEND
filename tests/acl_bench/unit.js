@@ -10,16 +10,19 @@ const I=(s,x,y,w)=>({s,x,y,w:w==null?s.length*4.4:w});
 
 (async()=>{
 console.log('Step 1 대상 모으기');
-{ const P=d=>'/drives/DRV/root:/'+encodeURIComponent('古紙')+'/'+d;
-  const items=[{id:'1',name:'NFK2601-01_ACL.pdf',path:'/drives/DRV/root:/古紙/-. 古紙書類/▲ 書類作成中/NFK2601-01',lastModifiedDateTime:'2026-11-10T00:00:00Z'},
-    {id:'2',name:'NFK2601-01_ACL.pdf',path:'/drives/DRV/root:/古紙/_OLD_DOC/2026/NFK2601-01',lastModifiedDateTime:'2026-11-01T00:00:00Z'},
-    {id:'3',name:'nfk2601-02_acl.PDF',path:P('_OLD_DOC/2025/NFK2601-02'),lastModifiedDateTime:'2026-01-01T00:00:00Z'},
-    {id:'4',name:'NFK2601-03_ACL.pdf',path:'/drives/DRV/root:/古紙/-. AI 活用/D-01-LC_FD_CHECKER/履歴',lastModifiedDateTime:'2026-01-01T00:00:00Z'},
-    {id:'5',name:'NFK2601-04_ACL (1).pdf',path:'/drives/DRV/root:/古紙/-. 古紙書類/▲ 書類作成中/NFK2601-04',lastModifiedDateTime:'2026-01-01T00:00:00Z'},
-    {id:'6',name:'NFK2601-05_ACL_2026-11-05.json',path:'/drives/DRV/root:/古紙/-. 古紙書類/▲ 書類作成中/NFK2601-05'}];
-  const g=ACL.groupTargets(items);
-  eq(g.targets.map(t=>[t.invoice,t.file.id,t.others.map(o=>o.id)]),[['NFK2601-01','1',['2']],['nfk2601-02','3',[]]],'① 두 폴더 아래 {Invoice}_ACL.pdf · 같은 Invoice 는 가장 최근 1개 + 나머지 목록 · 퍼센트 인코딩 경로');
-  eq(g.skipped.map(s=>[s.name,s.why]),[['NFK2601-03_ACL.pdf','対象フォルダ外'],['NFK2601-04_ACL (1).pdf','名前が {Invoice}_ACL.pdf でない']],'① 폴더 밖 · 이름 모양 다름 → 목록에만 (pdf 아닌 것은 무시)');
+{ /* v0.5 (Step 3): 대상 = Invoice 폴더마다 (폴더 걷기) · 이름 규칙 aclScan (書類ツール v0.2 와 같은 규칙 — 엔진 1곳) · 仮 도 대상 (D3)
+     v0.4 의 「Graph 검색 _ACL · 대상 폴더 밖 · 이름 모양 다름」 시험은 폴더 걷기로 바뀌어 아래로 대체 */
+  const WIP='/drives/DRV/root:/古紙/-. 古紙書類/▲ 書類作成中/', f=(id,name,mod)=>({id,name,lastModifiedDateTime:mod||'2026-11-10T00:00:00Z'});
+  const folders=[{invoice:'NFK2601-01', path:WIP+'NFK2601-01', files:[f('1','NFK2601-01_ACL.pdf','2026-11-10T00:00:00Z'),f('2','NFK2601-01_ACL REV.pdf','2026-11-01T00:00:00Z'),f('x','NFK2601-01_ACL_2026-11-05.json')]},
+    {invoice:'nfk2601-02', path:'/drives/DRV/root:/'+encodeURIComponent('古紙')+'/_OLD_DOC/2025/NFK2601-02', files:[f('3','DR_TYOGE0000001.pdf')]},
+    {invoice:'NFK2601-03', path:WIP+'NFK2601-03', files:[f('4','仮ACL_NFK2601-03.pdf')]},
+    {invoice:'NFK2601-04', path:WIP+'NFK2601-04', files:[f('5','NFK2601-05_DR.pdf'),f('6','NFK2601-04_IV.pdf')]},
+    {invoice:'NFK2601-05', path:WIP+'NFK2601-05', files:[f('7','ACL-TYOGE0000005.pdf','2026-11-02T00:00:00Z'),f('8','仮ACL.pdf','2026-11-09T00:00:00Z')]}];
+  const g=ACL.groupTargets(folders);
+  eq(g.targets.map(t=>[t.invoice,t.file.id,t.aclVersion,t.others.map(o=>o.id)]),[['NFK2601-01','2','REV',['1']],['nfk2601-02','3','初版 · DR_ · DR 番号',[]],['NFK2601-03','4','仮',[]],['NFK2601-05','7','初版 · ACL-番号 · ACL 番号',['8']]],
+    'v0.5 ① 폴더마다 · REV 우선 · DR 이름 · 仮 만 있으면 仮 (D3) · 정식이 있으면 정식 (仮 는 others) · 퍼센트 인코딩 경로');
+  eq(g.skipped.map(s=>[s.name,s.why]),[['NFK2601-05_DR.pdf','ほかの Invoice 番号']],'v0.5 ① 다른 Invoice 번호의 DR → 제외 목록 (json · IV 는 무시)');
+  ok(g.targets[1].file.path==='古紙/_OLD_DOC/2025/NFK2601-02','v0.5 ① 경로 = 상대 경로 (디코딩)',g.targets[1].file.path);
 }
 console.log('Step 2 좌표 읽기 (합성 항목)');
 { // 값이 라벨보다 먼저 나오는 순서 · 오른쪽 이웃 라벨 · 아래 라벨
@@ -86,11 +89,11 @@ console.log('Step 4 비교');
   ok(d.status==='DROP'&&d.droppedLines[0]==='L/C NO.: TEST1'&&/脱落|L\/C/.test(d.ops[0].text),'④ 한 줄 빠짐 → 脱落 · 脱落行 표시',d);
   const a=T('TO ORDER OF SAMPLE BANK','TO ORDER OF SAMPLE BANK\nEXTRA LINE'); ok(a.status==='ADD'&&a.ops[0].text==='EXTRALINE'.replace('EXTRALINE','EXTRA LINE').replace(' ','')||a.ops[0].text.replace(/\s/g,'')==='EXTRALINE','④ ACL 에 한 줄 더 → 追加',a);
   const x=T('SL000101','SL000107'); eq([x.status,x.ops.map(o=>o.t+':'+o.text)],['DIFF',['drop:1','add:7']],'④ 글자 바뀜 → 相違 (脱落 + 追加)');
-  const sc=ACL.compareSets([{container:'TSTU0000102',seal:'SL000102',bales:22,cargo:20200,tare:3700,conf:'SURE'},{container:'TSTU0000101',seal:'SLXXXXXX',bales:21,cargo:20100,tare:3700,conf:'SURE'},{container:'TSTU0000199',seal:'S',bales:1,cargo:1,tare:1,conf:'SURE'}],
+  const sc=ACL.compareSets([{container:'TSTU0000102',seal:'SL000102',size:'45',type:'GP',bales:22,cargo:20200,tare:3700,conf:'SURE'},{container:'TSTU0000101',seal:'SLXXXXXX',size:'45',type:'GP',bales:21,cargo:20100,tare:3700,conf:'SURE'},{container:'TSTU0000199',seal:'S',bales:1,cargo:1,tare:1,conf:'SURE'}],   // v0.5: 형태 (45 + GP) 도 세트에
     FX.compass(1,{blankRow:true}).containers);
   eq(sc.sets.map(s=>[s.container,s.diffs.map(x=>x.item)]),[['TSTU0000101',['シール']],['TSTU0000102',[]]],'② 컨테이너 번호로 짝 · 순서 상관없음 · 씰만 다름');
   eq([sc.aclOnly,sc.cpOnly,sc.blank],[['TSTU0000199'],['TSTU0000103'],1],'② ACL 에만 · COMPASS 에만 · 번호 빈 행 (제외)');
-  const sb=ACL.compareSets([{container:'TSTU0000101',seal:'SL000101',bales:99,cargo:20100,tare:3700,conf:'SURE'}],FX.compass(1).containers.slice(0,1));
+  const sb=ACL.compareSets([{container:'TSTU0000101',seal:'SL000101',size:'45',type:'GP',bales:99,cargo:20100,tare:3700,conf:'SURE'}],FX.compass(1).containers.slice(0,1));
   eq(sb.sets[0].diffs.map(x=>[x.item,x.acl,x.cp]),[['Bales',99,21]],'② Bales 만 다름 → 그 세트 相違 (Bales)');
   eq([ACL.stripLocode('VUNG TAU PORT IN VIETNAM\nVNTST'),ACL.stripLocode('TOKYO, JAPAN'),ACL.stripLocode('TOKYO, JAPAN\nJPTYO')],['VUNG TAU PORT IN VIETNAM','TOKYO, JAPAN','TOKYO, JAPAN'],'(v0.2) UN/LOCODE 는 마지막 줄에 따로 있을 때만 뗌 — 「TOKYO, JAPAN」 의 JAPAN 은 지우지 않음 (v0.1 의 잘못)');
 }

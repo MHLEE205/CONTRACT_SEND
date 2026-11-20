@@ -28,12 +28,19 @@ node('v0.3 담당자 실적 (CSV 파서 · 메일 종류 · 연결 · 실적 · 
   /* v0.4: 범위 all · forwarder · Agent = S/I · Way Bill/원본 조합 · 揚地 = S/I · 표기 정리 · 유지 확인 · 부킹 옆 칸 (v0.3.1 e0c2199 와 비교) · REV · 본선 라벨 */
   let v31=null; try{ v31=cp.execFileSync('git',['show','e0c2199:acl_bench.html'],{cwd:__dirname,encoding:'utf8',maxBuffer:1<<26}); }catch(e){}
   const f31=v31?path.join(os.tmpdir(),'acl_v0_3_1_'+process.pid+'.html'):null; if(v31) fs.writeFileSync(f31,v31);
-  node('v0.4 (범위 all·forwarder · Agent=S/I · Way Bill/원본 조합 · 揚地=S/I · 표기 정리 · 유지 확인 · 부킹 옆 칸 · REV 판 · 본선 라벨)','v04.js',f31?[html,f31]:[html],/v04 pass \d+ fail \d+/); }
+  node('v0.4 (범위 all·forwarder · Agent=S/I · Way Bill/원본 조합 · 揚地=S/I · 표기 정리 · 유지 확인 · 부킹 옆 칸 · REV 판 · 본선 라벨)','v04.js',f31?[html,f31]:[html],/v04 pass \d+ fail \d+/);
+  /* v0.5: 넘침 표시 이어 붙이기 · 컨테이너 형태 (세트) · ACL 이름 = 書類ツール v0.2 (7af227d) 와 같은 결과 · 결과 화면 — v0.4 (243897d) 와 비교 */
+  let v4=null; try{ v4=cp.execFileSync('git',['show','243897d:acl_bench.html'],{cwd:__dirname,encoding:'utf8',maxBuffer:1<<26}); }catch(e){}
+  const f4=v4?path.join(os.tmpdir(),'acl_v0_4_'+process.pid+'.html'):null; if(v4) fs.writeFileSync(f4,v4);
+  let d2=null; try{ d2=cp.execFileSync('git',['show','7af227d:index.html'],{cwd:process.env.DOC_REPO||path.join(__dirname,'../../../DOC_TOOL'),encoding:'utf8',maxBuffer:1<<26,stdio:['ignore','pipe','ignore']}); }catch(e){}   /* 書類ツール 클론이 없으면 그 비교만 생략 */
+  const fd2=d2?path.join(os.tmpdir(),'doc_v0_2_'+process.pid+'.html'):null; if(d2) fs.writeFileSync(fd2,d2);
+  node('v0.5 (넘침 * ~ **** 이어 붙이기 · 컨테이너 형태 세트 · ACL 이름 = 書類ツール v0.2 · 仮 · 결과 화면)'+(d2?'':' — 書類ツール 클론 없음: 이름 비교 생략'),'v05.js',[html,f4||'',fd2||''],/v05 pass \d+ fail \d+/); }
 /* 가짜 데이터: 시험 파일 GUID 는 모두 00000000-0000-4000-8000-… · 실제 ACL (리나이 F6 · 토르가 읽은 실례) 의 값이 시험 파일 · 도구에 없음 */
-{ const files=['fixtures.js','unit.js','e2e.js','fake_naccs.js','pdfread.js','regress.js','same_v02.js','staff.js','pdfclose.js','v04.js'], txt=files.map(f=>fs.readFileSync(path.join(__dirname,f),'utf8')).join('\n');
+{ const files=['fixtures.js','unit.js','e2e.js','fake_naccs.js','pdfread.js','regress.js','same_v02.js','staff.js','pdfclose.js','v04.js','v05.js'], txt=files.map(f=>fs.readFileSync(path.join(__dirname,f),'utf8')).join('\n');
   const guids=txt.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi)||[], realG=guids.filter(g=>!/^00000000-0000-4000-8000-/.test(g));
   const REAL=['PCJTYO'+'26115206','AMP0'+'573572','TYOGN'+'6642800','5568'+'1833','HAN'+'KUK','MEGA '+'SURYA','TJIWI'+' KIMIA','KRAFT'+' OF ASIA','HONOR'+' GLORY','CNC'+' SERVAL','MOL '+'ENDOWMENT','RIO'+' KOBE','BSIU'+'8199489','CAIU'+'9653501','FFAU'+'7383199','UACU'+'6057211','PANP'+'805715','JPF'+'371604','J00'+'26358','NAKA'+'SHIMA','80111'+'01092439','MI775'+'26000244'.replace('775','772'),'MI605'+'26000669','EX2611'+'0142','TXGU'+'7339000','HLC'+'1609303','HLXU'+'8376721','HAMU'+'1382263','SAIGON'+' PAPER','3640ILU'+'8001657','3500'+'813231','IRENES'+' SOUTHERN','33291'+'368','N010-'+'2026','MY '+'XUAN','OLS'+'@','KAMI'+'YA','03627'+'89408','68448'+'17551',
-    /* v0.3: 실제 담당자 메일 (2026Q3Q4 CSV) 에서 본 값 — 시험 · 도구에 0 */ 'LO'+'TOS','leenear'+'corp','photo'+'_rcp','PHOTO'+'_RCP','SINAR'+'MAS','SINAR'+' MAS','0-2586'+'-290','JPE'+'270697','TCLU'+'9796140','SKHU'+'6344009','THIEN'+' TRI','MAN'+'DIRI','POPU'+'126080001','M0609'+'2608NU','DALSEONG'+'-GUN','IAAJ'+'232801','HASLJ'+'01260','TYOGL'+'7397700','JP0122'+'7218','AJMAN'+', PO BOX','pulppy'+'tissue','sumitomo'+'soko','nippon'+'express'];
+    /* v0.3: 실제 담당자 메일 (2026Q3Q4 CSV) 에서 본 값 — 시험 · 도구에 0 */ 'LO'+'TOS','leenear'+'corp','photo'+'_rcp','PHOTO'+'_RCP','SINAR'+'MAS','SINAR'+' MAS','0-2586'+'-290','JPE'+'270697','TCLU'+'9796140','SKHU'+'6344009','THIEN'+' TRI','MAN'+'DIRI','POPU'+'126080001','M0609'+'2608NU','DALSEONG'+'-GUN','IAAJ'+'232801','HASLJ'+'01260','TYOGL'+'7397700','JP0122'+'7218','AJMAN'+', PO BOX','pulppy'+'tissue','sumitomo'+'soko','nippon'+'express',
+    /* v0.5: 실례 (리나이 지시서 F2 · F3) 의 값 — 시험 · 도구에 0 */ 'TANJUNG'+' PRIOK','ASP'+'EX','KUM'+'BONG','KOR'+'INDO','HARY'+'ONO','ILC916'+'2600187','TGBU'+'4412228','JPF27'+'1110','TYOGE'+'5149900','BEAR'+' MOUNTAIN','797-'+'5959','6013 '+'8309','NA26'+'09-07','NCL26'+'10'];
   const all=txt+'\n'+fs.readFileSync(html,'utf8'), hits=REAL.filter(s=>all.indexOf(s)>=0);
   if(realG.length||hits.length) bad++;
   rows.push([realG.length||hits.length?'FAIL':'PASS','가짜 데이터 — GUID 가짜 모양 · 실제 ACL 값 0건 (시험 파일 + acl_bench.html)',`GUID ${guids.length}개 · 가짜 아닌 것 ${realG.length} · 실제 값 ${hits.length}`]); }

@@ -7,7 +7,8 @@ const OLD=load(process.argv[2]), NEW=load(process.argv[3]||path.join(__dirname,'
 let pass=0,fail=0; const ok=(c,m,info)=>{ if(c){pass++;console.log('PASS',m);} else {fail++;console.log('FAIL',m,info===undefined?'':JSON.stringify(info).slice(0,700));} };
 /* v0.4: 다른 곳 ③ — 揚地 (Port of Discharge · Place of Delivery) 의 기대값 · 설명이 「ブッキング POD」 → 「S/I 의 값」 (지시서 v0.4 Step 3). 판정 (status · kind) 은 같아야 함 */
 const strip=c=>({verdict:c.verdict, items:c.items.filter(i=>i.group!=='B/L 種類'&&i.group!=='NACCS 表示欄').map(i=>{ const o=Object.assign({},i); delete o.wordBreak; o.detail=String(o.detail||'').replace(' (行末の折り返し)','');
-    if(o.key==='pod'||o.key==='delivery'){ o.expected=''; o.detail=''; } return o; }),   /* Step 4 의 표시 글자 「(行末の折り返し)」 만 다름 */
+    if(o.key==='pod'||o.key==='delivery'){ o.expected=''; o.detail=''; }
+    delete o.set; delete o.join;   /* v0.5: 화면용 칸 (세트 1줄 · 이어 붙인 글) — 판정 아님 */ return o; }),   /* Step 4 의 표시 글자 「(行末の折り返し)」 만 다름 */
   kinds:c.kinds, xx:c.xx});
 (async()=>{
   const cases=[];

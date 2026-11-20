@@ -27,6 +27,7 @@ cd tests/acl_bench && npm install && node run_all.js
 | `fixtures.js` | 가짜 COMPASS (부킹 · 항구 · 컨테이너 · S/I sino 1·2 · S/I 명세) 와 그에 맞는 「완전한」 ACL spec |
 | `pdfclose.js` | (v0.3.1) `readPdf` 가 다 읽은 PDF 를 닫는지 — 도구의 `readPdf` · `mapLimit` · ① 一覧 콜백을 원문 그대로 꺼내 가짜 pdf.js 로: 정상 · 열기 실패 · 페이지 읽기 실패 → `destroy` 정확히 1번 · 원래 오류 그대로 (`t.format='ERROR'`) · 닫기 오류는 로그 1줄 / 가짜 PDF 400개 `mapLimit(4)` → 끝에 열린 문서 0 · 최대 4 / 실제 pdf.js 로 가짜 NACCS PDF 의 `pages` 가 v0.3 (`a8c6199`) 과 바이트까지 같음 |
 | `v04.js` | (v0.4) 규칙 범위 `all` · `forwarder` (순서 · 겹친 규칙) · Agent Signature = S/I 現地Agent記載 (Yes/No/未入力 · 마스터 우선) · Way Bill/원본 조합 (SWB · OBL · Surrender 型 · 이상 조합 → 読取確認要) · 揚地 = S/I 값 (부킹 POD 참고 · 후보 2개 · `pod_exclude` · CAS) · 표기 정리 (기호 앞뒤 공백 · 대소문자 · 씰 공백 · `**` 넘침 이동) · **유지 확인** (낱말 안 공백 · 부호 순서/겹침/바뀜 · 1~2 글자 → 모두 相違) · 부킹 옆 칸 (v0.3.1 `e0c2199` 는 「- 01 1」 까지 읽음) · REV 판 (이름 모양 · 번호 우선 · 再輸入 제외 · aclVersion 열) · 본선 변경 라벨 |
+| `v05.js` | (v0.5) **넘침 표시 이어 붙이기** (`*` · `**` · `***` · `****` · 번호 `*1`~`*9` · 한 칸 2개 · 단락 끝 = 빈 줄 (y 간격) · 다음 표시 · ACL 만 / S/I 만 / 양쪽 · 못 찾음 · 같은 표시 2단락 → 読取確認 · Description 에서 뺌 · 실례 모양의 가짜 PDF → Port 2칸 表記 · v0.4 `243897d` 는 相違) · **컨테이너 세트 6값** (형태 같음 · 표의 같은 뜻 · 표에 없음 · COMPASS 빈칸 → 参考 · ACL 못 읽음) · **ACL 이름** = 書類ツール v0.2 (`7af227d`) `aclScan` 과 같은 결과 · 仮 = 대상 · **결과 화면** (결론 · 전체 목록 · 相違만 · 내부 이름 관리자만 · 줄 단위 차이) |
 | `pdfread.js` | node 용 pdf.js 읽기 (도구의 readPdf 와 같은 모양) · jsdom 페이지용 pdfjsLib |
 
 > v0.3: 담당자 메일 CSV 는 **가짜만** (회사 · 주소 · 번호 · 메일 주소 모두 `example.test` / SAMPLE). 실제 메일 (`mail_docstaff_*.csv`) 의 값은 `run_all` 이 시험 파일 · 도구에 0건인지 확인한다.

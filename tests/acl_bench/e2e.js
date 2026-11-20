@@ -26,7 +26,7 @@ async function world(){
     if(n===11) spec={kind:'OTHER'};
     if(n===12) spec.overflow='THIS IS A VERY LONG LINE OF TEXT THAT RUNS PAST THE DESCRIPTION CELL INTO THE NEXT CELL';
     const b=Buffer.from(await N.build(spec));
-    put('f'+n, cp.invoice+'_ACL.pdf', n===4?null:WIP+cp.invoice, '2026-11-1'+(n%10)+'T00:00:00Z', b);   // 4 = 검색 결과에 path 없음 → 항목을 읽어 보충
+    put('f'+n, cp.invoice+'_ACL.pdf', WIP+cp.invoice, '2026-11-1'+(n%10)+'T00:00:00Z', b);   // v0.5: 목록 = 폴더 걷기 (v0.4 의 「검색 결과에 path 없음」 경우는 없어짐)
     if(n===13) cp.noCompass=true;
   }
   /* v0.4: 03 の訂正後の版 (同じ中身 · 後の時刻) → REV を照合 · 01 のブッキングに乙仲 (レコード番号 2) */
@@ -34,7 +34,7 @@ async function world(){
   Object.assign(cps['NFK2601-01'].booking,{_cr49f_fowarder_id_value:FX.g('d000',2),'_cr49f_fowarder_id_value@OData.Community.Display.V1.FormattedValue':'2'});
   put('old1','NFK2601-01_ACL.pdf',OLD+'NFK2601-01','2026-10-01T00:00:00Z',Buffer.from(await N.build({kind:'OTHER'})));   // 같은 Invoice 의 옛 파일
   put('x1','NFK2601-01_ACL.pdf','/drives/DRV/root:/古紙/-. AI 活用/D-01-LC_FD_CHECKER/履歴','2026-11-20T00:00:00Z',null);   // 대상 폴더 밖
-  put('x2','NFK2601-99_ACL (1).pdf',WIP+'NFK2601-99','2026-11-20T00:00:00Z',null);   // 이름 모양 다름
+  put('x2','NFK2601-99_再輸入ACL.pdf',WIP+'NFK2601-99','2026-11-20T00:00:00Z',null);   // ACL 모양이 아닌 이름 (다른 신고) — v0.5: 무시
   put('x3','NFK2601-01_ACL_2026-11-05.json',WIP+'NFK2601-01','2026-11-20T00:00:00Z',null);
   /* v0.3 가짜 담당자 메일 CSV (가짜 회사 · 번호) — 01 本登録 · 02 訂正依頼 (씰 · 訂正前 ACL) · 06 BKG 만 · 08 訂正依頼 (도구는 表記差 → 놓침 ①) · 紐付けなし 1 */
   const q=s=>'"'+String(s).replace(/"/g,'""')+'"', H=['発信者','発信日時(JST)','月','件名','返信/転送','件名規則','宛先(To)ドメイン','CCドメイン','添付有無','添付ファイル名','インライン画像数','Invoice番号','BKG/BL番号','契約番号(LRS)','本文(先頭300字)','internetMessageId'];
@@ -73,6 +73,12 @@ function fakeFetch(W){
     }
     if(url.indexOf(GR)===0){
       const p=decodeURIComponent(url.slice(GR.length)); W.gr.push({method,p});
+      /* v0.5: 폴더 걷기 — root:/{경로}:/children (파일의 parentReference.path 로 나무를 만든다) */
+      { const m=method==='GET'&&p.match(/^root:\/(.+):\/children\?/); if(m){ W.kids=(W.kids||0)+1; const P=m[1], dirOf=f=>String(f.parentReference&&f.parentReference.path||'').replace('/drives/DRV/root:/','');
+        const fs=W.files.filter(f=>dirOf(f)===P).map(f=>({id:f.id,name:f.name,size:f.size,lastModifiedDateTime:f.lastModifiedDateTime,file:{}}));
+        const subs=[...new Set(W.files.map(dirOf).filter(d=>d.indexOf(P+'/')===0).map(d=>d.slice(P.length+1).split('/')[0]))].map(n=>({id:'d:'+P+'/'+n,name:n,folder:{}}));
+        if(!fs.length&&!subs.length) return json(404,{error:{message:'not found'}});
+        return json(200,{value:subs.concat(fs)}); } }
       if(/^root\/search\(q='mail_docstaff'\)/.test(p)) return json(200,{value:W.staffFiles.map(f=>clone(f))});   // v0.3
       if(method==='PUT'){ const m=p.match(/^root:\/(.+):\/content(\?@microsoft\.graph\.conflictBehavior=fail)?$/); if(m[2]) W.noOverwrite.push(m[1]);
         if(m[2]&&W.puts[m[1]]!=null) return json(409,{error:{message:'nameAlreadyExists'}}); const body=init.body&&init.body.arrayBuffer?new TextDecoder('utf-8',{ignoreBOM:true}).decode(await init.body.arrayBuffer()):String(init.body); /* BOM 그대로 (Blob.text 는 BOM 을 지움) */ W.puts[m[1]]=body; return json(201,{name:m[1], size:init.body&&init.body.size}); }
@@ -105,13 +111,12 @@ const $=(w,id)=>w.document.getElementById(id);
   console.log('Step 1 ACL 一覧');
   $(w,'abList').click(); await until(()=>/完了|ab-ng/.test($(w,'abListSt').innerHTML));
   const L=w.eval('JSON.stringify(S.list)'), list=JSON.parse(L);
-  ok(list.targets.length===13&&list.found===17,'검색 2쪽 (다음 링크) · PDF 17개 (v0.4: REV 1 포함) → 대상 Invoice 13',{n:list.targets.length,found:list.found});
+  ok(list.targets.length===13&&list.folders===15&&!W.gr.some(x=>/search\(q='_ACL'\)/.test(x.p)),'v0.5 폴더 걷기: 書類作成中 14 + _OLD_DOC/2026 1 = 폴더 15 → 대상 Invoice 13 (Graph 검색 「_ACL」 안 씀)',{n:list.targets.length,folders:list.folders});
   const t1=list.targets.find(t=>t.invoice==='NFK2601-01');
-  ok(t1.file.id==='f1'&&t1.others.map(o=>o.id).join()==='old1','같은 Invoice 2개 → 최근 1개 (옛 파일 _OLD_DOC 는 목록에만)',t1);
+  ok(t1.file.id==='f1'&&!t1.others.length&&list.skipped.some(s=>/同じ Invoice のフォルダが 2 つ/.test(s.why)&&/_OLD_DOC\/2026\/NFK2601-01/.test(s.path)),'v0.5: 같은 Invoice 폴더 2개 (書類作成中 · _OLD_DOC) → 書類作成中 것 (書類ツールと同じ) · 다른 폴더는 외한 목록에',[t1,list.skipped]);
   const t3=list.targets.find(t=>t.invoice==='NFK2601-03');
   ok(t3.file.id==='r3'&&t3.aclVersion==='REV'&&t3.others.map(o=>o.id).join()==='f3'&&/<td>REV<\/td>/.test($(w,'abListOut').innerHTML),'v0.4 Step 6: _ACL.pdf + _ACL REV.pdf → REV 를 照合 · 처음 판은 others · 一覧에 版',t3);
-  ok(list.skipped.map(s=>s.why).sort().join('|')==='名前が {Invoice}_ACL.pdf でない|対象フォルダ外','대상 폴더 밖 · 이름 모양 다름 → 대상 밖 목록 (json 은 무시)',list.skipped);
-  ok(W.pathLookups===1&&list.targets.find(t=>t.invoice==='NFK2601-04').file.path.indexOf('▲ 書類作成中/NFK2601-04')>0,'검색 결과에 경로 없음 → 항목을 읽어 보충');
+  ok(list.skipped.length===1&&!list.targets.some(t=>/NFK2601-99/.test(t.invoice))&&list.targets.find(t=>t.invoice==='NFK2601-04').file.path==='古紙/-. 古紙書類/▲ 書類作成中/NFK2601-04','v0.5: 대상 폴더 밖 (D-01 履歴) 은 걷지 않음 · 再輸入ACL · json 은 무시 · 경로 = 상대 경로',list.skipped);
   const fm=f=>list.targets.filter(t=>t.format===f).length;
   ok(fm('NACCS')===11&&fm('SCAN')===1&&fm('OTHER')===1,'⑧ 형식: NACCS 11 · 스캔 1 · 그 밖 1',{N:fm('NACCS'),S:fm('SCAN'),O:fm('OTHER')});
   ok(!$(w,'abRun').disabled&&/照合 11 件 \(NACCS\) · 対象外 2 件 · 予想 約 1 分/.test($(w,'abRunSt').textContent),'건수 · 예상 시간 표시 (확인 상자 없음)',$(w,'abRunSt').textContent);
@@ -151,7 +156,9 @@ const $=(w,id)=>w.document.getElementById(id);
     const i1=R0.findIndex(r=>r.inv==='NFK2601-01'); $(w,'abResults').querySelector('button[data-i="'+i1+'"]').click();
     ok(/乙仲 2 · SAMPLE FWD · TOKYO/.test($(w,'abD'+i1).textContent)&&/\(初版\)/.test($(w,'abD'+i1).textContent),'v0.4: 항목 펼침에 ACL 版 · 乙仲 표시',$(w,'abD'+i1).textContent.slice(0,200)); }
   const idx=R0.findIndex(r=>r.inv==='NFK2601-07'); $(w,'abResults').querySelector('button[data-i="'+idx+'"]').click();
-  ok(/ab-drop/.test($(w,'abD'+idx).innerHTML)&&/ab-add/.test($(w,'abD'+idx).innerHTML)&&$(w,'abD'+idx).style.display==='','결과 표: 항목 펼침 · 脱落/追加 색 표시');
+  ok(/ab-drop/.test($(w,'abD'+idx).innerHTML)&&/ab-add/.test($(w,'abD'+idx).innerHTML)&&$(w,'abD'+idx).style.display==='','결과 표: 항목 펼침 · 脱落/追加 색 표시 (v0.5: 시험용 생데이터 안)');
+  { const D=$(w,'abD'+idx), c=D.querySelector('.av-concl');   /* v0.5 Step 4: 결론 → 확인한 항목 전부 → 相違만 펼침 */
+    ok(c&&/^直すところ 2 か所/.test(c.textContent)&&D.querySelectorAll('.av-list tr:not(.av-g)').length===R0.find(r=>r.inv==='NFK2601-07').items.length&&D.querySelectorAll('.av-diff .av-hl').length>0&&/荷受人 \(Consignee\)/.test(D.textContent),'v0.5 결과 화면: 결론 「直すところ 2 か所」 · 항목 전부 1줄씩 · 相違 칸 다른 글자 색 · 일본어 항목 이름',c&&c.textContent); }
   console.log('v0.3 표시 칸 · ③ 担当者実績');
   { const ids=[...w.document.querySelectorAll('button')].map(b=>b.id).filter(x=>['abList','abRun','abStaff','abSave'].indexOf(x)>=0);
     ok(ids.join()==='abList,abRun,abStaff,abSave'&&/① ACL 一覧/.test(w.document.body.textContent)&&/③ 担当者実績/.test(w.document.body.textContent)&&/④ 保存/.test(w.document.body.textContent),'화면 버튼 순서 ① 一覧 → ② 照合 → ③ 担当者実績 → ④ 保存',ids);

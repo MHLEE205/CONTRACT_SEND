@@ -72,7 +72,7 @@ console.log('5 표기 정리');
   eq([c.status,c.sub],['DIFF','記号'],'⑤ , ↔ . (부호 바뀜) → 相違:記号 (D5)');
   eq([d.status,d.kind],['NOTATION','表記:大文字小文字'],'⑤ 대소문자만 → 表記:大文字小文字');
   const cp=FX.compass(5); cp.containers=cp.containers.slice(0,1); cp.containers[0].crcf9_seal_no='TSAB 000123'; const c0=cp.containers[0];
-  const rows=[{container:c0.crcf9_container_no, seal:'TSAB000123', bales:c0.crcf9_quantity, cargo:c0.crcf9_n_w, tare:c0.crcf9_t_w, conf:'SURE'}];
+  const rows=[{container:c0.crcf9_container_no, seal:'TSAB000123', size:'45', type:'GP', bales:c0.crcf9_quantity, cargo:c0.crcf9_n_w, tare:c0.crcf9_t_w, conf:'SURE'}];
   const s=ACL.compareOne(mkAcl({},rows),cp), si=s.items.find(i=>/^set:/.test(i.key));
   eq([si.status,si.kind,!!s.kinds['セット相違:シール']],['NOTATION','表記:シール番号の空白',false],'⑤ 씰 번호 공백 (COMPASS 입력 공백) → 表記 (compareSets 는 그대로)');
   rows[0].seal='TSAB000124'; const s2=ACL.compareOne(mkAcl({},rows),cp).items.find(i=>/^set:/.test(i.key)); eq(s2.status,'DIFF','⑤ 씰 번호 글자가 다르면 그대로 相違');
@@ -104,15 +104,17 @@ console.log('7 부킹 번호 옆 칸');
   if(OLD) ok(/- 01/.test(OLD.readNaccs(pages).fields.booking.text),'⑦ 회귀: v0.3.1 은 같은 PDF 에서 「- 01 1」 까지 읽음 (고친 것 확인)',OLD.readNaccs(pages).fields.booking.text);
 }
 console.log('8 REV 판');
-{ const W='/drives/DRV/root:/古紙/-. 古紙書類/▲ 書類作成中/', it=(id,name,inv,mod)=>({id,name,path:W+inv,lastModifiedDateTime:mod,size:1});
+{ const W='/drives/DRV/root:/古紙/-. 古紙書類/▲ 書類作成中/', it=(id,name,inv,mod)=>({id,name,inv,lastModifiedDateTime:mod,size:1});
+  /* v0.5: groupTargets 는 Invoice 폴더 단위 (폴더 걷기) — 같은 파일들을 폴더로 묶어 넣는다 */
+  const byFolder=fs=>{ const o={}; fs.forEach(f=>{ (o[f.inv]=o[f.inv]||{invoice:f.inv, path:W+f.inv, files:[]}).files.push(f); }); return Object.values(o); };
   const names=['NFK2601-01_ACL.pdf','NFK2601-01_ACL REV.pdf','NFK2601-01_ACL_REV.pdf','NFK2601-01_ACL REV2.pdf','NFK2601-01_ACL-REV3.pdf','NFK2601-01_ACL(REV2).pdf','NFK2601-01_再輸入ACL.pdf','NFK2601-01_ACL_再輸入.pdf','NFK2601-01_ACL (1).pdf'];
   eq(names.map(n=>{ const a=ACL.aclName(n); return a?a.label:null; }),['初版','REV','REV','REV2','REV3','REV2',null,null,null],'⑧ 이름 모양 (공백 · _ · - · 괄호) → 版 · 再輸入 · (1) 은 제외');
-  const g=ACL.groupTargets([it('a','NFK2601-01_ACL.pdf','NFK2601-01','2026-11-01T00:00:00Z'),it('b','NFK2601-01_ACL REV.pdf','NFK2601-01','2026-11-03T00:00:00Z'),it('c','NFK2601-01_ACL REV2.pdf','NFK2601-01','2026-11-02T00:00:00Z'),
-    it('d','NFK2601-02_ACL REV.pdf','NFK2601-02','2026-11-01T00:00:00Z'),it('e','NFK2601-02_ACL_REV.pdf','NFK2601-02','2026-11-05T00:00:00Z'),it('f','NFK2601-03_再輸入ACL.pdf','NFK2601-03','2026-11-01T00:00:00Z')]);
+  const g=ACL.groupTargets(byFolder([it('a','NFK2601-01_ACL.pdf','NFK2601-01','2026-11-01T00:00:00Z'),it('b','NFK2601-01_ACL REV.pdf','NFK2601-01','2026-11-03T00:00:00Z'),it('c','NFK2601-01_ACL REV2.pdf','NFK2601-01','2026-11-02T00:00:00Z'),
+    it('d','NFK2601-02_ACL REV.pdf','NFK2601-02','2026-11-01T00:00:00Z'),it('e','NFK2601-02_ACL_REV.pdf','NFK2601-02','2026-11-05T00:00:00Z'),it('f','NFK2601-03_再輸入ACL.pdf','NFK2601-03','2026-11-01T00:00:00Z')]));
   const t1=g.targets.find(t=>t.invoice==='NFK2601-01'), t2=g.targets.find(t=>t.invoice==='NFK2601-02');
   eq([t1.file.id,t1.aclVersion,t1.others.map(o=>o.id).join()],['c','REV2','b,a'],'⑧ _ACL + REV + REV2 → REV2 (시각이 REV 보다 앞서도 번호 우선) · 처음 판은 others');
   eq([t2.file.id,t2.aclVersion],['e','REV'],'⑧ 같은 REV 번호 → 늦은 수정 시각');
-  eq([g.targets.length,g.skipped.map(s=>s.name)],[2,['NFK2601-03_再輸入ACL.pdf']],'⑧ 再輸入ACL (다른 신고) 은 제외 → 대상 밖 목록');
+  eq([g.targets.length,g.skipped.map(s=>s.name)],[2,[]],'⑧ 再輸入ACL (다른 신고) 은 제외 (v0.5: 폴더 걷기 — ACL 모양이 아닌 이름은 목록에도 넣지 않음)');
   const csv=ACL.toCsv({run_id:'R',results:[{invoice:'NFK2601-01',format:'NACCS',verdict:'完全一致',aclVersion:'REV2',items:[{group:'g',label:'l',status:'MATCH',kind:'',expected:'',actual:'',detail:''}]}]});
   ok(/,aclVersion\r\n/.test(csv)&&/,REV2\r\n/.test(csv),'⑧ results.csv 맨 끝 aclVersion');
 }
