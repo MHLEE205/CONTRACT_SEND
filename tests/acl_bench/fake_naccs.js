@@ -41,7 +41,8 @@ async function build(spec){
   val(0,'-',172,793.1); val(0,':',193.4,792.6); val(0,'9TEST',297.4,792.6);
   val(0,'-',179.9,776.2); val(0,'-',179.9,692.2); val(0,'-',179.9,605.9); val(0,'-',401.1,605.9);   // Shipper · Consignee · Notify · Also Notify 라벨 줄의 「-」
   (F.shipper||[]).forEach((l,i)=>val(0,l,40.8,i===0?764.9:745.3-(i-1)*9));
-  val(0,one('carrier')||'TSTC',259.2,766.4); val(0,one('booking'),355.9,766.4); val(0,'-',435.5,766.6);
+  val(0,one('carrier')||'TSTC',259.2,766.4); val(0,one('booking'),355.9,766.4);
+  if(spec.bookingSide) spec.bookingSide.forEach(([s,x])=>val(0,s,x,766.4)); else val(0,'-',435.5,766.6);   // v0.4: Booking 欄の右の小欄 (例 「- 01」 「1」 — 지시서 v0.4 F8)
   if(one('masterBl')&&one('masterBl')!=='-') val(0,one('masterBl'),260.6,738.3);
   (F.consignee||[]).forEach((l,i)=>val(0,l,40.8,679.3-i*9)); val(0,'9TST1',310.9,693.6);
   val(0,one('wayBill'),304.9,668.2); val(0,one('received'),398,668.2); val(0,one('freight'),510.5,668.2); val(0,F.agentSign?one('agentSign'):'1',333.5,638.9);   // v0.3: Agent Signature (빈칸 = 아무것도 없음)

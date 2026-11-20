@@ -29,6 +29,9 @@ async function world(){
     put('f'+n, cp.invoice+'_ACL.pdf', n===4?null:WIP+cp.invoice, '2026-11-1'+(n%10)+'T00:00:00Z', b);   // 4 = 검색 결과에 path 없음 → 항목을 읽어 보충
     if(n===13) cp.noCompass=true;
   }
+  /* v0.4: 03 の訂正後の版 (同じ中身 · 後の時刻) → REV を照合 · 01 のブッキングに乙仲 (レコード番号 2) */
+  put('r3','NFK2601-03_ACL REV.pdf',WIP+'NFK2601-03','2026-11-14T00:00:00Z',bytes.f3);
+  Object.assign(cps['NFK2601-01'].booking,{_cr49f_fowarder_id_value:FX.g('d000',2),'_cr49f_fowarder_id_value@OData.Community.Display.V1.FormattedValue':'2'});
   put('old1','NFK2601-01_ACL.pdf',OLD+'NFK2601-01','2026-10-01T00:00:00Z',Buffer.from(await N.build({kind:'OTHER'})));   // 같은 Invoice 의 옛 파일
   put('x1','NFK2601-01_ACL.pdf','/drives/DRV/root:/古紙/-. AI 活用/D-01-LC_FD_CHECKER/履歴','2026-11-20T00:00:00Z',null);   // 대상 폴더 밖
   put('x2','NFK2601-99_ACL (1).pdf',WIP+'NFK2601-99','2026-11-20T00:00:00Z',null);   // 이름 모양 다름
@@ -45,7 +48,8 @@ async function world(){
   return {cps, files, bytes, dv:[], gr:[], puts:{}, pathLookups:0, csv, csvBytes:cb.length, noOverwrite:[],
     staffFiles:[{id:'sf1',name:'mail_docstaff_2026Q3Q4.csv',size:cb.length,lastModifiedDateTime:'2026-11-14T00:00:00Z',parentReference:{driveId:'DRV',path:'/drives/DRV/root:/古紙/-. AI 活用/D-00/ACL_bench/_input'}},
       {id:'sf0',name:'mail_docstaff_old.csv',size:1,lastModifiedDateTime:'2026-11-20T00:00:00Z',parentReference:{driveId:'DRV',path:'/drives/DRV/root:/古紙/その他'}}],
-    siRule:[{scope_type:'buyer',scope:'BUYER-A',rule:'acl_freight_arranged',value:'1'},{scope_type:'country',scope:'VIETNAM',rule:'acl_agent_sign',value:'1'},{scope_type:'buyer',scope:'BUYER-A',rule:'po_vo_fixed',value:'PO'}]};
+    siRule:[{scope_type:'buyer',scope:'BUYER-A',rule:'acl_freight_arranged',value:'1'},{scope_type:'country',scope:'VIETNAM',rule:'acl_agent_sign',value:'1'},{scope_type:'buyer',scope:'BUYER-A',rule:'po_vo_fixed',value:'PO'},
+      /* v0.4 */ {scope_type:'all',scope:'ALL',rule:'acl_received_bl',value:''},{scope_type:'forwarder',scope:'2',rule:'acl_shipper_mail',value:'DOCS@EXAMPLE.TEST'},{scope_type:'country',scope:'VIETNAM',rule:'pod_exclude',value:'SP-TEST'}]};
 }
 function fakeFetch(W){
   const json=(st,body,h)=>({ok:st>=200&&st<300, status:st, statusText:String(st), headers:{get:k=>(h||{})[k]||null}, json:async()=>clone(body), arrayBuffer:async()=>{ throw new Error('no'); }});
@@ -63,6 +67,7 @@ function fakeFetch(W){
       m=p.match(/^cr49f_s_is\?\$filter=_cr49f_sale_contract_id_value eq ([0-9a-f-]+)/); if(m){ const c=all().find(c=>c.booking._cr49f_sale_contract_id_value===m[1]); return json(200,{value:c?c.sis:[]}); }
       m=p.match(/^crcf9_s_i_details\?\$filter=_crcf9_s_i_id_value eq ([0-9a-f-]+)/); if(m){ const c=all().find(c=>c.details[m[1]]); return json(200,{value:c?c.details[m[1]]:[]}); }
       m=p.match(/^cr49f_sale_contracts\(([0-9a-f-]+)\)\?\$select=/); if(m){ const c=all().find(c=>c.booking._cr49f_sale_contract_id_value===m[1]); return json(200,{cr49f_sale_contract_no:'SC-'+(c?c.invoice:'?'), cr49f_pay_cls:'LC', _cr49f_buyer_id_value:FX.g('bb00',1)}); }   // v0.3 meta
+      m=p.match(/^crcf9_customses\(([0-9a-f-]+)\)\?\$select=crcf9_forwarder_company,crcf9_pol$/); if(m) return json(200,{crcf9_forwarder_company:'SAMPLE FWD', crcf9_pol:'TOKYO'});   // v0.4 乙仲
       m=p.match(/^cr49f_buyers\(([0-9a-f-]+)\)\?\$select=/); if(m) return json(200,{cr49f_buyer:'BUYER-A', cr49f_buyer_code:'BA', crcf9_country:'VIETNAM'});
       return json(400,{error:{message:'가짜 DV: 모르는 경로 '+p}});
     }
@@ -100,9 +105,11 @@ const $=(w,id)=>w.document.getElementById(id);
   console.log('Step 1 ACL 一覧');
   $(w,'abList').click(); await until(()=>/完了|ab-ng/.test($(w,'abListSt').innerHTML));
   const L=w.eval('JSON.stringify(S.list)'), list=JSON.parse(L);
-  ok(list.targets.length===13&&list.found===16,'검색 2쪽 (다음 링크) · PDF 16개 → 대상 Invoice 13',{n:list.targets.length,found:list.found});
+  ok(list.targets.length===13&&list.found===17,'검색 2쪽 (다음 링크) · PDF 17개 (v0.4: REV 1 포함) → 대상 Invoice 13',{n:list.targets.length,found:list.found});
   const t1=list.targets.find(t=>t.invoice==='NFK2601-01');
   ok(t1.file.id==='f1'&&t1.others.map(o=>o.id).join()==='old1','같은 Invoice 2개 → 최근 1개 (옛 파일 _OLD_DOC 는 목록에만)',t1);
+  const t3=list.targets.find(t=>t.invoice==='NFK2601-03');
+  ok(t3.file.id==='r3'&&t3.aclVersion==='REV'&&t3.others.map(o=>o.id).join()==='f3'&&/<td>REV<\/td>/.test($(w,'abListOut').innerHTML),'v0.4 Step 6: _ACL.pdf + _ACL REV.pdf → REV 를 照合 · 처음 판은 others · 一覧에 版',t3);
   ok(list.skipped.map(s=>s.why).sort().join('|')==='名前が {Invoice}_ACL.pdf でない|対象フォルダ外','대상 폴더 밖 · 이름 모양 다름 → 대상 밖 목록 (json 은 무시)',list.skipped);
   ok(W.pathLookups===1&&list.targets.find(t=>t.invoice==='NFK2601-04').file.path.indexOf('▲ 書類作成中/NFK2601-04')>0,'검색 결과에 경로 없음 → 항목을 읽어 보충');
   const fm=f=>list.targets.filter(t=>t.format===f).length;
@@ -133,6 +140,16 @@ const $=(w,id)=>w.document.getElementById(id);
   ok(Object.keys(W.puts).length===0,'照合 단계: 쓰기 0 (저장은 버튼 따로)');
   const kt=$(w,'abKinds').textContent;
   ok(/BOOKING No\. 相違\s*1\s*1/.test(kt)&&/セット相違:シール/.test(kt)&&/脱落:Description of Goods/.test(kt),'차이 종류 집계표',kt.slice(0,300));
+  console.log('v0.4 범위 all · forwarder · 乙仲 · pod_exclude · 版');
+  { const d=k=>V('NFK2601-01').items.find(i=>i.key==='disp:'+k), d2=k=>V('NFK2601-02').items.find(i=>i.key==='disp:'+k);
+    ok(d('received').status==='MATCH'&&/all ALL/.test(d('received').detail)&&d2('received').status==='MATCH','v0.4 Step 1: all/ALL 규칙 → 모든 Invoice 에 맞음 (Received B/L 空欄)',[d('received'),d2('received')]);
+    ok(d('shipperMail').status==='MATCH'&&/forwarder 2/.test(d('shipperMail').detail)&&d2('shipperMail').status==='INFO','v0.4 Step 1: forwarder 2 규칙 → 乙仲 2 인 Invoice 만 (다른 乙仲 → 規則未登録)',[d('shipperMail'),d2('shipperMail')]);
+    const m1=JSON.parse(w.eval('JSON.stringify(S.results.find(r=>r.invoice==="NFK2601-01").meta)'));
+    ok(m1.forwarder==='2'&&m1.forwarderCompany==='SAMPLE FWD'&&m1.forwarderPort==='TOKYO'&&W.dv.filter(x=>/^crcf9_customses\(/.test(x.p)).length===1,'v0.4 Step 1: 乙仲 번호 · 회사 · 항구 = meta (crcf9_customses 1회)',m1);
+    ok(/揚地から外す港 \(pod_exclude\) 1 件/.test($(w,'abLog').textContent)&&V('NFK2601-01').items.find(i=>i.key==='pod').status==='MATCH','v0.4 Step 3: pod_exclude 1건 읽음 · 揚地 = S/I 값 → 一致');
+    ok(w.eval('S.results.find(r=>r.invoice==="NFK2601-03").aclVersion')==='REV'&&w.eval('S.results.find(r=>r.invoice==="NFK2601-01").aclVersion')==='初版','v0.4 Step 6: 결과에 aclVersion');
+    const i1=R0.findIndex(r=>r.inv==='NFK2601-01'); $(w,'abResults').querySelector('button[data-i="'+i1+'"]').click();
+    ok(/乙仲 2 · SAMPLE FWD · TOKYO/.test($(w,'abD'+i1).textContent)&&/\(初版\)/.test($(w,'abD'+i1).textContent),'v0.4: 항목 펼침에 ACL 版 · 乙仲 표시',$(w,'abD'+i1).textContent.slice(0,200)); }
   const idx=R0.findIndex(r=>r.inv==='NFK2601-07'); $(w,'abResults').querySelector('button[data-i="'+idx+'"]').click();
   ok(/ab-drop/.test($(w,'abD'+idx).innerHTML)&&/ab-add/.test($(w,'abD'+idx).innerHTML)&&$(w,'abD'+idx).style.display==='','결과 표: 항목 펼침 · 脱落/追加 색 표시');
   console.log('v0.3 표시 칸 · ③ 担当者実績');
@@ -161,8 +178,9 @@ const $=(w,id)=>w.document.getElementById(id);
   ok(/^ACL_\d{8}-\d{6}$/.test(rid)&&keys.every(k=>k.indexOf(dir)===0),'⑨ 저장 = ACL_bench/{run_id}/ 아래만',keys);
   ok(['results.json','results.csv','summary.md'].every(f=>keys.indexOf(dir+f)>=0)&&keys.filter(k=>/\/coords\//.test(k)).length===13,'results.json · results.csv · summary.md · 좌표 13건');
   const csv=W.puts[dir+'results.csv'], md=W.puts[dir+'summary.md'], js=JSON.parse(W.puts[dir+'results.json']);
-  ok(/^﻿run_id,invoice,format,verdict,group,item,status,kind,expected,actual,detail,xx,staff_record\r\n/.test(csv)&&csv.split('NFK2601-10').length===2&&/BOOKING No\. 相違/.test(csv),'results.csv: Invoice × 항목 한 줄 (대상 밖은 1줄)');
+  ok(/^﻿run_id,invoice,format,verdict,group,item,status,kind,expected,actual,detail,xx,staff_record,aclVersion\r\n/.test(csv)&&csv.split('NFK2601-10').length===2&&/BOOKING No\. 相違/.test(csv),'results.csv: Invoice × 항목 한 줄 (대상 밖은 1줄) · (v0.4) 맨 끝 aclVersion');
   ok(/\| 完全一致 \| 3 \|/.test(md)&&/\| 相違あり \| 5 \|/.test(md)&&/\| BOOKING No\. 相違 \| 1 \| 1 \|/.test(md)&&/✦ Powered by LEENAI Automation System/.test(md),'summary.md: 판정 · 차이 종류 · 푸터');
+  ok(/NFK2601-03,NACCS,相違あり,[^\r]*,REV\r\n/.test(csv)&&/\| NFK2601-03 \| REV \|/.test(md),'v0.4: results.csv · summary.md 에 ACL 版 (REV)');
   ok(js.results.length===13&&js.user==='tester@example.com'&&js.version===VER,'results.json: 13건 · 실행자 · 버전');
   let err=''; try{ await w.eval("spPut('古紙/-. 古紙書類/▲ 書類作成中/NFK2601-01/x.pdf','x','text/plain')"); }catch(e){ err=e.message; }
   ok(/書き込み禁止/.test(err)&&!Object.keys(W.puts).some(k=>k.indexOf('書類作成中')>=0),'⑨ 원본 폴더에 쓰기 → 막힘');

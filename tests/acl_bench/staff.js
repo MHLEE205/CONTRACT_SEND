@@ -84,7 +84,7 @@ console.log('6 표시 칸 (master_si_rule acl_*)');
   const by=(m,k)=>ACL.dispItems(F,d.rules,m).find(i=>i.key==='disp:'+k);
   eq([by({contract:'SC-2',buyer:'BUYER-A'},'agentSign').status,by({contract:'SC-1',buyer:'BUYER-A'},'agentSign').status,by({contract:'SC-1',buyer:'BUYER-A'},'agentSign').expected],['MATCH','DIFF','(空欄)'],'⑥ 규칙 있음 → 같음 / 다름 · 빈칸 규칙 · 좁은 범위 (contract) 우선');
   const fr=by({country:'VIETNAM'},'freight'), wb=by({buyer:'BUYER-A'},'wayBill');
-  eq([fr.status,wb.status,wb.expected,wb.actual],['MATCH','INFO','(規則未登録)',''],'⑥ 나라 범위 · 규칙 없음 → 参考 「規則未登録」 + 지금 ACL 값');
+  eq([fr.status,wb.status,wb.expected,wb.actual],['MATCH','INFO','(組合せ)','(空欄)'],'⑥ 나라 범위 · (v0.4 바뀜) Way Bill 규칙 없음 → 조합 판정 「(組合せ)」 OBL 型 参考 + 지금 ACL 값 (v0.3 은 「規則未登録」 — 지시서 v0.4 Step 2)');
   const F2=Object.assign({},F,{agentSign:fld('')}), it=ACL.dispItems(F2,d.rules,{buyer:'BUYER-A'}).find(i=>i.key==='disp:agentSign');
   eq([it.status,it.kind],['DIFF','表示欄相違:Agent Signature Request Identifier'],'⑥ 다르면 DIFF · kind 表示欄相違:{칸}');
 }
@@ -97,7 +97,7 @@ console.log('7 규칙 후보');
   ok(/master_si_rule に未定義/.test(ag[0].note)&&ag[0].decided_by===''&&/根拠 3 件/.test(ag[0].note),'⑦ 후보 모양 = master items · decided_by 비움 · note 에 근거 · 없는 범위 종류는 ⚠ (만들지 않고 보고)',ag[0]);
   eq(hold.map(h=>[h.scope,h.why,h.values.length]).sort(),[['BUYER-B','3 件未満',2],['BUYER-C','値が混在',3]],'⑦ 2건 → 保留 · 섞임 → 保留 + 목록');
   ok(hold.find(h=>h.scope==='BUYER-C').values.indexOf('NFK2601-07=(空)')>=0,'⑦ 섞인 인보이스 목록 (빈칸도 값)');
-  const all=C.items.filter(c=>c.rule==='acl_originals'); eq(all.map(c=>[c.scope_type,c.value]),[['(全体)','3']],'⑦ 전부 같으면 (全体) — 범위 종류가 없어 보고만');
+  const all=C.items.filter(c=>c.rule==='acl_originals'); eq(all.map(c=>[c.scope_type,c.scope,c.value,/未定義/.test(c.note)]),[['all','ALL','3',false]],'⑦ (v0.4 바뀜) 전부 같으면 all/ALL — 마스터 범위 이름 · 「未定義」 경고 없음 (v0.3 은 (全体) · 경고 — 지시서 v0.4 Step 1)');
 }
 console.log('8 実績表記');
 { const sh='SAMPLE EXPORT CO.,LTD', mk=(n,act,o)=>res(n,Object.assign({items:[diffIt('shipper','Shipper',sh,act)]},o||{}));
@@ -148,6 +148,6 @@ console.log('저장 파일 (가짜)');
   ok(sm.charCodeAt(0)===0xFEFF&&/^.invoice,staff_record,verdict,mails,last_fix,acl_after_fix,pairs,mails_detail\r\n/.test(sm)&&/NFK2601-01,本登録のみ,相違あり,1/.test(sm),'staff_match.csv: 인보이스 × 실적 × 판정 × 근거');
   ok(/^.Invoice,項目,ACL,COMPASS,理由\r\n/.test(rv)&&/NFK2601-01,Shipper,A  C,A B,本登録のみ/.test(rv)&&/紐付けなし/.test(rv),'review_list.csv (일본어): 相違あり × 本登録のみ · 紐付けなし');
   ok(/## 担当者実績との突き合わせ/.test(md)&&/\| 相違あり \| 0 \| 1 \|/.test(md)&&/見落とし ①/.test(md)&&/✦ Powered by LEENAI Automation System/.test(md),'summary.md: 맞대기 표 · 놓침 목록 · 푸터');
-  ok(/,staff_record\r\n/.test(csv)&&/,本登録のみ\r\n/.test(csv)&&/,期間外\r\n/.test(csv),'results.csv: staff_record 열 맨 끝');
+  ok(/,staff_record,aclVersion\r\n/.test(csv)&&/,本登録のみ,\r\n/.test(csv)&&/,期間外,\r\n/.test(csv),'results.csv: staff_record · (v0.4) aclVersion 열 맨 끝');
 }
 console.log('staff pass',pass,'fail',fail); process.exitCode=fail?1:0;
