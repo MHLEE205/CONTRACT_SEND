@@ -92,7 +92,7 @@ console.log('6 유지 확인 (모두 相違)');
   eq(r.map(x=>x.status==='MATCH'||x.status==='NOTATION'),[false,false,false,false,false],'⑥ 000 0FAX · SAMPLE MAS (낱말 안 공백) · CO.,LTD↔CO,.LTD (순서) · ,, (겹침) · WASTE↔WESTE → 모두 相違',r.map(x=>x.status));
   eq([r[0].wordBreak,r[1].wordBreak,r[2].sub,r[4].sub],[true,true,'記号','誤字の疑い'],'⑥ 낱말 안 공백 = 語の切れ目 · 부호 순서 = 記号 · 1~2 글자 = 誤字の疑い');
   const cq=FX.compass(7), ex=ACL.expected(cq), w=ex.description.replace('WASTE','WESTE');
-  const it=item(ACL.compareOne(mkAcl({description:w}),cq),'description'); eq([it.status,it.kind],['DIFF','相違:誤字の疑い:Description of Goods'],'⑥ compareOne: 품명 WASTE → WESTE = 相違:誤字の疑い (표기 정리가 삼키지 않음)');
+  const it=item(ACL.compareOne(mkAcl({description:w}),cq),'description'); eq([it.status,it.kind,/^\(誤字の疑い\)/.test(it.detail)],['DIFF','相違:Description:品名',true],'⑥ compareOne: 품명 WASTE → WESTE = 相違 (표기 정리가 삼키지 않음) — v0.6: Description 은 내용 항목 → kind 相違:Description:品名 · 誤字の疑い 는 detail 앞에');
   const up=T('SAMPLE MAS TOWER','SAMPLEMAS tower'); eq(up.status,'DIFF','⑥ 대소문자 + 낱말 안 공백 → 相違 (대소문자 표기가 삼키지 않음)');
 }
 console.log('7 부킹 번호 옆 칸');

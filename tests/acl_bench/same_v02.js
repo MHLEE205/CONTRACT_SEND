@@ -8,7 +8,7 @@ let pass=0,fail=0; const ok=(c,m,info)=>{ if(c){pass++;console.log('PASS',m);} e
 /* v0.4: 다른 곳 ③ — 揚地 (Port of Discharge · Place of Delivery) 의 기대값 · 설명이 「ブッキング POD」 → 「S/I 의 값」 (지시서 v0.4 Step 3). 판정 (status · kind) 은 같아야 함 */
 const strip=c=>({verdict:c.verdict, items:c.items.filter(i=>i.group!=='B/L 種類'&&i.group!=='NACCS 表示欄').map(i=>{ const o=Object.assign({},i); delete o.wordBreak; o.detail=String(o.detail||'').replace(' (行末の折り返し)','');
     if(o.key==='pod'||o.key==='delivery'){ o.expected=''; o.detail=''; }
-    delete o.set; delete o.join;   /* v0.5: 화면용 칸 (세트 1줄 · 이어 붙인 글) — 판정 아님 */ return o; }),   /* Step 4 의 표시 글자 「(行末の折り返し)」 만 다름 */
+    delete o.set; delete o.join; delete o.desc;   /* v0.6: Description 항목 비교의 표시용 칸 */   /* v0.5: 화면용 칸 (세트 1줄 · 이어 붙인 글) — 판정 아님 */ return o; }),   /* Step 4 의 표시 글자 「(行末の折り返し)」 만 다름 */
   kinds:c.kinds, xx:c.xx});
 (async()=>{
   const cases=[];
@@ -22,10 +22,13 @@ const strip=c=>({verdict:c.verdict, items:c.items.filter(i=>i.group!=='B/L 種�
     if(n===12) spec.overflow='THIS IS A VERY LONG LINE OF TEXT THAT RUNS PAST THE DESCRIPTION CELL INTO THE NEXT CELL';
     cases.push({n, cp, pages:await R.readItems(await N.build(spec))}); }
   const out=cases.map(c=>({n:c.n, o:OLD.compareOne(OLD.readNaccs(c.pages),c.cp), w:NEW.compareOne(NEW.readNaccs(c.pages),c.cp)}));
-  const same=out.filter(x=>x.n!==10), diffs=same.filter(x=>JSON.stringify(strip(x.o))!==JSON.stringify(strip(x.w)));
+  /* v0.6: 다른 곳 ④ — 경우 7 (S/I 의 L/C 줄이 ACL 에 없음) 의 Description: v0.2 脱落 → v0.6 相違:Description:L/C (내용 항목 비교 · 판정은 둘 다 相違あり) — 아래에서 따로 */
+  const same=out.filter(x=>x.n!==10&&x.n!==7), diffs=same.filter(x=>JSON.stringify(strip(x.o))!==JSON.stringify(strip(x.w)));
   ok(!diffs.length,'규칙 · CSV 없음 → v0.2 와 같은 판정 · 항목 · 차이 종류 (표시 칸 그룹 제외) — '+same.length+' 경우',diffs.map(x=>({n:x.n,o:strip(x.o).verdict,w:strip(x.w).verdict})));
   const c10=out.find(x=>x.n===10), it=c10.w.items.find(i=>i.key==='notify'), o10=c10.o.items.find(i=>i.key==='notify');
   ok(o10.status==='NOTATION'&&c10.o.verdict==='表記差のみ'&&it.status==='DIFF'&&it.wordBreak&&c10.w.kinds['相違:語の切れ目:Notify Party']===1&&c10.w.verdict==='相違あり','다른 곳 ① Step 4 — 줄 안 공백 빠짐: v0.2 表記差 → v0.3 相違:語の切れ目',{o:o10.status,w:it.status,k:c10.w.kinds});
+  const c7=out.find(x=>x.n===7), d7o=c7.o.items.find(i=>i.key==='description'), d7w=c7.w.items.find(i=>i.key==='description');
+  ok(d7o.status==='DROP'&&d7w.status==='DIFF'&&d7w.kind==='相違:Description:L/C'&&c7.o.verdict==='相違あり'&&c7.w.verdict==='相違あり','다른 곳 ④ v0.6 — Description 은 내용 항목 비교 (L/C 번호 없음 = 相違:Description:L/C · 판정 같음)',{o:d7o.status,w:[d7w.status,d7w.kind]});
   const c11=out.find(x=>x.n===11); ok(c11.o.items.find(i=>i.key==='notify').status==='NOTATION'&&c11.w.items.find(i=>i.key==='notify').status==='NOTATION','줄 끝 꺾임 (낱말 가운데) 은 v0.2 · v0.3 모두 表記差');
   const d=out[0].w.items.filter(i=>i.group==='NACCS 表示欄');
   /* v0.4: 규칙 없으면 — Way Bill · 원본 = 조합 (가짜 ACL 빈칸·3 = OBL 型) 参考 · Agent Signature = S/I 現地Agent記載 (가짜 S/I 는 비어 있음 → 「S/I 未入力」 参考) · 나머지 「規則未登録」 */

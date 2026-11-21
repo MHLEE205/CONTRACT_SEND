@@ -136,7 +136,8 @@ const $=(w,id)=>w.document.getElementById(id);
   ok(V('NFK2601-05').k['ACL のみのコンテナ']===1&&V('NFK2601-05').k['合計相違:コンテナ本数']===1,'② ACL 에만 있는 컨테이너',V('NFK2601-05').k);
   ok(V('NFK2601-06').k['BOOKING No. 相違']===1&&V('NFK2601-06').items.find(i=>i.key==='booking').actual==='BK7777777','③ 부킹 번호 다름',V('NFK2601-06').k);
   const d7=V('NFK2601-07').items.find(i=>i.key==='description'), c7=V('NFK2601-07').items.find(i=>i.key==='consignee');
-  ok(d7.status==='DROP'&&/脱落行: L\/C NO\.: TLC0007 DATED ON OCT 01/.test(d7.detail)&&c7.status==='ADD'&&/追加「EXTRA LINE ADDED BY FORWARDER」/.test(c7.detail),'④ S/I 한 줄 빠짐 → 脱落 · ACL 한 줄 더 → 追加',[d7.detail,c7.detail]);
+  /* v0.6: Description は 内容項目で比べる → 「L/C NO.: TLC0007」 (番号の項目) が ACL に無い = 相違:Description:L/C (v0.5 までは 脱落行) */
+  ok(d7.status==='DIFF'&&d7.kind==='相違:Description:L/C'&&/脱落「L\/C NO\.: TLC0007」/.test(d7.detail)&&c7.status==='ADD'&&/追加「EXTRA LINE ADDED BY FORWARDER」/.test(c7.detail),'④ S/I 한 줄 빠짐 → 脱落 · ACL 한 줄 더 → 追加',[d7.detail,c7.detail]);
   ok(V('NFK2601-08').items.find(i=>i.key==='notify').status==='NOTATION'&&V('NFK2601-08').k['表記差:Notify Party']===1,'⑤ 줄바꿈만 다름 → 表記差');
   ok(V('NFK2601-09').items.filter(i=>/^set:/.test(i.key)).length===20,'⑦ Attached Sheet 의 컨테이너까지 20 세트');
   ok(V('NFK2601-12').k['読取確認要:Description of Goods']===1,'셀을 넘친 값 → 読取確認要');
@@ -144,7 +145,7 @@ const $=(w,id)=>w.document.getElementById(id);
   ok(!W.dv.some(x=>/NFK2601-1[01]'/.test(x.p)),'読取対象外 Invoice 는 COMPASS 를 읽지 않음');
   ok(Object.keys(W.puts).length===0,'照合 단계: 쓰기 0 (저장은 버튼 따로)');
   const kt=$(w,'abKinds').textContent;
-  ok(/BOOKING No\. 相違\s*1\s*1/.test(kt)&&/セット相違:シール/.test(kt)&&/脱落:Description of Goods/.test(kt),'차이 종류 집계표',kt.slice(0,300));
+  ok(/BOOKING No\. 相違\s*1\s*1/.test(kt)&&/セット相違:シール/.test(kt)&&/相違:Description:L\/C/.test(kt),'차이 종류 집계표 (v0.6: Description = 相違:Description:{항목})',kt.slice(0,300));
   console.log('v0.4 범위 all · forwarder · 乙仲 · pod_exclude · 版');
   { const d=k=>V('NFK2601-01').items.find(i=>i.key==='disp:'+k), d2=k=>V('NFK2601-02').items.find(i=>i.key==='disp:'+k);
     ok(d('received').status==='MATCH'&&/all ALL/.test(d('received').detail)&&d2('received').status==='MATCH','v0.4 Step 1: all/ALL 규칙 → 모든 Invoice 에 맞음 (Received B/L 空欄)',[d('received'),d2('received')]);
