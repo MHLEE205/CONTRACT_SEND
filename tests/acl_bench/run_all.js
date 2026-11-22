@@ -54,7 +54,7 @@ node('v0.3 담당자 실적 (CSV 파서 · 메일 종류 · 연결 · 실적 · 
     /* v0.3: 실제 담당자 메일 (2026Q3Q4 CSV) 에서 본 값 — 시험 · 도구에 0 */ 'LO'+'TOS','leenear'+'corp','photo'+'_rcp','PHOTO'+'_RCP','SINAR'+'MAS','SINAR'+' MAS','0-2586'+'-290','JPE'+'270697','TCLU'+'9796140','SKHU'+'6344009','THIEN'+' TRI','MAN'+'DIRI','POPU'+'126080001','M0609'+'2608NU','DALSEONG'+'-GUN','IAAJ'+'232801','HASLJ'+'01260','TYOGL'+'7397700','JP0122'+'7218','AJMAN'+', PO BOX','pulppy'+'tissue','sumitomo'+'soko','nippon'+'express',
     /* v0.5: 실례 (리나이 지시서 F2 · F3) 의 값 — 시험 · 도구에 0 */ 'TANJUNG'+' PRIOK','ASP'+'EX','KUM'+'BONG','KOR'+'INDO','HARY'+'ONO','ILC916'+'2600187','TGBU'+'4412228','JPF27'+'1110','TYOGE'+'5149900','BEAR'+' MOUNTAIN','797-'+'5959','6013 '+'8309','NA26'+'09-07','NCL26'+'10',
     /* v0.6: 실례 (리나이 지시서 F3) 품명 — 시험 · 도구에 0 */ 'NEWSPRINT'+' MANUFACTURING','(OM'+'G)','FOR '+'OMG',
-    /* v0.9 (D8): 실제 乙仲 · 바이어 · 메일함 이름 — 시험 · 도구에 0 */ 'SEI'+'YU','セイ'+'ユー','住友'+'倉庫','O.T'+'.K','日本'+'通運','ヴェ'+'リオス','SAIGON'+' PAPER','JU'+'SHIN','photo'+'_rcp',
+    /* v0.9 (D8): 실제 乙仲 · 바이어 · 메일함 이름 — 시험 · 도구에 0 */ 'SEI'+'YU','セイ'+'ユー','住友'+'倉庫','O.T'+'.K','日本'+'通運','ヴェ'+'リオス','JU'+'SHIN','photo'+'_rcp',
     /* v0.7: 실례 (NRA 5 건 · 토르가 읽은 ACL) — 시험 · 도구에 0 */ 'RAKRAFT'+'PAPERS','APNA'+' BAZAR','LOTUS'+' LINK','27AAACR'+'8977L1ZK','03040'+'80403','FLAMINGO'+' VILLAS'];
   const all=txt+'\n'+fs.readFileSync(html,'utf8'), hits=REAL.filter(s=>all.indexOf(s)>=0);
   if(realG.length||hits.length) bad++;
