@@ -990,6 +990,9 @@ const ACL = (()=>{
       let r=compareText(ex[k], dash(F[k].text), others, aclOthers);
       /* v0.9 追加 (형님 결정 2026-11-22 · 토르_2 보충 ① 表): ACL が S/I より 「多く」 書いた (足した行が S/I の他の当事者の欄の文字 — 例: Consignee と Notify が同じ会社で 乙仲 が連絡先を両方に) = 参考 ·
          S/I の内容が ACL から抜ける · 違う = 相違 のまま (S/I にない文字を足したのも 相違 のまま) */
+      /* FREIGHT PREPAID AS ARRANGED の行の位置 (P1) が一緒に違うときは その行を外して見る (実データ: ある 乙仲 の Consignee) */
+      const rF=PARTY_KEYS.indexOf(k)>=0&&(r.status==='DIFF'||r.status==='DROP')&&P1.FREIGHT.test(ex[k]||'')?compareText(noFreight(ex[k]), noFreight(dash(F[k].text))):null; P1.FREIGHT.lastIndex=0;
+      if(rF&&rF.status==='ADD') r=rF;
       if(PARTY_KEYS.indexOf(k)>=0&&r.status==='ADD'){ const adds=(r.ops||[]).filter(o=>o.t==='add').map(o=>o.text), pool=p1Key(PARTY_KEYS.map(x=>ex[x]||'').join('\n'));
         if(adds.length&&adds.every(t=>{ const q=p1Key(t); return q.length>=3&&pool.indexOf(q)>=0; })) r={status:'INFO', ops:r.ops, kind:'参考:ACL に追記:'+lb, note:'ACL に S/I より多く書いてある (S/I の他の当事者の欄の文字: 「'+adds.join(' / ').slice(0,60)+'」) — 参考'}; }
       /* v0.9 追加 (同 ②): S/I の行がこの欄にはないが ACL Description の 「*」 の続きの行にある (NA2609-05 の Notify TEL · FAX の形) → 続き (表記) */

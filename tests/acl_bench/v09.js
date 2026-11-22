@@ -79,6 +79,8 @@ console.log('형님 추가 ① ② (보충 ① 표)');
   /* Consignee 에 S/I Notify 의 연락처 (같은 회사) 를 더 적음 → 参考 */
   const tel=ex.notify.split('\n').find(l=>/TEL/.test(l)), r1=run(cp,{consignee:ex.consignee+'\n'+tel});
   ok(item(r1,'consignee').status==='INFO'&&/^参考:ACL に追記/.test(item(r1,'consignee').kind)&&r1.verdict!=='相違あり','① ACL 이 S/I 보다 더 적음 (Consignee 에 Notify 의 TEL · FAX) → 参考',[item(r1,'consignee').status,item(r1,'consignee').kind,r1.verdict]);
+  const cpF=FX.compass(3); cpF.sis[0].crcf9_consignee=cpF.sis[0].crcf9_consignee+'\nFREIGHT PREPAID AS ARRANGED'; const exF=ACL.expected(cpF);
+  const rF=ACL.compareOne(mkAcl(cpF,{consignee:exF.consignee.replace('\nFREIGHT PREPAID AS ARRANGED','')+'\n'+tel}),cpF); ok(item(rF,'consignee').status==='INFO','① + FREIGHT 줄 위치도 다름 (그 줄을 빼고 보면 더 적은 것뿐) → 参考',[item(rF,'consignee').status,item(rF,'consignee').detail]);
   const r2=run(cp,{consignee:ex.consignee+'\nTEL: 99-99-9999-9999'}); ok(item(r2,'consignee').status==='ADD','① S/I 어디에도 없는 글자를 더 적음 → 相違 그대로',item(r2,'consignee').status);
   const r3=run(cp,{consignee:'TO ORDER OF OTHER BANK\n'+ex.consignee.split('\n')[1]}); ok(['DIFF','DROP','ADD'].indexOf(item(r3,'consignee').status)>=0,'① S/I 내용이 틀림 → 相違',item(r3,'consignee').status);
   /* ② Notify 의 TEL · FAX 가 Description 의 * 넘침 줄에 */
