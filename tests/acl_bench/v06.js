@@ -73,7 +73,7 @@ console.log('② 최종 분석');
   ok(!r6.final.missing.length&&!r6.final.aclOnly.length,'줄바꿈 · 대소문자 · 띄어쓰기는 무시 (위치 무관)',r6.final);
   const r7=ACL.compareOne(mkAcl(cp,{pod:'CAT LAI PORT', delivery:'CAT LAI PORT'}),cp);
   ok(r7.final.missing.some(m=>m.group==='港'&&m.srcs.indexOf('pod')>=0),'항구 = 칸 하나 = 항목 하나 (일부만 있으면 없음)',r7.final.missing);
-  ok(r0.final.missing.length===0&&J(Object.keys(r0.final))===J(['total','found','missing','aclOnly','moved','sets','unread']),'결과 객체 final:{total, found, missing, aclOnly, moved, sets} (+ unread = 읽지 못한 칸의 항목)');
+  ok(r0.final.missing.length===0&&J(Object.keys(r0.final))===J(['total','found','missing','aclOnly','moved','sets','unread','instr']),'결과 객체 final:{total, found, missing, aclOnly, moved, sets} (+ unread = 읽지 못한 칸의 항목 · v0.7 instr = 乙仲への指示)');
   const ua=mkAcl(cp); ua.fields.shipper={text:'',conf:'MISSING'}; const r8=ACL.compareOne(ua,cp);
   ok(!r8.final.missing.some(m=>m.srcs.indexOf('shipper')>=0)&&r8.final.unread.length>=3&&/ー ACL の欄を読めない/.test(ACL.finalView(r8).content.text),'칸 라벨을 못 읽음 (Shipper MISSING) → 그 칸 항목은 「足りない」 가 아니라 「読めない」 (추측 안 함)',r8.final);
   const sh=ACL.compareOne(mkAcl(FX.compass(8),{}),(c=>{ c.sis[0].crcf9_bl_text1='WP#47072000#XXKGS#XXBALES'; return c; })(FX.compass(8)));
