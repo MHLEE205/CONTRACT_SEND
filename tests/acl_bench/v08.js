@@ -66,5 +66,5 @@ console.log('⑤ （仮） = 미확정');
   ok(ACL.finalView(T).tentative===true&&ACL.finalView(N).tentative===false,'finalView.tentative');
 }
 console.log('⑥ 버전');
-ok(/version:'0\.8'/.test(fs.readFileSync(HTML,'utf8')),"version:'0.8'");
+ok(/version:'0\.[89]'/.test(fs.readFileSync(HTML,'utf8')),"version:'0.8' 이상");
 console.log('v08 pass '+pass+' fail '+fail); process.exit(fail?1:0);

@@ -18,7 +18,7 @@ async function world(){
     if(n===2) spec.rows[1].seal='SL999999';
     if(n===3){ spec.rows[0].bales=99; FX.retotal(spec); }
     if(n===4){ spec.rows=spec.rows.slice().reverse(); spec.order='shuffle'; }
-    if(n===5){ spec.rows.push({container:'XTRU0000001',seal:'SLX00001',bales:10,cargo:9000,tare:3700,measure:40}); FX.retotal(spec); }
+    if(n===5){ spec.rows.push({container:'XTRU0000008',seal:'SLX00001',bales:10,cargo:9000,tare:3700,measure:40}); FX.retotal(spec); }
     if(n===6) spec.fields.booking=['BK7777777'];
     if(n===7){ spec.fields.description=spec.fields.description.filter(l=>!/^L\/C NO/.test(l)); spec.fields.consignee=spec.fields.consignee.concat(['EXTRA LINE ADDED BY FORWARDER']); }
     if(n===8) spec.fields.notify=['SAMPLE PAPER CO., LTD. NO.1 SAMPLE','ROAD, SAMPLE WARD, HO CHI MINH','CITY, VIETNAM','TEL: 84-28-0000-0000 FAX: 84-28-0000-0001'];
@@ -43,7 +43,7 @@ async function world(){
     mr('2026-11-02 10:00:00','ACL/DR 確認・訂正','NFK2601-02','','Container No. TSTU0000202 Seal No SL999999 →SL000202 ご訂正をお願いします。'),
     mr('2026-11-03 10:00:00','本登録依頼','','BK1000006','本登録をお願いします。'),
     mr('2026-11-04 10:00:00','ACL/DR 確認・訂正','NFK2601-08','','Notify Party欄 SAMPLE PAPER CO., LTD →SAMPLE PAPER CO.,LTD ご訂正をお願いします。'),
-    mr('2026-11-05 10:00:00','ACL/DR 確認・訂正','','ZZ0000000','本件、いかがでしょうか。')].map(r=>r.map(q).join(',')).join('\r\n')+'\r\n';
+    mr('2026-11-05 10:00:00','ACL/DR 確認・訂正','','ZZ0000000','ACL 本件、いかがでしょうか。')].map(r=>r.map(q).join(',')).join('\r\n')+'\r\n';
   const cb=Buffer.from(csv,'utf8'); bytes.sf1=cb;
   return {cps, files, bytes, dv:[], gr:[], puts:{}, pathLookups:0, csv, csvBytes:cb.length, noOverwrite:[],
     staffFiles:[{id:'sf1',name:'mail_docstaff_2026Q3Q4.csv',size:cb.length,lastModifiedDateTime:'2026-11-14T00:00:00Z',parentReference:{driveId:'DRV',path:'/drives/DRV/root:/古紙/-. AI 活用/D-00/ACL_bench/_input'}},

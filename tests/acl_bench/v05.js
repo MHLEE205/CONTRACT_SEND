@@ -85,7 +85,7 @@ console.log('② 컨테이너 세트 (번호 · 씰 · Bales · 중량 · 風袋
   const b=S({},{crcf9_type:null}); eq([b.ok,b.typeSt],[true,'BLANK'],'COMPASS 형태 빈칸 → 세트 판정에는 안 넣음 (COMPASS 未入力)');
   const u=S({size:'',type:''}); eq([u.ok,u.diffs.map(d=>[d.item,!!d.read])],[false,[['形態',true]]],'ACL 형태를 못 읽음 → 읽기 확인');
   const two=S({seal:'SLX',size:'22'}); eq(two.diffs.map(d=>d.item),['シール','形態'],'두 값이 다름 → 그 세트 DIFF · 어느 값인지 모두');
-  const EF=()=>Object.keys(ACL.LABELS).reduce((o,k)=>(o[k]={text:'',conf:'MISSING'},o),{});
+  const EF=()=>Object.keys(ACL.LABELS).reduce((o,k)=>(o[k]=k==='booking'?{text:'',conf:'SURE'}:{text:'',conf:'MISSING'},o),{});   // v0.9: ラベルが 1 つもない ACL は 読取確認要 になるので booking だけ読めた形
   const R1=ACL.compareOne({fields:EF(), rows:[row({size:'22'})], totals:{}},cp), si=R1.items.find(i=>/^set:/.test(i.key));
   ok(si.status==='DIFF'&&R1.kinds['セット相違:形態']===1&&si.set.cells.map(x=>x.k).join()==='番号,シール,Bales,重量,風袋,形態'&&si.set.cells.find(x=>x.k==='形態').ok===false,'compareOne: 세트 1줄 = 番号 · シール · Bales · 重量 · 風袋 · 形態 · 형태 相違 → セット相違:形態',si);
   const R2=ACL.compareOne({fields:EF(), rows:[row()], totals:{}},Object.assign({},cp,{containers:[Object.assign({},c,{crcf9_type:''})]})), s2=R2.items.find(i=>/^set:/.test(i.key));

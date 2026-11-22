@@ -75,5 +75,5 @@ console.log('③ B3 コンテナ別記載の指示');
   ok(!item(X,'instr:cntr'),'지시 없음 → 확인 안 함');
 }
 console.log('④ 버전');
-ok(/version:'0\.[78]'/.test(fs.readFileSync(process.argv[2]||path.join(__dirname,'../../acl_bench.html'),'utf8')),"version:'0.7'");
+ok(/version:'0\.[789]'/.test(fs.readFileSync(process.argv[2]||path.join(__dirname,'../../acl_bench.html'),'utf8')),"version:'0.7'");
 console.log('v07 pass '+pass+' fail '+fail); process.exit(fail?1:0);

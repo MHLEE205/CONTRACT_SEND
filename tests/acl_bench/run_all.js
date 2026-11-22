@@ -44,14 +44,17 @@ node('v0.3 담당자 실적 (CSV 파서 · 메일 종류 · 연결 · 실적 · 
   /* v0.8: コンテナ別記載の指示 ✓ → 컨테이너 줄 있음 · （仮） = 미확정 (판정은 v0.7 (5de554e) 과 같음) */
   let v7=null; try{ v7=cp.execFileSync('git',['show','5de554e:acl_bench.html'],{cwd:__dirname,encoding:'utf8',maxBuffer:1<<26}); }catch(e){}
   const f7=v7?path.join(os.tmpdir(),'acl_v0_7_'+process.pid+'.html'):null; if(v7) fs.writeFileSync(f7,v7);
-  node('v0.8 (컨테이너별 지시 ✓ → 컨테이너 줄 있음 · ✗ / 지시 없음 = v0.7 · （仮） 미확정 · 판정 = v0.7)','v08.js',f7?[html,f7]:[html],/v08 pass \d+ fail \d+/); }
+  node('v0.8 (컨테이너별 지시 ✓ → 컨테이너 줄 있음 · ✗ / 지시 없음 = v0.7 · （仮） 미확정 · 판정 = v0.7)','v08.js',f7?[html,f7]:[html],/v08 pass \d+ fail \d+/);
+  /* v0.9: 메일 판단 · P1 표기 · P2 읽기 · Shipper's Mail 빈칸 参考 · 本船変更 문구 · L/C JSON 대조 · ACL 이 더 적은 것 参考 · * 줄 이어 붙이기 */
+  node('v0.9 (메일 판단 · P1 · P2 · Shipper\'s Mail · 本船変更 · 하지 않음 · L/C JSON ① ~ ⑤ · 더 적은 것 参考 · * 줄)','v09.js',[html],/v09 pass \d+ fail \d+/); }
 /* 가짜 데이터: 시험 파일 GUID 는 모두 00000000-0000-4000-8000-… · 실제 ACL (리나이 F6 · 토르가 읽은 실례) 의 값이 시험 파일 · 도구에 없음 */
-{ const files=['fixtures.js','unit.js','e2e.js','fake_naccs.js','pdfread.js','regress.js','same_v02.js','staff.js','pdfclose.js','v04.js','v05.js','v06.js','v07.js','v08.js'], txt=files.map(f=>fs.readFileSync(path.join(__dirname,f),'utf8')).join('\n');
+{ const files=['fixtures.js','unit.js','e2e.js','fake_naccs.js','pdfread.js','regress.js','same_v02.js','staff.js','pdfclose.js','v04.js','v05.js','v06.js','v07.js','v08.js','v09.js'], txt=files.map(f=>fs.readFileSync(path.join(__dirname,f),'utf8')).join('\n');
   const guids=txt.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi)||[], realG=guids.filter(g=>!/^00000000-0000-4000-8000-/.test(g));
   const REAL=['PCJTYO'+'26115206','AMP0'+'573572','TYOGN'+'6642800','5568'+'1833','HAN'+'KUK','MEGA '+'SURYA','TJIWI'+' KIMIA','KRAFT'+' OF ASIA','HONOR'+' GLORY','CNC'+' SERVAL','MOL '+'ENDOWMENT','RIO'+' KOBE','BSIU'+'8199489','CAIU'+'9653501','FFAU'+'7383199','UACU'+'6057211','PANP'+'805715','JPF'+'371604','J00'+'26358','NAKA'+'SHIMA','80111'+'01092439','MI775'+'26000244'.replace('775','772'),'MI605'+'26000669','EX2611'+'0142','TXGU'+'7339000','HLC'+'1609303','HLXU'+'8376721','HAMU'+'1382263','SAIGON'+' PAPER','3640ILU'+'8001657','3500'+'813231','IRENES'+' SOUTHERN','33291'+'368','N010-'+'2026','MY '+'XUAN','OLS'+'@','KAMI'+'YA','03627'+'89408','68448'+'17551',
     /* v0.3: 실제 담당자 메일 (2026Q3Q4 CSV) 에서 본 값 — 시험 · 도구에 0 */ 'LO'+'TOS','leenear'+'corp','photo'+'_rcp','PHOTO'+'_RCP','SINAR'+'MAS','SINAR'+' MAS','0-2586'+'-290','JPE'+'270697','TCLU'+'9796140','SKHU'+'6344009','THIEN'+' TRI','MAN'+'DIRI','POPU'+'126080001','M0609'+'2608NU','DALSEONG'+'-GUN','IAAJ'+'232801','HASLJ'+'01260','TYOGL'+'7397700','JP0122'+'7218','AJMAN'+', PO BOX','pulppy'+'tissue','sumitomo'+'soko','nippon'+'express',
     /* v0.5: 실례 (리나이 지시서 F2 · F3) 의 값 — 시험 · 도구에 0 */ 'TANJUNG'+' PRIOK','ASP'+'EX','KUM'+'BONG','KOR'+'INDO','HARY'+'ONO','ILC916'+'2600187','TGBU'+'4412228','JPF27'+'1110','TYOGE'+'5149900','BEAR'+' MOUNTAIN','797-'+'5959','6013 '+'8309','NA26'+'09-07','NCL26'+'10',
     /* v0.6: 실례 (리나이 지시서 F3) 품명 — 시험 · 도구에 0 */ 'NEWSPRINT'+' MANUFACTURING','(OM'+'G)','FOR '+'OMG',
+    /* v0.9 (D8): 실제 乙仲 · 바이어 · 메일함 이름 — 시험 · 도구에 0 */ 'SEI'+'YU','セイ'+'ユー','住友'+'倉庫','O.T'+'.K','日本'+'通運','ヴェ'+'リオス','SAIGON'+' PAPER','JU'+'SHIN','photo'+'_rcp',
     /* v0.7: 실례 (NRA 5 건 · 토르가 읽은 ACL) — 시험 · 도구에 0 */ 'RAKRAFT'+'PAPERS','APNA'+' BAZAR','LOTUS'+' LINK','27AAACR'+'8977L1ZK','03040'+'80403','FLAMINGO'+' VILLAS'];
   const all=txt+'\n'+fs.readFileSync(html,'utf8'), hits=REAL.filter(s=>all.indexOf(s)>=0);
   if(realG.length||hits.length) bad++;

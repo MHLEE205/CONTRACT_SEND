@@ -14,8 +14,8 @@ const csvOf=rows=>'﻿'+[HEAD].concat(rows).map(r=>r.map(q).join(',')).join('\r\
 const SIG=' 株式会社テスト 担当 E-mail : staff@example.test 差出人: 相手 <x@example.test> 送信: 2026 年 9 月 1 日 本登録をお願いします →古い';   // 引用部分 (対も種類も見ない)
 
 console.log('1 CSV 파서');
-{ const t=csvOf([mrow('2026-09-01 10:00:00','本登録依頼','NFK2601-01; NFK2601-02','BK1000001','1行目'+NL+'2行目, "引用" あり')]);
-  const rows=ACL.parseCsv(t); eq([rows.length,rows[0][0],rows[1][14]],[2,'発信者','1行目'+NL+'2行目, "引用" あり'],'① BOM 제거 · 따옴표 안 줄바꿈 · 쉼표 · "" → " (직접 split 아님)');
+{ const t=csvOf([mrow('2026-09-01 10:00:00','本登録依頼','NFK2601-01; NFK2601-02','BK1000001','ACL 1行目'+NL+'2行目, "引用" あり')]);   // v0.9: ACL の語がないメールは数えない → 本文に ACL
+  const rows=ACL.parseCsv(t); eq([rows.length,rows[0][0],rows[1][14]],[2,'発信者','ACL 1行目'+NL+'2行目, "引用" あり'],'① BOM 제거 · 따옴표 안 줄바꿈 · 쉼표 · "" → " (직접 split 아님)');
   const M=ACL.mailsFromCsv(t); eq([M.mails[0].invoices,M.mails[0].bkgs,M.mails[0].at],[['NFK2601-01','NFK2601-02'],['BK1000001'],'2026-09-01T10:00:00+09:00'],'① 「; 」 여러 값 · JST 시각');
   let err=''; try{ ACL.mailsFromCsv('a,b\r\n1,2\r\n'); }catch(e){ err=e.message; } ok(/列が足りない/.test(err),'① 열이 모자라면 오류 (조용히 넘어가지 않음)');
 }
@@ -23,7 +23,7 @@ console.log('2 메일 종류');
 { const K=ACL.mailKind;
   eq([K('D/Rを確認致しました。本登録お願いします。'),K('Notify Party欄 SAMPLE CO.,LTD →SAMPLE CO., LTD ご訂正をお願いできますでしょうか。'),K('本件、いかがでしょうか 本日CUT 日なので'),
       K('DRのご訂正ありがとうございます。内容相違ございませんので、こちらで本登録をお願いいたします。')],['本登録','訂正依頼','その他','本登録'],'② 本登録 / 訂正依頼 / その他 / 「ご訂正ありがとうございます…本登録を」 → 本登録 (F4)');
-  ok(ACL.MAIL_RULE.hon.length===3&&ACL.MAIL_RULE.fix.indexOf('→')>=0,'② 판단 낱말은 코드 한 곳 (MAIL_RULE)');
+  ok(ACL.MAIL_RULE.hon.length>=9&&ACL.MAIL_RULE.fix.indexOf('→')>=0&&ACL.MAIL_RULE.blStage&&ACL.MAIL_RULE.fixTag,'② 판단 낱말은 코드 한 곳 (MAIL_RULE · v0.9 토르_2 truth.py 낱말)');
   eq(K('ACL Freight As Arranged へ 1 表記をお願いします'),'その他','② 목록에 없는 말 (表記をお願い) → その他 (낱말을 늘리지 않음 · 보고서에)');
 }
 /* 가짜 결과 (도구 결과 모양) */
@@ -42,15 +42,15 @@ console.log('3 · 4 연결 · 실적');
 { const R=[res(1,{mod:'2026-09-01T00:00:00Z'}),res(2,{mod:'2026-09-01T00:00:00Z'}),res(3,{mod:'2026-09-01T00:00:00Z'}),res(4,{mod:'2026-09-01T00:00:00Z'}),res(5,{mod:'2026-07-01T00:00:00Z'}),res(6,{mod:'2026-09-11T00:00:00Z'})];
   const t=csvOf([mrow('2026-09-01 10:00:00','本登録依頼','NFK2601-01','','D/Rを確認致しました。本登録お願いします。'),
     mrow('2026-09-02 10:00:00','ACL/DR 確認・訂正','','BK1000002','Voy.No. 100W →101W ご訂正をお願いします。'),
-    mrow('2026-09-03 10:00:00','ACL/DR 確認・訂正','','BK1000003; TESTBL0004','本件、いかがでしょうか。'),
-    mrow('2026-09-04 10:00:00','ACL/DR 確認・訂正','','ZZ9999999','本件、いかがでしょうか。'),
+    mrow('2026-09-03 10:00:00','ACL/DR 確認・訂正','','BK1000003; TESTBL0004','ACL 本件、いかがでしょうか。'),
+    mrow('2026-09-04 10:00:00','ACL/DR 確認・訂正','','ZZ9999999','ACL 本件、いかがでしょうか。'),
     mrow('2026-09-05 10:00:00','本登録依頼','NFK2699-99','','本登録をお願いします。'),
     mrow('2026-09-10 10:00:00','ACL/DR 確認・訂正','NFK2601-06','','Seal No SL000199 →SL000101 ご訂正をお願いします。'),
     mrow('2026-09-11 10:00:00','船積書類送付','NFK2601-04','','本登録をお願いします。')]);
   const M=ACL.mailsFromCsv(t), S=ACL.applyStaff(R,M), rec=n=>R[n-1].staff.record;
-  eq([M.mails.length,M.counts],[6,{本登録:2,訂正依頼:2,その他:2}],'③ 대상 件名規則 2 가지만 (그 밖 件名規則 은 무시) · 종류별 통수');
+  eq([M.mails.length,M.counts],[7,{本登録:3,訂正依頼:2,その他:2}],'③ v0.9: 件名規則 으로 거르지 않음 (船積書類送付 件名이라도 본문 자기 부분에 本登録 → 本登録) · 종류별 통수');
   eq(R[0].staff.mails[0].how+'|'+R[1].staff.mails[0].how,'Invoice|BKG/BL','③ Invoice 번호 있음 → Invoice · 비면 BKG/BL 로 (COMPASS 부킹 번호 글자 그대로)');
-  eq([rec(3),rec(4)],['その他のみ','その他のみ'],'③ BKG 2개 (부킹 번호 · B/L 번호) → 두 Invoice 모두');
+  eq([rec(3),rec(4)],['その他のみ','本登録のみ'],'③ BKG 2개 (부킹 번호 · B/L 번호) → 두 Invoice 모두 (04 는 v0.9 에서 船積書類送付 件名의 本登録 도 셈)');
   eq(S.unlinked.map(u=>u.why),['Invoice 番号なし · BKG/BL 一致なし','Invoice が今回の対象にない · BKG/BL も一致なし'],'③ 못 찾음 → 紐付けなし 목록 (버리지 않음)');
   eq([rec(1),rec(2),rec(3),rec(5),rec(6)],['本登録のみ','訂正依頼','その他のみ','期間外','訂正依頼'],'④ 실적: 本登録のみ · 訂正依頼 · その他のみ · 期間外 (ACL 파일이 CSV 기간 밖)');
   const R2=[res(7,{mod:'2026-09-05T00:00:00Z'})]; ACL.applyStaff(R2,M); eq(R2[0].staff.record,'メールなし','④ 기간 안인데 메일 없음 → メールなし');
@@ -100,10 +100,12 @@ console.log('7 규칙 후보');
   const all=C.items.filter(c=>c.rule==='acl_originals'); eq(all.map(c=>[c.scope_type,c.scope,c.value,/未定義/.test(c.note)]),[['all','ALL','3',false]],'⑦ (v0.4 바뀜) 전부 같으면 all/ALL — 마스터 범위 이름 · 「未定義」 경고 없음 (v0.3 은 (全体) · 경고 — 지시서 v0.4 Step 1)');
 }
 console.log('8 実績表記');
-{ const sh='SAMPLE EXPORT CO.,LTD', mk=(n,act,o)=>res(n,Object.assign({items:[diffIt('shipper','Shipper',sh,act)]},o||{}));
+{ /* v0.9: 句読点だけの違いは compareText で 表記 (P1) になるので、実績表記の仕組みは v0.8 までの 相違 の項目をそのまま作って試す */
+  const dx=(key,label,exp,act,st)=>({key, label, status:st, expected:exp, actual:act, kind:'相違:'+label});
+  const sh='SAMPLE EXPORT CO.,LTD', mk=(n,act,o)=>res(n,Object.assign({items:[dx('shipper','Shipper',sh,act,'DROP')]},o||{}));
   const base=()=>[mk(1,'SAMPLE EXPORT CO, LTD'),mk(2,'SAMPLE EXPORT CO, LTD'),mk(3,'SAMPLE EXPORT CO, LTD'),mk(4,'SAMPLE EXPORT CO, LTD'),
     mk(5,'SAMPLE EXPORT CO.,LTD'.replace('EXPORT','EXPORT  ').replace('CO.,LTD','CO.,LTD')),
-    res(6,{items:[diffIt('notify','Notify Party','SAMPLE PAPER CO.,LTD','SAMPLE PAPER CO.,LTD.')]}),res(7,{items:[diffIt('notify','Notify Party','SAMPLE PAPER CO.,LTD','SAMPLE PAPER CO.,LTD.')]})];
+    res(6,{items:[dx('notify','Notify Party','SAMPLE PAPER CO.,LTD','SAMPLE PAPER CO.,LTD.','ADD')]}),res(7,{items:[dx('notify','Notify Party','SAMPLE PAPER CO.,LTD','SAMPLE PAPER CO.,LTD.','ADD')]})];
   const hon=R=>csvOf(R.slice(0,4).concat(R.slice(5)).map((r,i)=>mrow('2026-09-0'+(i+1)+' 10:00:00','本登録依頼',r.invoice,'','本登録をお願いします。')));
   let R=base(); const v0=R.map(r=>r.verdict); const S=ACL.applyStaff(R,ACL.mailsFromCsv(hon(R)));
   eq([R[0].items[0].status,R[0].items[0].kind,R[0].verdict],['PRACTICE','表記(実績):Shipper:句読点','表記差のみ'],'⑧ 같은 칸 · 같은 형 본登録のみ 3건 이상 → PRACTICE · 判定 表記差のみ (자동 OK 아님)');
@@ -115,7 +117,7 @@ console.log('8 実績表記');
     R=base(); const t=hon(R).replace(/\r\n$/,'')+'\r\n'+[mrow('2026-09-20 10:00:00','ACL/DR 確認・訂正','NFK2601-99','',body)].map(r=>r.map(q).join(',')).join('')+'\r\n';
     R.push(res(99)); const S2=ACL.applyStaff(R,ACL.mailsFromCsv(t));
     eq([R[0].items[0].status,S2.practice.table.find(x=>x.key==='shipper').allowed],['DROP',false],'⑧ 같은 형 ('+why+') 의 訂正 쌍이 있으면 DIFF 유지'); }
-  R=[1,2,3,4].map(n=>res(n,{items:[diffIt('notify','Notify Party','TEL : 0-0000-0000 FAX','TEL : 0-0000-000 0FAX')]}));
+  R=[1,2,3,4].map(n=>res(n,{items:[dx('notify','Notify Party','TEL : 0-0000-0000 FAX','TEL : 0-0000-000 0FAX','DIFF')]}));
   const tw=csvOf(R.map((r,i)=>mrow('2026-09-0'+(i+1)+' 10:00:00','本登録依頼',r.invoice,'','本登録をお願いします。')).concat([mrow('2026-09-20 10:00:00','ACL/DR 確認・訂正','NFK2601-99','','ACL Notify Party TEL : 0-1111-111 1FAX →TEL : 0-1111-1111 FAX ご訂正をお願い')]));
   R.push(res(99)); const S3=ACL.applyStaff(R,ACL.mailsFromCsv(tw));
   eq([R[0].items[0].status,R[0].items[0].kind,S3.practice.table[0].shape,/訂正の対に同じ形/.test(S3.practice.table[0].why)],['DIFF','相違:Notify Party','語の切れ目',true],'⑧ 가짜 「…000 0FAX」 (낱말 경계) — 같은 형의 訂正 쌍 → DIFF 유지');
@@ -134,7 +136,7 @@ console.log('8 実績表記');
 }
 console.log('9 공백 — 줄 끝 꺾임 / 줄 안 낱말 경계');
 { const T=ACL.compareText;
-  eq(T('TEL : 0-0000-0000 FAX','TEL : 0-0000-000 0FAX').status,'DIFF','⑨ 줄 안에서 낱말 경계가 바뀜 (가짜 290 7FAX 모양) → DIFF');
+  eq([T('TEL : 0-0000-0000 FAX','TEL : 0-0000-000 0FAX').status,T('TEL : 0-0000-0000 FAX','TEL : 0-0000-000 0FAX').kind],['NOTATION','表記:語の切れ目'],'⑨ 줄 안에서 낱말 경계가 바뀜 (가짜 290 7FAX 모양) → v0.9 P1 공백만 = 表記 (v0.3 ~ v0.8 은 DIFF)');
   eq(T('GEDUNG SAMPLE MAS TOWER','GEDUNG SAMPLEMAS TOWER').wordBreak,true,'⑨ 줄 안에서 공백이 빠짐 → 語の切れ目');
   eq(T('NO.1 SAMPLE ROAD, SAMPLE WARD','NO.1 SAMPLE RO'+NL+'AD, SAMPLE WARD').status,'NOTATION','⑨ ACL 줄 끝에서 낱말 가운데 꺾임 → NOTATION');
   eq(T('NO.1 SAMPLE ROAD,'+NL+'SAMPLE WARD','NO.1 SAMPLE ROAD, SAMPLE WARD').status,'NOTATION','⑨ 줄바꿈 ↔ 공백 (낱말은 같음) → NOTATION');

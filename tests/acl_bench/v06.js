@@ -107,7 +107,7 @@ console.log('③ Description = 내용 항목 비교');
 console.log('④ 컨테이너 세트 회귀 (v0.5 와 같은 결과)');
 { const cases=[]; for(let n=1;n<=6;n++){ const cp=FX.compass(n), spec=FX.perfectSpec(ACL,cp);
     if(n===2) spec.rows[1].seal='SL999999'; if(n===3){ spec.rows[0].bales=99; FX.retotal(spec); } if(n===4) spec.rows[2].tare=3800;
-    if(n===5){ spec.rows.push({container:'XTRU0000001',seal:'SLX00001',bales:10,cargo:9000,tare:3700,measure:40}); FX.retotal(spec); } if(n===6) spec.rows[0].seal='SL 000601'.replace('SL ','SL 0').slice(0,9);
+    if(n===5){ spec.rows.push({container:'XTRU0000008',   /* v0.9: 가짜지만 체크 디지트가 맞는 번호 (ACL 에만 있는 「진짜」 컨테이너) */seal:'SLX00001',bales:10,cargo:9000,tare:3700,measure:40}); FX.retotal(spec); } if(n===6) spec.rows[0].seal='SL 000601'.replace('SL ','SL 0').slice(0,9);
     cases.push({n, cp, pages:await R.readItems(await N.build(spec))}); }
   const res=cases.map(c=>({n:c.n, w:ACL.compareOne(ACL.readNaccs(c.pages),c.cp), o:OLD?OLD.compareOne(OLD.readNaccs(c.pages),c.cp):null}));
   if(OLD){ const strip=r=>r.items.filter(i=>i.group==='コンテナ'||i.group==='合計').map(i=>[i.key,i.status,i.kind,J(i.set||null)]);

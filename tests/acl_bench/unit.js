@@ -83,7 +83,7 @@ console.log('Step 4 비교');
 { const T=ACL.compareText;
   eq(T('A B\nC','A  B\nC').status,'MATCH','⑤ 같은 줄 · 같은 낱말 → 完全一致 (줄 안 공백 수는 PDF 에서 알 수 없음)');
   eq(T('NO.1 SAMPLE ROAD, SAMPLE WARD,\nHO CHI MINH CITY','NO.1 SAMPLE ROAD,\nSAMPLE WARD, HO CHI MINH CITY').status,'NOTATION','⑤ 줄바꿈만 다름 → 表記差');
-  eq([T('SUIDOBASHI 3 5FL','SUIDOBASHI3 5FL').status,T('SUIDOBASHI 3 5FL','SUIDOBASHI3 5FL').wordBreak],['DIFF',true],'⑤ (v0.3 바뀜) 줄 가운데서 공백이 빠짐 → 語の切れ目 = 相違 (v0.2 는 表記差 — 지시서 Step 4)');
+  eq([T('SUIDOBASHI 3 5FL','SUIDOBASHI3 5FL').status,T('SUIDOBASHI 3 5FL','SUIDOBASHI3 5FL').wordBreak],['NOTATION',true],'⑤ (v0.9 P1 다시 바뀜) 줄 가운데서 공백이 빠짐 → 공백만 다름 = 表記 (語の切れ目 표시는 남김 · v0.3 ~ v0.8 은 相違)');
   eq(T('SUIDOBASHI3 5FL','SUIDOBA'+String.fromCharCode(10)+'SHI3 5FL').status,'NOTATION','⑤ (v0.3) ACL 줄 끝에서 꺾임 (낱말 가운데) → 表記差 그대로');
   const d=T('LINE ONE\nL/C NO.: TEST1\nLINE THREE','LINE ONE\nLINE THREE');
   ok(d.status==='DROP'&&d.droppedLines[0]==='L/C NO.: TEST1'&&/脱落|L\/C/.test(d.ops[0].text),'④ 한 줄 빠짐 → 脱落 · 脱落行 표시',d);

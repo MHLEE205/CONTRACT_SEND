@@ -14,7 +14,7 @@ const strip=c=>({verdict:c.verdict, items:c.items.filter(i=>i.group!=='B/L 種�
   const cases=[];
   for(let n=1;n<=12;n++){ const cp=FX.compass(n,{containers:n===9?20:3}); let spec=FX.perfectSpec(NEW,cp);   // e2e 와 같은 12 경우 (스캔 · 다른 양식은 읽지 않으므로 뺌)
     if(n===2) spec.rows[1].seal='SL999999'; if(n===3){ spec.rows[0].bales=99; FX.retotal(spec); } if(n===4){ spec.rows=spec.rows.slice().reverse(); spec.order='shuffle'; }
-    if(n===5){ spec.rows.push({container:'XTRU0000001',seal:'SLX00001',bales:10,cargo:9000,tare:3700,measure:40}); FX.retotal(spec); } if(n===6) spec.fields.booking=['BK7777777'];
+    if(n===5){ spec.rows.push({container:'XTRU0000008',seal:'SLX00001',bales:10,cargo:9000,tare:3700,measure:40}); FX.retotal(spec); } if(n===6) spec.fields.booking=['BK7777777'];
     if(n===7){ spec.fields.description=spec.fields.description.filter(l=>!/^L\/C NO/.test(l)); spec.fields.consignee=spec.fields.consignee.concat(['EXTRA LINE ADDED BY FORWARDER']); }
     if(n===8) spec.fields.notify=['SAMPLE PAPER CO., LTD. NO.1 SAMPLE','ROAD, SAMPLE WARD, HO CHI MINH','CITY, VIETNAM','TEL: 84-28-0000-0000 FAX: 84-28-0000-0001'];
     if(n===10) spec.fields.notify=['SAMPLE PAPER CO., LTD.','NO.1 SAMPLE ROAD, SAMPLEWARD,','HO CHI MINH CITY, VIETNAM','TEL: 84-28-0000-0000 FAX: 84-28-0000-0001'];   // 줄 안 공백 빠짐 (Step 4)
@@ -26,7 +26,7 @@ const strip=c=>({verdict:c.verdict, items:c.items.filter(i=>i.group!=='B/L 種�
   const same=out.filter(x=>x.n!==10&&x.n!==7), diffs=same.filter(x=>JSON.stringify(strip(x.o))!==JSON.stringify(strip(x.w)));
   ok(!diffs.length,'규칙 · CSV 없음 → v0.2 와 같은 판정 · 항목 · 차이 종류 (표시 칸 그룹 제외) — '+same.length+' 경우',diffs.map(x=>({n:x.n,o:strip(x.o).verdict,w:strip(x.w).verdict})));
   const c10=out.find(x=>x.n===10), it=c10.w.items.find(i=>i.key==='notify'), o10=c10.o.items.find(i=>i.key==='notify');
-  ok(o10.status==='NOTATION'&&c10.o.verdict==='表記差のみ'&&it.status==='DIFF'&&it.wordBreak&&c10.w.kinds['相違:語の切れ目:Notify Party']===1&&c10.w.verdict==='相違あり','다른 곳 ① Step 4 — 줄 안 공백 빠짐: v0.2 表記差 → v0.3 相違:語の切れ目',{o:o10.status,w:it.status,k:c10.w.kinds});
+  ok(o10.status==='NOTATION'&&c10.o.verdict==='表記差のみ'&&it.status==='NOTATION'&&it.wordBreak&&c10.w.kinds['表記:語の切れ目:Notify Party']===1&&c10.w.verdict==='表記差のみ','다른 곳 ① Step 4 — 줄 안 공백 빠짐: v0.2 表記差 → v0.3 ~ v0.8 相違 → v0.9 P1 다시 表記 (語の切れ目 표시는 남김)',{o:o10.status,w:it.status,k:c10.w.kinds});
   const c7=out.find(x=>x.n===7), d7o=c7.o.items.find(i=>i.key==='description'), d7w=c7.w.items.find(i=>i.key==='description');
   ok(d7o.status==='DROP'&&d7w.status==='DIFF'&&d7w.kind==='相違:Description:L/C'&&c7.o.verdict==='相違あり'&&c7.w.verdict==='相違あり','다른 곳 ④ v0.6 — Description 은 내용 항목 비교 (L/C 번호 없음 = 相違:Description:L/C · 판정 같음)',{o:d7o.status,w:[d7w.status,d7w.kind]});
   const c11=out.find(x=>x.n===11); ok(c11.o.items.find(i=>i.key==='notify').status==='NOTATION'&&c11.w.items.find(i=>i.key==='notify').status==='NOTATION','줄 끝 꺾임 (낱말 가운데) 은 v0.2 · v0.3 모두 表記差');
