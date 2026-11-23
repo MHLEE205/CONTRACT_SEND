@@ -65,7 +65,7 @@ tr.ab-d td{background:var(--surface)}
 
   <div class="ab-card">
     <h3>ACL 照合試験 — ACL (NACCS) ↔ COMPASS (S/I · ブッキング · コンテナ) 100% 照合 (読むだけ)</h3>
-    <div class="ab-note">SharePoint の ACL (DR) PDF を<b>座標で</b>読み、COMPASS の S/I (sino 1) · ブッキング · コンテナ (セット) と<b>一字一句</b>比べます。基準は <b>COMPASS S/I</b> (L/C ではない · 형님 C3)。
+    <div class="ab-note">SharePoint の ACL (DR) PDF を<b>座標で</b>読み、COMPASS の S/I (sino 1) · ブッキング · コンテナ (セット) と<b>一字一句</b>比べます。基準は <b>COMPASS S/I</b> (L/C ではない · 社長 C3)。
     AI 呼び出しなし (費用 0) · COMPASS · SharePoint 原本は<b>読むだけ</b> · 保存は <code>古紙/-. AI 活用/D-00/ACL_bench/</code> の下だけ。<br>
     判定: 完全一致 / 表記差のみ (行末の折り返しだけ違う · 表記(実績) — 自動 OK ではない) / 相違あり (v0.3: 行の中の語の切れ目も) / 読取確認要 (座標があいまい) / 読取対象外 (スキャン・その他の様式) / COMPASS照会不可<br>
     v0.3: NACCS 表示欄 6 つ (Way Bill · Received B/L · 原本数 · Freight As Arranged · Agent Signature · Shipper's Mail) を S/I ルールマスターの <code>acl_*</code> 規則と比較 · ③ 担当者 (メール) の実績と突き合わせ<br>
@@ -138,6 +138,7 @@ tr.ab-d td{background:var(--surface)}
    v0.9 (2026-11-22 指示書 acl_bench v0.9 정확도 · 토르_2 ACL 정확도 조사 · 형님 D1 ~ D8): 表記 P1 (改行 · 空白 · 句読点 · FLOOR=FL · VIET NAM · NO MARK=N/M · FREIGHT 行の位置 · 港の形) ·
      読み P2 (ラベル 0 → 読取確認要 · Booking 末尾 「-」 · コンテナ = 番号 + チェックデジット · 港の後ろの数字 · コンテナ行数 ↔ 本数) · Shipper's Mail 空欄 = 参考 (D1) · 本船変更 = 相違のまま 「本船変更依頼」 (D5) ·
      担当者メールの判断 (本文の自分の部分 · B/L 段階の件名は除く · [ACL訂正依頼] タグ · 3 か月 jsonl) · L/C JSON 照合 (L/C 番号 · 日付 · 揚地 · 積地 · 原本通数 · Notify) — 違えば 相違 (D2 · D5) · しないこと: S/I 確認を分ける (P3) · 連絡先を参考 (P6) · HS 末尾 0 · 1 〜 2 文字の許容
+   v0.13 (2026-11-23 指示書 D00 B/L 照合結果の保存 · 日本語化): 画面に出る文の韓国語をなくした (Shipper's Mail 空欄の参考 · 報告の 「制作」 · 説明) — 判定 · 結果は v0.12 と同じ
    v0.12 (2026-11-23 指示書 D00 B/L Draft 2 段階 · CP-A01 補完 · 형님 D1): 比べ方 same_text_ws に 「:trim_end_punct」 (書類の欄の 末尾の , ; : 1 つを無視 · CP-A01 用) ·
      追加の行の選び方 cpStageRows · 港の別名 cpAliasSame を B/L Draft 照合 (bl_bench) と共通に (ACL の結果は v0.11 と同じ)
    v0.11 (2026-11-23 指示書 D00 체크포인트 마스터 v1 · 형님 D1 ~ D7): チェックポイント (master_checkpoint) — 照合項目に CP 番号 (基本 · engine_key) · 基本の停止 (管理者承認) ·
@@ -1217,7 +1218,7 @@ const ACL = (()=>{
       if(!r) return Object.assign(base,{status:'INFO', expected:'(規則未登録)', actual:got==null?'(ラベルなし)':got, detail:'規則未登録 — '+rule, kind:''});
       const exp=dispNorm(r.value), why=r.scope_type+' '+r.scope+(r.note?' · '+r.note:'');
       if(got==null||f.conf!=='SURE') return Object.assign(base,{status:'READ_CHECK', expected:exp, actual:f?f.text:'', detail:'読めず · 規則 '+why, kind:'読取確認要:'+lb});
-      if(k==='shipperMail'&&got===''&&exp!=='') return Object.assign(base,{status:'INFO', expected:exp, actual:'(空欄)', detail:'空欄 — 参考 (형님 D1: 空欄でも構わない · 書いてほしい業者があるので書いている) · 規則 '+why, kind:''});   // v0.9 (D1) · 書いてあって違えば 下で 相違
+      if(k==='shipperMail'&&got===''&&exp!=='') return Object.assign(base,{status:'INFO', expected:exp, actual:'(空欄)', detail:'空欄 — 参考 (社長 D1: 空欄でも構わない · 書いてほしい業者があるので書いている) · 規則 '+why, kind:''});   // v0.9 (D1) · 書いてあって違えば 下で 相違
       return Object.assign(base,{status:got===exp?'MATCH':'DIFF', expected:exp===''?'(空欄)':exp, actual:got===''?'(空欄)':got, detail:'規則 '+why, kind:got===exp?'':'表示欄相違:'+lb}); });
   }
 
@@ -1619,7 +1620,7 @@ const ACL = (()=>{
   }
   function summaryMd(run){
     const R=run.results||[], c={}; VERDICTS.forEach(v=>{ c[v]=R.filter(r=>r.verdict===v).length; });
-    const L=['# ACL 照合試験 — '+run.run_id,'','- 道具: acl_bench v'+run.version+' (토르 제작) · 実行者: '+(run.user||'?')+' · '+run.started+(run.finished?' ~ '+run.finished:''),
+    const L=['# ACL 照合試験 — '+run.run_id,'','- 道具: acl_bench v'+run.version+' (THOR 制作) · 実行者: '+(run.user||'?')+' · '+run.started+(run.finished?' ~ '+run.finished:''),
       '- 対象: '+R.length+' 件 (ACL 一覧 '+(run.listed||0)+' 件 · 指定 '+(run.filter&&run.filter.length?run.filter.join(', '):'なし (NACCS 全部)')+')','- 基準: COMPASS S/I (sino 1) · ブッキング · コンテナ — 文面は D-03 v4.11 renderSI と同じ組み立て','',
       '## 判定','','| 判定 | 件数 |','|---|---|'];
     VERDICTS.forEach(v=>L.push('| '+v+' | '+c[v]+' |'));
@@ -2142,7 +2143,7 @@ function startPage(){
 }
 
 LEENAI.init({
-  sys:'D-00', name:'ACL 照合試験', version:'0.12', date:'2026-11-23',
+  sys:'D-00', name:'ACL 照合試験', version:'0.13', date:'2026-11-23',
   desc:'ACL (NACCS PDF) を座標で読み、COMPASS の S/I (sino 1) · ブッキング · コンテナ (セット) · 表示欄 (S/I ルールマスター) と 100% 照合 · 担当者メールの実績と突き合わせ (読むだけ · AI なし)',
   graphScopes:['Sites.ReadWrite.All'],
   redirectUri:'https://mhlee205.github.io/CONTRACT_SEND/acl_bench.html',

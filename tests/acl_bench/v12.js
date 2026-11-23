@@ -83,5 +83,5 @@ console.log('4 v0.11 (fcb2cc5) 과 같은 결과 (옵션 없는 마스터)');
     eq(same,cases.map(()=>true),'v0.11 엔진과 결과 · 화면 HTML 이 글자까지 같음 (8 경우 · 체크포인트 · 별칭 · 끝 쉼표 · 옵션 없는 op)'); } }
 
 console.log('5 버전');
-{ const h=fs.readFileSync(HTML,'utf8'); eq((h.match(/version:'([\d.]+)'/)||[])[1],'0.12','LEENAI.init 버전 0.12'); }
+{ const h=fs.readFileSync(HTML,'utf8'), v=(h.match(/version:'([\d.]+)'/)||[])[1]; ok(v&&v.split('.').map(Number).reduce((a,x)=>a*1000+x,0)>=12,'LEENAI.init 버전 0.12 이상',v); }
 console.log('v12 pass '+pass+' fail '+fail); process.exit(fail?1:0);
