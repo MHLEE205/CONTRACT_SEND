@@ -69,7 +69,8 @@ tr.ab-d td{background:var(--surface)}
     判定: 完全一致 / 表記差のみ (行末の折り返しだけ違う · 表記(実績) — 自動 OK ではない) / 相違あり (v0.3: 行の中の語の切れ目も) / 読取確認要 (座標があいまい) / 読取対象外 (スキャン・その他の様式) / COMPASS照会不可<br>
     v0.3: NACCS 表示欄 6 つ (Way Bill · Received B/L · 原本数 · Freight As Arranged · Agent Signature · Shipper's Mail) を S/I ルールマスターの <code>acl_*</code> 規則と比較 · ③ 担当者 (メール) の実績と突き合わせ<br>
     v0.6: <b>最終確認</b> = S/I の内容 (当事者 · 番号 · 港 · 品名 · HS · 文言 · 荷印) が ACL の<b>どこかに</b>全部あるか (位置は問わない · 番号は 1 字も違えない) + コンテナのセット · Description は 内容項目で比べる (並び · 重複 · 同じ行 = 表記差)<br>
-    v0.9: 表記 (改行 · 空白 · 句読点 · FLOOR=FL · VIET NAM · NO MARK=N/M · FREIGHT 行 · 港の形) · 読み (ラベル 0 → 読取確認要 · コンテナ = チェックデジット) · Shipper's Mail 空欄 = 参考 · 本船変更 = 相違 (本船変更依頼) · <b>L/C JSON 照合</b> (番号 · 日付 · 揚地 · 積地 · 原本通数 · Notify) · 担当者メール = 自分の部分の語 (3 か月 jsonl も)<br>
+    v0.9: 表記 (改行 · 空白 · 句読点 · FLOOR=FL · VIET NAM · NO MARK=N/M · FREIGHT 行 · 港の形) · 読み (ラベル 0 → 読取確認要 · コンテナ = チェックデジット) · Shipper's Mail 空欄 = 参考 · 本船変更 = 相違 (本船変更依頼) · <b>L/C 照合</b> (番号 · 日付 · 揚地 · 積地 · 原本通数 · Notify) · 担当者メール = 自分の部分の語 (3 か月 jsonl も)<br>
+    <b>v0.10: L/C は 保管所 (<code>古紙/LC/_READ</code> · L/C 判読を契約ごとに 1 回) から読む</b> · Consignee 銀行 (L/C 46A ↔ S/I · ACL) · 船積期限 ↔ ETD を追加 · 判読 確認要 の欄 = 読取確認要<br>
     v0.8: 「各コンテナの重量/BALE数」 の指示が ✓ なら S/I のコンテナの行 (CNTR : …KGS, …BALES) は ACL に 「ある」 · S/I に <b>（仮）</b> があれば 未確定 = 照合結果は 「参考」 (判定は同じ)<br>
     v0.7: ハイフン (-) だけの違い = 表記差 · S/I の日本語の行 = <b>乙仲への指示</b> (照合しない · 最終確認の下にたたむ) · 「各コンテナの重量/BALE数」 の指示があれば ACL Description にコンテナごとの 番号 · 重量 · BALE 数 があるか (✗ = 相違)<br>
     v0.5: 続き記号 (* ~ ****) を Description の続きとつないで比べる (ACL · S/I) · コンテナ 形態 もセットの中で比べる (番号 · シール · Bales · 重量 · 風袋 · 形態 が 1 組で同じ) · ACL の名前を広げる (DR · ACL-番号 · 仮ACL — Invoice フォルダを 1 つずつ見る) · 結果 = 結論 → 確認した項目の全部 → 相違だけ<br>
@@ -136,6 +137,8 @@ tr.ab-d td{background:var(--surface)}
    v0.9 (2026-11-22 指示書 acl_bench v0.9 정확도 · 토르_2 ACL 정확도 조사 · 형님 D1 ~ D8): 表記 P1 (改行 · 空白 · 句読点 · FLOOR=FL · VIET NAM · NO MARK=N/M · FREIGHT 行の位置 · 港の形) ·
      読み P2 (ラベル 0 → 読取確認要 · Booking 末尾 「-」 · コンテナ = 番号 + チェックデジット · 港の後ろの数字 · コンテナ行数 ↔ 本数) · Shipper's Mail 空欄 = 参考 (D1) · 本船変更 = 相違のまま 「本船変更依頼」 (D5) ·
      担当者メールの判断 (本文の自分の部分 · B/L 段階の件名は除く · [ACL訂正依頼] タグ · 3 か月 jsonl) · L/C JSON 照合 (L/C 番号 · 日付 · 揚地 · 積地 · 原本通数 · Notify) — 違えば 相違 (D2 · D5) · しないこと: S/I 確認を分ける (P3) · 連絡先を参考 (P6) · HS 末尾 0 · 1 〜 2 文字の許容
+   v0.10 (2026-11-23 指示書 D00 L/C 保管所 · ACL 転換 · 형님 D1 ~ D7): L/C は 保管所 古紙/LC/_READ/{契約}.json (lc_read/1 · A1 R2 判読を 1 回整理) から読む (D-01 JSON 読み取りは削除 · 代替なし) ·
+     照合 2 つ追加 = Consignee 銀行 (L/C 46A TO ORDER OF {銀行} ↔ S/I · ACL) · 船積期限 ↔ ETD (crcf9_bl_etd 優先) · 判読に 確認要 の欄は 照合せず 読取確認要 「L/C 判読 要確認」 · 判読なし = 参考 「保管所に未登録」
    v0.8 (2026-11-22 指示書 書類ツール v0.6 수정묶음 · 형님 D2 · D3): コンテナ別記載の指示 ✓ → S/I のコンテナの行 (「CNTR : …KGS, …BALES」 の形) は 最終確認で 「ある」 (final.byCntr) ·
      S/I の （仮） · (仮) · 【仮】 = 未確定 (사내표시) → 結果に siTentative:true (判定は変えない — 「参考」 の表示だけ) · （仮） の行は 乙仲への指示 から外す (final.instr.tent)
    v0.7 (2026-11-22 指示書 書類ツール v0.5 · 형님 D2 · D3 · D5): ハイフンだけ = 表記:ハイフン (文の項目キー · 欄別比較 — 番号項目は v0.6 から区切りとして無視) · S/I の日本語 (かな · 漢字) の行 = 乙仲への指示 (final.instr.list · 足りない に数えない · 欄別比較からも外す) ·
@@ -1028,9 +1031,9 @@ const ACL = (()=>{
     final.instr={list:JX.list.map(x=>({field:x.field, src:x.src, srcLabel:srcL(x), text:x.text, cntr:isCntrInstr(x.text)})), cntr, tent:JX.tent.map(x=>({field:x.field, src:x.src, srcLabel:srcL(x), text:x.text}))};
     /* v0.8 (D3): （仮） = S/I 未確定 → 判定はそのまま · siTentative で 「参考」 と出す */
     const tent=JX.tent.length>0||siTentative(ex.si, ex.si&&ex.si.cr49f_s_iid?(cp.details||{})[ex.si.cr49f_s_iid]:null); final.siTentative=tent;
-    /* v0.9 Step 1-7: L/C JSON 照合 (L/C 取引 · D-01 の読み取り結果) — 違えば 相違 (D5 · どちらが悪いかはここでは決めない) */
+    /* v0.9 Step 1-7 → v0.10: L/C 照合 (L/C 取引 · 保管所 古紙/LC/_READ の判読) — 違えば 相違 (D5 · どちらが悪いかはここでは決めない) */
     const meta=opts.meta||cp.meta||{};
-    if(String(meta.pay||'').toUpperCase()==='LC') lcItems(cp.lc||opts.lc||null, ex, F, items.find(i=>i.key==='pod'), items.find(i=>i.key==='delivery')).forEach(d=>{ items.push(d); if(d.kind) kind(d.kind); });
+    if(String(meta.pay||'').toUpperCase()==='LC') lcItems(cp.lc||opts.lc||null, ex, F, items.find(i=>i.key==='pod'), items.find(i=>i.key==='delivery'), meta).forEach(d=>{ items.push(d); if(d.kind) kind(d.kind); });
     /* v0.9 P2: ラベルを 1 つも読めない ACL (NACCS の型が違う等) → 相違 ではなく 読取確認要 (コンテナ · 合計だけで 相違 を出さない) */
     if(readFail(F0)){ items.forEach(i=>{ if(i.status==='DIFF'||i.status==='DROP'||i.status==='ADD'){ if(i.kind&&kinds[i.kind]){ kinds[i.kind]--; if(!kinds[i.kind]) delete kinds[i.kind]; } i.status='READ_CHECK'; i.detail='ACL のラベルを 1 つも読めない — '+(i.detail||''); i.kind='読取確認要:ラベルなし'; kind(i.kind); } }); }
     return {verdict:verdictOf(items), items, kinds, sets:sc, xx, final, siTentative:tent, expected:{sino:ex.sino, booking:ex.booking}};
@@ -1041,61 +1044,110 @@ const ACL = (()=>{
   function cntrOk(c){ const k=String(c||'').toUpperCase().replace(/\s+/g,''); if(!ISO.test(k)) return false;
     const V={}; 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').forEach((ch,i)=>{ V[ch]=[10,12,13,14,15,16,17,18,19,20,21,23,24,25,26,27,28,29,30,31,32,34,35,36,37,38][i]; });
     let s=0; for(let i=0;i<10;i++){ const ch=k[i]; s+=(/[A-Z]/.test(ch)?V[ch]:+ch)*Math.pow(2,i); } return s%11%10===+k[10]; }
-  /* ══════════ v0.9 L/C JSON 照合 (토르_2 lc_vs_si.py · D4) — 規則はこの表 1 か所 ══════════ */
+  /* ══════════ v0.10 L/C 照合 — L/C 保管所 (古紙/LC/_READ/{契約}.json · schema lc_read/1) — 規則はこの表 1 か所 ══════════
+     v0.9 (D-01 JSON) の規則をそのまま引き継ぎ、読む値だけ lc_read/1 に替えた。保管所を作るスクリプト (tools/lc_read_build.mjs · lc_read_one.mjs) も
+     この acl-core の LC_RULE · lcPodSplit · lcOriginalsText · lcConsigneeBank · lcNotifyIsApplicant を読み込んで使う (規則を 2 か所に書かない) */
   const LC_RULE = {
     ANY_POL:/\bANY\b|JAPAN(?:ESE)?\s+PORT|\bALL\s+PORTS?\s+(?:OF|IN)\s+JAPAN/i,   // 実データ: 「ALL PORT OF JAPAN」 も
+    ANY_POD:/\bANY\s+(?:[A-Z]+\s+)?PORTS?\b|\bALL\s+PORTS?\b/i,   // v0.10: 揚地 「ANY PORT IN VIETNAM」 (実データ · D-01 JSON がなかった契約) = 国のどの港でもよい → 照合しない (積地 ANY と同じ扱い)
     ORIG_ONE:/TELEX|SURRENDER/i,            // 46A に TELEX / SURRENDER → 原本 1 (D4)
     ORIG_THREE:/FULL\s*SET|\b3\s*\/\s*3\b|THREE\s*\(?3\)?\s*ORIGINAL/i,   // FULL SET · 3/3 → 原本 3
-    APPLICANT:/^\s*(?:NOTIFY\s+)?(?:THE\s+)?APPLICANT|NOTIFY(?:ING)?\s+(?:THE\s+)?APPLICANT/i,
-    NOTIFY_HEAD:/^\s*(?:NOTIFY(?:ING)?(?:\s+PARTY)?\s*[:：]?\s*)/i,
+    APPLICANT:/^\s*(?:NOTIFY\s+)?(?:THE\s+)?APPLICANT|NOTIFY(?:ING)?\s+(?:THE\s+)?APPLICANT|(?:SPECIFYING|SHOWING|INDICATING)\s+(?:THE\s+)?APPLICANT\s+AS\s+NOTIFY/i,   // v0.10: 「SPECIFYING THE APPLICANT AS NOTIFY PARTY」 (実データ)
+    NOTIFY_HEAD:/^\s*(?:(?:SHOWING|SPECIFYING|INDICATING)\s+)?(?:CONSIGNEE\s+AND\s+)?(?:NOTIFY(?:ING)?(?:\s+PART(?:Y|IES))?\s*(?:AS\s+FOLLOWING\s+FORMAT|AS\s+FOLLOWS)?\s*[:：]?\s*)/i,   // v0.10: 「SHOWING CONSIGNEE AND NOTIFY …」 · 「NOTIFY PARTIES:」 の頭も外す
     SEG_SKIP:/GPMT|BTNMT|BNNMT|GXN|DEPOSIT|^\s*NOTIFY|^[\d\s\/.\-]+$|^\s*TEL\b|^\s*FAX\b|^\s*E-?MAIL\b/,
-    NAME_SKIP:/^(?:CO|LTD|LIMITED|JSC|JOINT|STOCK|COMPANY|CORP|CORPORATION|INC|PT|TBK|THE|AND|OF|FOR|TAX|CODE|ID|MST|NO)$/};
+    NAME_SKIP:/^(?:CO|LTD|LIMITED|JSC|JOINT|STOCK|COMPANY|CORP|CORPORATION|INC|PT|TBK|THE|AND|OF|FOR|TAX|CODE|ID|MST|NO)$/,
+    /* v0.10 — Consignee 銀行: 「(MADE OUT) TO (THE) ORDER OF {銀行}」 の {銀行} (末尾の MARKED … · NOTIFY … の前まで · 支店 · 都市名は切らない) */
+    ORDER_OF:/(?:MADE\s+OUT\s+)?TO\s+(?:THE\s+)?ORDER\s+OF\s+(.+?)(?=\s*[,.;]?\s*(?:AND\s+)?(?:MARKED\b|NOTIFY(?:ING)?\b|SHOWING\b|$))/i,
+    TO_ORDER:/\bTO\s+(?:THE\s+)?ORDER\b(?!\s+OF\b)/i,
+    BANK_SKIP:/^(?:THE|OF|AND)$/,           // 銀行名の語の照合で飛ばす語 (それ以外は 支店 · 都市名も含め全部)
+    SOON_DAYS:3                             // 船積期限の 0〜3 日前 → 参考 「船積期限 間近」
+  };
   const lcN = s => String(s==null?'':s).normalize('NFKC').toUpperCase().replace(/[^A-Z0-9]/g,'');
   const LC_MON={JAN:1,FEB:2,MAR:3,APR:4,MAY:5,JUN:6,JUL:7,AUG:8,SEP:9,OCT:10,NOV:11,DEC:12};
   function lcDateKey(s){ const t=String(s||'').toUpperCase(); let m=t.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/); if(m) return m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');
     m=t.match(/([A-Z]{3})[A-Z]*\.?\s+(\d{1,2}),?\s*(\d{4})/); if(m&&LC_MON[m[1]]) return m[3]+'-'+String(LC_MON[m[1]]).padStart(2,'0')+'-'+m[2].padStart(2,'0');
     m=t.match(/(\d{1,2})\s+([A-Z]{3})[A-Z]*\.?,?\s+(\d{4})/); if(m&&LC_MON[m[2]]) return m[3]+'-'+String(LC_MON[m[2]]).padStart(2,'0')+'-'+m[1].padStart(2,'0');
     m=t.match(/(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})/); if(m) return m[1]+'-'+m[2].padStart(2,'0')+'-'+m[3].padStart(2,'0'); return ''; }
-  /* L/C No. — D-01 の lcNo に 「DATED ON …」 が混ざることがある → 最初の語 */
-  const lcNoOf = lc => { const t=String((lc&&lc.lcNo)||'').toUpperCase().replace(/DATED\s+(?:ON\s+)?[A-Z]{3}[A-Z]*\.?\s+\d{1,2},?\s*\d{4}|DATED\s+(?:ON\s+)?\d{1,2}\/\d{1,2}\/\d{4}|DATED\s+(?:ON\s+)?\S+/g,' '); return lcN((t.split(/\s+/).find(w=>/\d/.test(w))||'')); };   // 「DATED ON …」 が前後どちらに混ざっても番号だけ
-  /* 原本通数 — 46A (書類条件) から 1 / 3 / null (B/L 発行依頼の初稿でも同じ関数を使う) */
-  function lcOriginals(lc){ const t=[].concat((lc&&lc.docs46A)||[]).map(x=>typeof x==='string'?x:JSON.stringify(x)).join(' ')+' '+String((lc&&lc.consignee46A)||'');
-    return LC_RULE.ORIG_ONE.test(t)?1:LC_RULE.ORIG_THREE.test(t)?3:null; }
-  function lcPods(lc){ return String((lc&&lc.pod)||'').toUpperCase().split(/\s+OR\s+|\//).map(p=>lcN(p.replace(/\bPORT\b/g,'').split(',')[0])).filter(Boolean); }
-  /* Notify の会社名の語 (英字 3 文字以上 · CO / LTD / JSC 等と 税番号 · 数字は除く · 先頭 2 語) — NOTIFY APPLICANT → applicant */
-  function lcNotifyName(lc){ let s=String((lc&&lc.notifyParty46A)||''); if(LC_RULE.APPLICANT.test(s)) s=String((lc&&lc.applicant)||'');
-    s=s.replace(LC_RULE.NOTIFY_HEAD,'').normalize('NFKC').toUpperCase();
+  /* L/C No. — 「DATED ON …」 が混ざることがある → 番号だけ (v0.9 と同じ · 引数を文字列に) */
+  const lcNoOf = no => { const t=String(no||'').toUpperCase().replace(/DATED\s+(?:ON\s+)?[A-Z]{3}[A-Z]*\.?\s+\d{1,2},?\s*\d{4}|DATED\s+(?:ON\s+)?\d{1,2}\/\d{1,2}\/\d{4}|DATED\s+(?:ON\s+)?\S+/g,' '); return lcN((t.split(/\s+/).find(w=>/\d/.test(w))||'')); };   // 「DATED ON …」 が前後どちらに混ざっても番号だけ
+  /* 原本通数 — 46A (書類条件) の文から 1 / 3 / null (B/L 発行依頼の初稿でも同じ関数を使う) */
+  function lcOriginalsText(t){ t=String(t||''); return LC_RULE.ORIG_ONE.test(t)?1:LC_RULE.ORIG_THREE.test(t)?3:null; }
+  /* 揚地の文 → 港の並び (「A OR B」 · 「A/B」 を分け PORT を外し 「, 国」 を落とす — v0.9 lcPods と同じ分け方 · 照合は lcN で) */
+  function lcPodSplit(text){ return String(text||'').toUpperCase().split(/\s+OR\s+|\//).map(p=>p.replace(/\bPORT\b/g,'').split(',')[0].replace(/\s+/g,' ').trim()).filter(p=>lcN(p)); }
+  function lcConsigneeBank(text){ const t=String(text||'').normalize('NFKC').toUpperCase().replace(/\s+/g,' ');
+    const m=t.match(LC_RULE.ORDER_OF); if(m) return m[1].replace(/^[\s"'“”‘’]+|[\s"'“”‘’,.;:]+$/g,'').trim()||null;
+    return LC_RULE.TO_ORDER.test(t)?'TO ORDER':null; }
+  /* Notify の会社名の語 (英字 3 文字以上 · CO / LTD / JSC 等と 税番号 · 数字は除く · 先頭 2 語) — v0.9 と同じ */
+  function lcNameWords(s){ s=String(s||'').replace(LC_RULE.NOTIFY_HEAD,'').normalize('NFKC').toUpperCase();
     /* ベトナムの形 「税番号 # 許可番号/GPMT-BTNMT # (BANK) DEPOSIT NO # 会社名 # 住所」 (L/C では # が 「HEX」 と書かれることもある — 実データ) → 番号 · 許可 · DEPOSIT · NOTIFY の 欠片は飛ばし、最初の会社名の欠片 */
     const seg=s.split(/#|\bHEX\b|,|\n|;/).map(x=>x.trim()).filter(Boolean).find(x=>!LC_RULE.SEG_SKIP.test(x)&&x.split(/[^A-Z0-9]+/).some(w=>/^[A-Z]{3,}$/.test(w)&&!LC_RULE.NAME_SKIP.test(w)))||'';
     return seg.split(/[^A-Z0-9]+/).filter(x=>/^[A-Z]{3,}$/.test(x)&&!LC_RULE.NAME_SKIP.test(x)).slice(0,2); }
-  /* → 表示項目 [{group:'L/C', key:'lc:…', …}] — lc = D-01 の L/C JSON (analyzedAt の一番新しい 1 つ) · なければ 「飛ばした」 */
-  function lcItems(lc, ex, F, podIt, delIt){
+  /* Notify = Applicant か — 「NOTIFY APPLICANT」 の文 · または会社名の語が全部 Applicant の名前にある (D4: ベトナム 「税番号#許可番号#…#会社名#住所」 は Applicant のベトナム表記 · 別の名前ではない) */
+  function lcNotifyIsApplicant(notify, applicantName){ if(!String(notify||'').trim()) return null; if(LC_RULE.APPLICANT.test(notify)) return true;
+    const w=lcNameWords(notify), a=lcN(applicantName); return !!(w.length&&a&&w.every(x=>a.indexOf(x)>=0)); }
+  /* 保管所の判読は 2 回の判読で一致した会社名の語 (bl.notify_name_words) を持つ — なければ文から (同じ lcNameWords) */
+  function lcNotifyName(lc){ const b=(lc&&lc.bl)||{}; if(Array.isArray(b.notify_name_words)) return b.notify_name_words.slice(); return lcNameWords(b.notify_is_applicant?((lc.applicant||{}).name||''):(b.notify_text||'')); }
+  const lcBankWords = s => String(s||'').normalize('NFKC').toUpperCase().split(/[^A-Z0-9]+/).filter(w=>w&&!LC_RULE.BANK_SKIP.test(w));
+  function lcDays(a,b){ const p=s=>{ const m=String(s||'').match(/^(\d{4})-(\d{2})-(\d{2})/); return m?Date.UTC(+m[1],+m[2]-1,+m[3]):NaN; }; const d=(p(b)-p(a))/864e5; return Number.isFinite(d)?d:null; }
+  /* → 表示項目 [{group:'L/C', key:'lc:…', …}] — lc = 保管所の lc_read/1 · なければ 「保管所に未登録」 · meta.etd = ブッキング ETD (crcf9_bl_etd 優先) */
+  function lcItems(lc, ex, F, podIt, delIt, meta){
     const out=[], A=(key,label,st,e,a,d,k)=>out.push({group:'L/C', key:'lc:'+key, label, status:st, expected:e==null?'':String(e), actual:a==null?'':String(a), detail:d||'', kind:k||''});
-    if(!lc) return [{group:'L/C', key:'lc:none', label:'L/C JSON', status:'INFO', expected:'', actual:'', detail:'D-01 の L/C 読み取り結果 (JSON) がない — L/C 照合を飛ばした', kind:''}];
-    const si=ex.si||{}, desc=String(ex.description||''), ln=lcNoOf(lc);
+    if(!lc) return [{group:'L/C', key:'lc:none', label:'L/C 判読', status:'INFO', expected:'', actual:'', detail:'L/C 判読なし — 保管所 (古紙/LC/_READ) に未登録', kind:''}];
+    const FD=lc.fields||{}, ck=(...ks)=>ks.map(k=>FD[k]&&FD[k].check).find(Boolean)||'';
+    /* 判読に 確認要 (2 回の判読が違う · 引用が原文にない) の欄 → 照合しない · 読取確認要 */
+    const RC=(key,label,why,e)=>A(key,label,'READ_CHECK',e||'','','L/C 判読 要確認 — '+why,'読取確認要:L/C判読');
+    if(lc.image) A('image','イメージ L/C','INFO','','','イメージの L/C — 原文の引用確認ができない (2 回の判読が一致した値で照合)','');
+    const si=ex.si||{}, desc=String(ex.description||''), ln=lcNoOf(lc.lc_no);
     /* ① L/C 番号 · 日付 — S/I の Description の 「L/C NO.: X DATED ON …」 (なければ S/I の L/C 番号の欄) */
     const m=desc.match(/L\/C\s*NO\.?\s*:?\s*(\S+)(?:\s+DATED\s+(?:ON\s+)?([A-Z]{3}[A-Z]*\.?\s+\d{1,2},?\s*\d{4}|\d{1,2}\s+[A-Z]{3}[A-Z]*\.?,?\s+\d{4}|\d{4}[\/-]\d{1,2}[\/-]\d{1,2}|\d{1,2}\/\d{1,2}\/\d{4}))?/i);
     const sNo=lcN(m?m[1]:si.cr49f_lc_no);
-    if(!sNo) A('no','L/C 番号 (S/I ↔ L/C)','INFO','L/C '+(lc.lcNo||''),'(S/I に L/C 番号なし)','S/I に L/C 番号がない','');
-    else A('no','L/C 番号 (S/I ↔ L/C)',sNo===ln?'MATCH':'DIFF',lc.lcNo,m?m[1]:si.cr49f_lc_no,'L/C (D-01) '+String(lc.lcNo||''),sNo===ln?'':'相違:L/C:番号');
-    if(m&&m[2]){ const a=lcDateKey(m[2]), b=lcDateKey(lc.lcDate); A('date','L/C 発行日 (S/I ↔ L/C)',a&&b&&a===b?'MATCH':'DIFF',lc.lcDate,m[2],'',a&&b&&a===b?'':'相違:L/C:日付'); }
-    /* ② 揚地 · 引渡地 — L/C の 「A OR B」 を分け PORT を外して S/I の港に含まれるか */
-    const P=lcPods(lc), inP=t=>{ const x=lcN(String(t||'').toUpperCase().replace(/\bPORT\b/g,'')); return P.some(p=>p&&x.indexOf(p)>=0); };
-    if(P.length){ let podOk=null; [['pod','揚地 (S/I ↔ L/C)',podIt],['delivery','引渡地 (S/I ↔ L/C)',delIt]].forEach(([k,lb,it])=>{ const sv=it&&it.status!=='INFO'?it.expected:''; if(!sv) return; const m=inP(sv);
+    if(ck('lc_no')) RC('no','L/C 番号 (S/I ↔ L/C)',ck('lc_no'));
+    else if(!sNo) A('no','L/C 番号 (S/I ↔ L/C)','INFO','L/C '+(lc.lc_no||''),'(S/I に L/C 番号なし)','S/I に L/C 番号がない','');
+    else A('no','L/C 番号 (S/I ↔ L/C)',sNo===ln?'MATCH':'DIFF',lc.lc_no,m?m[1]:si.cr49f_lc_no,'L/C (保管所 v'+(lc.version||'?')+') '+String(lc.lc_no||''),sNo===ln?'':'相違:L/C:番号');
+    if(m&&m[2]){ if(ck('issue_date')) RC('date','L/C 発行日 (S/I ↔ L/C)',ck('issue_date'));
+      else { const a=lcDateKey(m[2]), b=String(lc.issue_date||''); A('date','L/C 発行日 (S/I ↔ L/C)',a&&b&&a===b?'MATCH':'DIFF',lc.issue_date,m[2],'',a&&b&&a===b?'':'相違:L/C:日付'); } }
+    /* ② 揚地 · 引渡地 — L/C の 「A OR B」 を分けた並び (pod.list) が S/I の港に含まれるか */
+    const P=((lc.pod&&lc.pod.list)||[]).map(p=>lcN(p)).filter(Boolean), podTxt=(lc.pod&&lc.pod.text)||'', inP=t=>{ const x=lcN(String(t||'').toUpperCase().replace(/\bPORT\b/g,'')); return P.some(p=>p&&x.indexOf(p)>=0); };
+    if(ck('port_discharge')) RC('pod','揚地 (S/I ↔ L/C)',ck('port_discharge'));
+    else if(podTxt&&LC_RULE.ANY_POD.test(podTxt)){ const sv=podIt&&podIt.status!=='INFO'?podIt.expected:''; A('pod','揚地 (S/I ↔ L/C)','INFO',podTxt,sv,'L/C は国のどの港でもよい — 照合しない',''); }
+    else if(P.length){ let podOk=null; [['pod','揚地 (S/I ↔ L/C)',podIt],['delivery','引渡地 (S/I ↔ L/C)',delIt]].forEach(([k,lb,it])=>{ const sv=it&&it.status!=='INFO'?it.expected:''; if(!sv) return; const m=inP(sv);
       if(k==='pod') podOk=m;
       /* L/C の pod は 揚地 だけ — 揚地が合っていて 引渡地 が違う = 内陸の引渡地 (実データ: タイ CAS · LAEM CHABANG → LAT KRABANG) → 参考 */
-      if(k==='delivery'&&!m&&podOk) return A(k,lb,'INFO',lc.pod,sv,'L/C は揚地だけ — 揚地は合っている (引渡地は内陸の可能性)','');
-      A(k,lb,m?'MATCH':'DIFF',lc.pod,sv,'',m?'':'相違:L/C:'+(k==='pod'?'揚地':'引渡地')); }); }
+      if(k==='delivery'&&!m&&podOk) return A(k,lb,'INFO',podTxt,sv,'L/C は揚地だけ — 揚地は合っている (引渡地は内陸の可能性)','');
+      A(k,lb,m?'MATCH':'DIFF',podTxt,sv,'',m?'':'相違:L/C:'+(k==='pod'?'揚地':'引渡地')); }); }
     /* ③ 積地 — 「ANY JAPAN PORT」 なら飛ばす · 特定の港だけ */
-    if(lc.pol){ if(LC_RULE.ANY_POL.test(lc.pol)) A('pol','積地 (S/I ↔ L/C)','INFO',lc.pol,ex.pol,'L/C は日本のどの港でもよい — 照合しない','');
-      else { const q=lcN(String(lc.pol).split(',')[0].replace(/\bPORT\b/gi,'')), ok=!!q&&lcN(ex.pol).indexOf(q)>=0; A('pol','積地 (S/I ↔ L/C)',ok?'MATCH':'DIFF',lc.pol,ex.pol,'',ok?'':'相違:L/C:積地'); } }
+    const pol=lc.pol||{};
+    if(ck('port_loading')) RC('pol','積地 (S/I ↔ L/C)',ck('port_loading'));
+    else if(pol.text){ if(pol.any_japan) A('pol','積地 (S/I ↔ L/C)','INFO',pol.text,ex.pol,'L/C は日本のどの港でもよい — 照合しない','');
+      else { const q=lcN(String(pol.text).split(',')[0].replace(/\bPORT\b/gi,'')), ok=!!q&&lcN(ex.pol).indexOf(q)>=0; A('pol','積地 (S/I ↔ L/C)',ok?'MATCH':'DIFF',pol.text,ex.pol,'',ok?'':'相違:L/C:積地'); } }
     /* ④ 原本通数 (D4) — 46A の TELEX / SURRENDER → 1 · FULL SET → 3 ↔ ACL 「Number of Original B(S)/L」 */
-    const req=lcOriginals(lc), f=F&&F.originals, got=f&&f.conf!=='MISSING'?String(dash(f.text)).replace(/\s+/g,''):null;
-    if(req==null) A('originals','原本通数 (L/C 46A ↔ ACL)','INFO','(46A から読めない)',got==null?'(読めず)':got||'(空欄)','46A に TELEX · SURRENDER · FULL SET がない','');
+    const bl=lc.bl||{}, req=bl.originals==null?null:+bl.originals, f=F&&F.originals, got=f&&f.conf!=='MISSING'?String(dash(f.text)).replace(/\s+/g,''):null;
+    if(ck('bl_originals')) RC('originals','原本通数 (L/C 46A ↔ ACL)',ck('bl_originals'));
+    else if(req==null) A('originals','原本通数 (L/C 46A ↔ ACL)','INFO','(46A から読めない)',got==null?'(読めず)':got||'(空欄)','46A に TELEX · SURRENDER · FULL SET がない','');
     else if(got==null||(f&&f.conf!=='SURE')) A('originals','原本通数 (L/C 46A ↔ ACL)','READ_CHECK',String(req),f?f.text:'','ACL の原本通数を読めない','読取確認要:原本通数');
     else A('originals','原本通数 (L/C 46A ↔ ACL)',got===String(req)?'MATCH':'DIFF',String(req),got||'(空欄)','L/C 46A: '+(req===1?'TELEX / SURRENDER → 1':'FULL SET → 3'),got===String(req)?'':'相違:L/C:原本通数');
-    /* ⑤ Notify — 会社の名前 (NOTIFY APPLICANT → applicant) が S/I の Notify にあるか */
-    const nn=lcNotifyName(lc); if(nn.length){ const sn=lcN(ex.notify), ok=nn.every(w=>sn.indexOf(w)>=0); A('notify','Notify 会社名 (S/I ↔ L/C)',ok?'MATCH':'DIFF',nn.join(' '),String(ex.notify||'').split('\n')[0],'L/C Notify の会社名の語が S/I の Notify にあるか',ok?'':'相違:L/C:Notify'); }
+    /* ⑤ Notify — 会社の名前 (Notify = Applicant → applicant.name) が S/I の Notify にあるか */
+    if(ck('bl_notify_name')) RC('notify','Notify 会社名 (S/I ↔ L/C)',ck('bl_notify_name'));
+    else { const nn=lcNotifyName(lc); if(nn.length){ const sn=lcN(ex.notify), ok=nn.every(w=>sn.indexOf(w)>=0); A('notify','Notify 会社名 (S/I ↔ L/C)',ok?'MATCH':'DIFF',nn.join(' '),String(ex.notify||'').split('\n')[0],'L/C Notify の会社名の語が S/I の Notify にあるか',ok?'':'相違:L/C:Notify'); } }
+    /* ⑥ v0.10 Consignee 銀行 — L/C 46A 「TO (THE) ORDER OF {銀行}」 の語が S/I · ACL の Consignee に全部あるか (支店 · 都市名も含む — 例: L/C 「SAMPLE BANK SEOUL」 ↔ 「SAMPLE BANK」 = 相違) · 「TO ORDER」 だけなら その語があるか */
+    if(ck('bl_consignee_bank')) RC('consignee','Consignee 銀行 (L/C ↔ S/I · ACL)',ck('bl_consignee_bank'));
+    else if(bl.consignee_bank){ const bank=bl.consignee_bank, toOrder=bank==='TO ORDER', toApp=/^(?:THE\s+)?APPLICANT$/.test(bank), bw=toApp?lcNameWords((lc.applicant||{}).name||''):lcBankWords(bank);   // 「TO ORDER OF APPLICANT」 → Applicant の会社名の語 (Notify と同じ語の取り方)
+      /* 語の照合は 空白 · 記号 を外した文字の並びで (行の折り返し · 「SAM PLE」/「SAMPLE」 · 「SAMPLEBANK PUBLIC」/「SAMPLEBANKPUBLIC」 = 同じ — 欄別比較の 表記:語の切れ目 と同じ扱い) · 足りない語を返す */
+      const miss=t=>{ if(toOrder) return /\bTO\s+(?:THE\s+)?ORDER\b/.test(String(t||'').normalize('NFKC').toUpperCase().replace(/\s+/g,' '))?[]:['TO ORDER']; const T=lcN(t); return bw.length?bw.filter(x=>T.indexOf(lcN(x))<0):['(語なし)']; }, has=t=>!miss(t).length, why=t=>{ const m=miss(t); return m.length?' — 足りない語: '+m.join(' · '):''; };
+      const lab=toOrder?'「TO ORDER」':toApp?'Applicant の会社名の語 '+bw.join(' · '):'銀行名の語 '+bw.join(' · ');
+      const sv=String(ex.consignee||''), sOk=has(sv);
+      A('consignee','Consignee 銀行 (S/I ↔ L/C)',sOk?'MATCH':'DIFF',bank,sv.split('\n')[0],'L/C 46A の '+lab+' が S/I の Consignee に全部あるか'+why(sv),sOk?'':'相違:L/C:Consignee');
+      const fc=F&&F.consignee;
+      if(!fc||fc.conf==='MISSING') A('consignee_acl','Consignee 銀行 (ACL ↔ L/C)','READ_CHECK',bank,fc?fc.text:'','ACL の Consignee を読めない','読取確認要:Consignee');
+      else { const aOk=has(fc.text); A('consignee_acl','Consignee 銀行 (ACL ↔ L/C)',aOk?'MATCH':'DIFF',bank,String(fc.text||'').split('\n')[0],'L/C 46A の '+lab+' が ACL の Consignee に全部あるか (続き記号 * の続きもつないで)'+why(fc.text),aOk?'':'相違:L/C:Consignee'); } }
+    /* ⑦ v0.10 船積期限 ↔ ETD (ブッキング crcf9_bl_etd 優先 · なければ cr49f_etd) — ETD が期限より後 → 相違 · 0〜3 日前 → 参考 「間近」 (実例: 44C 10/15 ↔ B/L 10/17 = Discrepancy · D7) */
+    const etd=String((meta&&meta.etd)||'').slice(0,10), ls=String(lc.latest_shipment||'');
+    if(ck('latest_shipment')) RC('shipment','船積期限 (L/C 44C ↔ ETD)',ck('latest_shipment'));
+    else if(ls){ const d=lcDays(etd,ls);
+      if(!etd||d==null) A('shipment','船積期限 (L/C 44C ↔ ETD)','INFO',ls,etd||'(ETD なし)','ブッキングに ETD がない — 照合しない','');
+      else if(d<0) A('shipment','船積期限 (L/C 44C ↔ ETD)','DIFF',ls,etd,'ETD が L/C の船積期限より '+(-d)+' 日 後'+((meta&&meta.etdSrc)?' ('+meta.etdSrc+')':''),'相違:L/C:船積期限');
+      else if(d<=LC_RULE.SOON_DAYS) A('shipment','船積期限 (L/C 44C ↔ ETD)','INFO',ls,etd,'船積期限 間近 — 期限まで '+d+' 日'+((meta&&meta.etdSrc)?' ('+meta.etdSrc+')':''),'');
+      else A('shipment','船積期限 (L/C 44C ↔ ETD)','MATCH',ls,etd,'期限まで '+d+' 日',''); }
     return out;
   }
   /* 判定 — v0.3: PRACTICE (表記(実績)) は 表記差 と同じ扱い (自動 OK ではない) */
@@ -1570,7 +1622,7 @@ const ACL = (()=>{
     return L.join('\n');
   }
   return {SP_OUT, SRC_DIRS, ISO, D03, LABELS, VERDICTS, invoiceOf,
-    /* v0.9 */ PARTY_KEYS, P1, p1Key, portKey, comparePort, readFail, cntrOk, LC_RULE, lcN, lcDateKey, lcNoOf, lcOriginals, lcPods, lcNotifyName, lcItems, mailKindOf, mailsFromJsonl, mergeMails, ownPart,
+    /* v0.9 */ PARTY_KEYS, P1, p1Key, portKey, comparePort, readFail, cntrOk, LC_RULE, lcN, lcDateKey, lcNoOf, lcNotifyName, lcItems, /* v0.10 */ lcOriginalsText, lcPodSplit, lcConsigneeBank, lcNameWords, lcNotifyIsApplicant, lcDays, mailKindOf, mailsFromJsonl, mergeMails, ownPart,
     /* v0.8 */ CNTR_LINE, isCntrLine, cntrLineKeys, TENT_RE, TENT_NOTE, siTentative,
     /* v0.7 */ JP_RE, CNTR_INSTR, isCntrInstr, jpSplit, cntrListed, CNTR_OK, CNTR_NG,
     /* v0.6 */ DATE_MON, DATE_FORMS, findDates, NUM_LABELS, findNums, numRe, hasNum, canonMarks, lineItems, SRC, SRC_GROUP, SRC_FIELDS, CONTENT_KEYS, SEARCH_ONLY, descParts, siItems, itemIn, uncovered, similar, finalCheck, descCheck, finalView, finalHtml, tKey, anKey,
@@ -1611,7 +1663,7 @@ async function dvAll(path){ let d=await dvGet(path), out=(d.value||[]).slice(); 
 /* Invoice → ブッキング → 港 · コンテナ · S/I · S/I 明細 (D-01 fetchCompassShipment · D-03 の読み方) */
 async function fetchCompass(inv){
   if(!/^[A-Za-z0-9_\-]+$/.test(inv)) return {ok:false, reason:'Invoice 番号の形が違う'};
-  const bk=await dvAll(`cr49f_bookings?$filter=cr49f_invoice_no eq '${inv}'&$select=cr49f_bookingid,cr49f_booking_no,cr49f_bl_number,cr49f_main_ship_name,cr49f_invoice_no,crcf9_delivery_location,_cr49f_sale_contract_id_value,_cr49f_region_japan_id_value,_cr49f_region_id_value,_cr49f_carrier_id_value,_cr49f_fowarder_id_value,modifiedon`);   // v0.3: 船社 · 乙仲 (DOC-Z-06 v1.7) · v0.4: modifiedon (本船変更ラベル)
+  const bk=await dvAll(`cr49f_bookings?$filter=cr49f_invoice_no eq '${inv}'&$select=cr49f_bookingid,cr49f_booking_no,cr49f_bl_number,cr49f_main_ship_name,cr49f_invoice_no,crcf9_delivery_location,_cr49f_sale_contract_id_value,_cr49f_region_japan_id_value,_cr49f_region_id_value,_cr49f_carrier_id_value,_cr49f_fowarder_id_value,modifiedon,cr49f_etd,crcf9_bl_etd`);   // v0.10: ETD (船積期限の照合 · DOC-Z-06 v1.7 DateOnly) · v0.3: 船社 · 乙仲 (DOC-Z-06 v1.7) · v0.4: modifiedon (本船変更ラベル)
   if(!bk.length) return {ok:false, reason:'COMPASS に Invoice '+inv+' のブッキングなし'};
   const b=bk[0]; let pol='', pod='';
   if(b._cr49f_region_japan_id_value){ try{ pol=(await dvGet(`crcf9_region_japans(${b._cr49f_region_japan_id_value})?$select=crcf9_pol`)).crcf9_pol||''; }catch(e){} }
@@ -1630,19 +1682,21 @@ async function fetchCompass(inv){
   const s1=ACL.pickBlSi(sis); if(!meta.pay&&s1) meta.pay=FV(s1,'crcf9_payment_classification')||s1.crcf9_payment_classification||'';
   /* v0.4 (Step 1): 乙仲 = 表示値 (レコード番号 → 規則 forwarder の範囲) · 会社 · 港 (crcf9_customses を 1 回だけ読んで覚える) */
   const fid=b._cr49f_fowarder_id_value; if(fid){ try{ const f=await forwarderOf(fid); meta.forwarderCompany=f.company; meta.forwarderPort=f.port; }catch(e){ meta.forwarderError=String(e.message||e); } }
-  /* v0.9: L/C 取引 → D-01 の L/C 読み取り結果 (JSON · 契約ごとに analyzedAt の一番新しい 1 つ) — 読むだけ · なければ null (照合で 「飛ばした」) */
-  let lc=null; if(String(meta.pay||'').toUpperCase()==='LC'&&meta.contract){ try{ lc=await lcJsonFor(meta.contract); }catch(e){ meta.lcError=String(e.message||e); } }
+  /* v0.10: ETD = crcf9_bl_etd (B/L date) 優先 · なければ cr49f_etd (前 10 桁) */
+  meta.etd=String(b.crcf9_bl_etd||b.cr49f_etd||'').slice(0,10); meta.etdSrc=b.crcf9_bl_etd?'B/L date':b.cr49f_etd?'ETD':'';
+  /* v0.10: L/C 取引 → 保管所の L/C 判読 (古紙/LC/_READ/{契約}.json 1 つ) — 読むだけ · なければ null (照合で 「保管所に未登録」) */
+  let lc=null; if(String(meta.pay||'').toUpperCase()==='LC'&&meta.contract){ try{ lc=await lcReadFor(meta.contract); }catch(e){ meta.lcError=String(e.message||e); } }
   return {ok:true, booking:b, bookings:bk.length, pol, pod, containers, sis, details, meta, lc};
 }
-const LC_DIR = '古紙/-. AI 活用/D-01-LC_FD_CHECKER';
-let LC_LIST = null;
-async function lcJsonFor(contract){
-  if(!LC_LIST){ LC_LIST=(async()=>{ let url=drv()+'/root:/'+LC_DIR.split('/').map(encodeURIComponent).join('/')+':/children?$select=name,file&$top=999', out=[];
-      while(url){ const r=await graphFetch(url); if(!r.ok) throw new Error('D-01 フォルダ '+r.status); const j=await r.json(); out=out.concat((j.value||[]).filter(x=>x.file&&/\.json$/i.test(x.name)).map(x=>x.name)); url=j['@odata.nextLink']||null; } return out; })().catch(e=>{ LC_LIST=null; throw e; }); }
-  const key=ACL.lcN(contract), names=(await LC_LIST).filter(n=>ACL.lcN(n.split('_')[0])===key); let best=null;
-  for(const n of names){ const r=await graphFetch(drv()+'/root:/'+(LC_DIR+'/'+n).split('/').map(encodeURIComponent).join('/')+':/content'); if(!r.ok) continue;
-    let j=null; try{ j=await r.json(); }catch(e){ continue; } [].concat(j||[]).forEach(x=>{ if(x&&x.lcNo&&(!best||String(x.analyzedAt||'')>String(best.analyzedAt||''))) best=x; }); }
-  return best;
+/* v0.10: L/C 保管所 (lc_read/1 · 契約ごとに 1 ファイル) — D-01 フォルダは読まない */
+const LC_READ_DIR = '古紙/LC/_READ';
+const LC_READ_CACHE = {};
+async function lcReadFor(contract){
+  const key=String(contract||'').trim(); if(!/^[A-Za-z0-9\-]+$/.test(key)) return null;
+  if(LC_READ_CACHE[key]===undefined) LC_READ_CACHE[key]=(async()=>{ const r=await graphFetch(drv()+'/root:/'+(LC_READ_DIR+'/'+key+'.json').split('/').map(encodeURIComponent).join('/')+':/content');
+      if(r.status===404) return null; if(!r.ok) throw new Error('L/C 保管所 '+r.status);
+      const j=await r.json(); if(!j||j.schema!=='lc_read/1') throw new Error('L/C 保管所の形が違う ('+(j&&j.schema)+')'); return j; })().catch(e=>{ delete LC_READ_CACHE[key]; throw e; });
+  return LC_READ_CACHE[key];
 }
 const FWD_CACHE = {};
 function forwarderOf(id){
@@ -1884,7 +1938,7 @@ function startPage(){
 }
 
 LEENAI.init({
-  sys:'D-00', name:'ACL 照合試験', version:'0.9', date:'2026-11-22',
+  sys:'D-00', name:'ACL 照合試験', version:'0.10', date:'2026-11-23',
   desc:'ACL (NACCS PDF) を座標で読み、COMPASS の S/I (sino 1) · ブッキング · コンテナ (セット) · 表示欄 (S/I ルールマスター) と 100% 照合 · 担当者メールの実績と突き合わせ (読むだけ · AI なし)',
   graphScopes:['Sites.ReadWrite.All'],
   redirectUri:'https://mhlee205.github.io/CONTRACT_SEND/acl_bench.html',

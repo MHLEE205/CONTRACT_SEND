@@ -90,9 +90,15 @@ console.log('형님 추가 ① ② (보충 ① 표)');
   const r5=run(cp,{notify:keep}); ok(['DIFF','DROP'].indexOf(item(r5,'notify').status)>=0,'② * 줄에도 없음 → 相違 그대로',item(r5,'notify').status); }
 
 console.log('5 L/C JSON 대조');
+/* v0.10: 엔진은 L/C 를 보관소 (lc_read/1) 모양으로 읽음 — v0.9 의 가짜 D-01 모양을 같은 뜻의 lc_read/1 로 바꿔 넣고 기대값은 그대로 */
+const toRead=o=>{ if(!o) return null; const docs=[].concat(o.docs46A||[]);
+  return {schema:'lc_read/1', contract:'TEST-0000A1', version:1, lc_no:o.lcNo||'', issue_date:ACL.lcDateKey(o.lcDate||''),
+    pol:{text:o.pol||'', any_japan:!!o.pol&&ACL.LC_RULE.ANY_POL.test(o.pol)}, pod:{text:o.pod||'', list:ACL.lcPodSplit(o.pod||'')},
+    applicant:{name:o.applicant||'', address:''}, bl:{consignee_text:'', consignee_bank:null, notify_text:o.notifyParty46A||'', notify_is_applicant:ACL.LC_RULE.APPLICANT.test(o.notifyParty46A||''), originals:ACL.lcOriginalsText(docs.join(' ')), freight:null},
+    fields:{}, checks:[]}; };
 { const mk=()=>{ const cp=FX.compass(6); cp.sis[0].cr49f_lc_no='TLC0006'; cp.sis[0].crcf9_bl_text2=''; return cp; };
   const LC=o=>Object.assign({lcNo:'TLC0006 DATED ON 01/10/2026', lcDate:'01/10/2026', pod:'CAT LAI PORT OR SAMPLE PORT', pol:'ANY JAPANESE PORT', docs46A:['FULL SET OF CLEAN ON BOARD BILLS OF LADING'], notifyParty46A:'SAMPLE PAPER CO., LTD.', applicant:'SAMPLE PAPER CO., LTD.', analyzedAt:'2026-10-02T00:00:00Z'},o||{});
-  const R=(lc,over)=>{ const cp=mk(); cp.lc=lc; const a=mkAcl(cp,over); return ACL.compareOne(a,cp,{meta:{pay:'LC'}}); };
+  const R=(lc,over)=>{ const cp=mk(); cp.lc=toRead(lc); const a=mkAcl(cp,over); return ACL.compareOne(a,cp,{meta:{pay:'LC'}}); };
   const ex0=ACL.expected(mk()); const podTxt=ex0.description&&'CAT LAI PORT IN VIETNAM';
   const r=R(LC()); const st=k=>(item(r,'lc:'+k)||{}).status;
   eq([st('no'),st('pol'),st('originals'),st('notify')],['MATCH','INFO','MATCH','MATCH'],'L/C ① 번호 (「DATED ON」 섞인 lcNo 정리) · ③ ANY JAPANESE PORT → 건너뜀 · ④ FULL SET → 3 · ⑤ Notify');
@@ -103,22 +109,22 @@ console.log('5 L/C JSON 대조');
   const t2=R(LC({docs46A:['B/L TELEX RELEASED']}),{originals:'1'}); eq(item(t2,'lc:originals').status,'MATCH','④ TELEX → 1 · ACL 1 → 一致');
   const np=R(LC({notifyParty46A:'NOTIFY APPLICANT', applicant:'OTHER BUYER CO'})); eq(item(np,'lc:notify').status,'DIFF','⑤ NOTIFY APPLICANT → applicant 이름으로 대조 (다르면 相違)');
   const pl=R(LC({pol:'TOKYO PORT, JAPAN'})), pl2=R(LC({pol:'OSAKA PORT'})); eq([item(pl,'lc:pol').status,item(pl2,'lc:pol').status],['MATCH','DIFF'],'③ 특정 항구만 대조');
-  const none=R(null); ok(item(none,'lc:none')&&item(none,'lc:none').status==='INFO'&&/飛ばした/.test(item(none,'lc:none').detail),'L/C JSON 없음 → 건너뜀 표시 (参考)');
-  const tt=(()=>{ const cp=mk(); cp.lc=LC({lcNo:'X'}); return ACL.compareOne(mkAcl(cp),cp,{meta:{pay:'TT'}}); })(); ok(!tt.items.some(i=>i.group==='L/C'),'T/T 계약 → L/C 대조 안 함');
-  eq([ACL.lcOriginals({docs46A:['FULL SET']}),ACL.lcOriginals({docs46A:['TELEX RELEASE']}),ACL.lcOriginals({docs46A:['COPY']})],[3,1,null],'원본 통수 함수 (B/L 발행 의뢰에도 같은 함수)'); }
+  const none=R(null); ok(item(none,'lc:none')&&item(none,'lc:none').status==='INFO'&&/未登録/.test(item(none,'lc:none').detail),'L/C 판독 없음 → 「保管所に未登録」 표시 (参考 · v0.10)');
+  const tt=(()=>{ const cp=mk(); cp.lc=toRead(LC({lcNo:'X'})); return ACL.compareOne(mkAcl(cp),cp,{meta:{pay:'TT'}}); })(); ok(!tt.items.some(i=>i.group==='L/C'),'T/T 계약 → L/C 대조 안 함');
+  eq([ACL.lcOriginalsText('FULL SET'),ACL.lcOriginalsText('TELEX RELEASE'),ACL.lcOriginalsText('COPY')],[3,1,null],'원본 통수 함수 (B/L 발행 의뢰에도 같은 함수)'); }
 
 console.log('5+ 실자료에서 고친 L/C · 넘침 모양 (가짜 값)');
 { const mk=()=>{ const cp=FX.compass(6); cp.sis[0].cr49f_lc_no='TLC0006'; cp.sis[0].crcf9_bl_text2=''; return cp; };
-  const R=(lc,over)=>{ const cp=mk(); cp.lc=Object.assign({lcNo:'TLC0006', lcDate:'01/10/2026', pod:'CAT LAI', pol:'ANY JAPANESE PORT', docs46A:['FULL SET'], notifyParty46A:'SAMPLE PAPER CO., LTD.', applicant:'SAMPLE PAPER CO., LTD.'},lc); return ACL.compareOne(mkAcl(cp,over),cp,{meta:{pay:'LC'}}); };
+  const R=(lc,over)=>{ const cp=mk(); cp.lc=toRead(Object.assign({lcNo:'TLC0006', lcDate:'01/10/2026', pod:'CAT LAI', pol:'ANY JAPANESE PORT', docs46A:['FULL SET'], notifyParty46A:'SAMPLE PAPER CO., LTD.', applicant:'SAMPLE PAPER CO., LTD.'},lc)); return ACL.compareOne(mkAcl(cp,over),cp,{meta:{pay:'LC'}}); };
   eq(item(R({pol:'ALL PORT OF JAPAN'}),'lc:pol').status,'INFO','「ALL PORT OF JAPAN」 = 일본 아무 항구 → 건너뜀');
   eq(item(R({lcNo:'DATED ON OCT 01, 2026 TLC0006'}),'lc:no').status,'MATCH','lcNo 앞에 「DATED ON …」 → 번호만');
   eq(item(R({notifyParty46A:'NOTIFYING SAMPLE PAPER CO., LTD.'}),'lc:notify').status,'MATCH','「NOTIFYING」 머리 → 떼고 회사 이름');
   eq(item(R({notifyParty46A:'0000000000 HEX 000/GPMT-BTNMT HEX BANK DEPOSIT NO HEX SAMPLE PAPER CO., LTD. HEX TEL 00'}),'lc:notify').status,'MATCH','베트남 형식 (번호 # 허가 # DEPOSIT # 회사) · # 대신 HEX → 회사 조각');
   eq(item(R({notifyParty46A:'MARKED FREIGHT PREPAID AND NOTIFY APPLICANT', applicant:'OTHER TRADING CO'}),'lc:notify').status,'DIFF','문장 안의 NOTIFY APPLICANT → applicant 로 대조');
-  const cpc=mk(); cpc.sis[0].crcf9_place_of_delivery_1='SAMPLE INLAND, VIETNAM'; cpc.lc={lcNo:'TLC0006', pod:'CAT LAI', pol:'ANY JAPANESE PORT', docs46A:['FULL SET'], notifyParty46A:'SAMPLE PAPER CO., LTD.'};
+  const cpc=mk(); cpc.sis[0].crcf9_place_of_delivery_1='SAMPLE INLAND, VIETNAM'; cpc.lc=toRead({lcNo:'TLC0006', pod:'CAT LAI', pol:'ANY JAPANESE PORT', docs46A:['FULL SET'], notifyParty46A:'SAMPLE PAPER CO., LTD.'});
   const rc=ACL.compareOne(mkAcl(cpc,{delivery:'SAMPLE INLAND, VIETNAM'}),cpc,{meta:{pay:'LC'}}); ok(!item(rc,'lc:delivery')||item(rc,'lc:delivery').status!=='DIFF','揚地 가 맞고 引渡地 만 다름 (내륙) → 参考 (L/C 는 揚地 만)',item(rc,'lc:delivery'));
   const cp=FX.compass(3), ex=ACL.expected(cp), keep=ex.notify.split('\n').filter(l=>!/TEL|FAX/.test(l)).join('\n'), tl=ex.notify.split('\n').filter(l=>/TEL|FAX/.test(l));
   const r=run(cp,{notify:keep, description:ex.description+'\n**SAMPLE CITY,\n'+tl.join('\n')+'\n*VIETNAM'}); eq(item(r,'notify').kind,'表記:続き (Description の * 行):Notify Party','넘침 단락 = 「*」 줄부터 여러 줄 (실자료 NA2609-05 모양)'); }
 console.log('버전');
-ok(/version:'0\.9'/.test(fs.readFileSync(HTML,'utf8')),"version:'0.9'");
+ok(/version:'0\.(?:9|10)'/.test(fs.readFileSync(HTML,'utf8')),"version:'0.9' 이상");
 console.log('v09 pass '+pass+' fail '+fail); process.exit(fail?1:0);
