@@ -4,7 +4,11 @@
 const fs=require('fs'), path=require('path'), T=require('./lib.js'), F=require('./fixtures.js'), {ok, eq}=T;
 const {JSDOM}=require('jsdom');
 const ACLF=require('../acl_bench/fixtures.js');
-const html=fs.readFileSync(T.HTML,'utf8'), aclHtml=fs.readFileSync(path.join(__dirname,'../../acl_bench.html'),'utf8');
+const html=fs.readFileSync(T.HTML,'utf8');
+/* ACL 엔진 = bl_bench 가 고정한 커밋의 acl_bench.html (git show) — acl_bench 가 다음 판으로 바뀌어도 bl_bench 는 고정 커밋을 읽음 (acl_bench v0.14 에서 고침) · git 이 없으면 작업 중 파일 */
+const aclPin=(html.match(/const ACL_ENGINE = \{commit:'([0-9a-f]{40})'/)||[])[1];
+let aclHtml=null; try{ aclHtml=require('child_process').execFileSync('git',['show',aclPin+':acl_bench.html'],{cwd:__dirname,encoding:'utf8',maxBuffer:1<<26,stdio:['ignore','pipe','ignore']}); }catch(e){}
+if(!aclHtml) aclHtml=fs.readFileSync(path.join(__dirname,'../../acl_bench.html'),'utf8');
 const pdfjs=require('pdfjs-dist/legacy/build/pdf.js');
 (async()=>{
   /* 가짜 COMPASS = acl_bench 시험의 가짜 선적 1 (NFK2601-01) · L/C 결제 */
