@@ -68,8 +68,8 @@ tr.ab-d td{background:var(--surface)}
   <div class="ab-card">
     <h3>B/L Draft 照合試験 — B/L Draft ↔ COMPASS (S/I · ブッキング · コンテナ) · L/C 保管所 (読むだけ)</h3>
     <div class="ab-note">Invoice フォルダ (<code>▲ 書類作成中/{Invoice}</code> · <code>_OLD_DOC/{年}/{Invoice}</code>) の B/L Draft (<code>_DRAFT</code> · <code>_FRT MEMO</code> の B/L 頁) を<b>座標で</b>読み、
-    COMPASS の S/I と L/C 保管所 (<code>古紙/LC/_READ</code>) に照合します。ACL は参考 (形님 D1)。<b>B/L は 100% 一致が基準</b> (D2) · 運賃の金額は比べない (D3)。<br>
-    判定 (전수 조사 R1 ~ R11 と同じ): 一致 · 表記差 · 参考 · 判断不可 · <b>相違の疑い</b> / 別の件の Draft の可能性 (比べない) / スキャン — 目で確認。<br>
+    COMPASS の S/I と L/C 保管所 (<code>古紙/LC/_READ</code>) に照合します。ACL は参考 (社長 D1)。<b>B/L は 100% 一致が基準</b> (D2) · 運賃の金額は比べない (D3)。<br>
+    判定 (全数調査 R1 ~ R11 と同じ): 一致 · 表記差 · 参考 · 判断不可 · <b>相違の疑い</b> / 別の件の Draft の可能性 (比べない) / スキャン — 目で確認。<br>
     AI 呼び出しなし (費用 0) · COMPASS · SharePoint は<b>読むだけ</b> · 書き込み 0 · 結果は CSV をこの PC に保存。港の別名 = <code>master_port_alias</code> (なければ 試験用の固定値)。</div>
   </div>
 
@@ -115,12 +115,14 @@ tr.ab-d td{background:var(--surface)}
      Draft の名前 (sel.py) · B/L の頁 (cov.py) · 版の順 (REV 番号 → 更新時刻) · S/I との照合 (chk.py) · 判定 5 つ + R1 ~ R11 (clsA.py) ·
      別の件の Draft (⚠️ 1 の 4 件) · L/C 7 項目 (lcc.py — 値は L/C 保管所 lc_read/1) · 版の間 (rev.py) · 運賃の位置 (fmap.py) · 隠す計画と確認 (mask.swift · masktest.py)
    読み方だけ違う: PDF の行 = pdf.js の文字項目を 同じ基線 · 近い間隔で つないだもの (PDFKit selectionsByLine の代わり)
+   v0.3 (2026-11-23 指示書 D00 B/L 照合結果の保存 · 日本語化 · 形さん D3): 判定の値 = 英語のコード (class: SAME · NOTATION · REF · UNKNOWN · DIFF · SI_BLANK / L/C: SAME · DIFF · DIFF_ABBR · NA_… · NO_DATE · UNKNOWN …) ·
+     欄の名前 = 英語のコード (Vessel/Voyage · Total Bales · Container … · Consignee bank …) · 画面の語は 表 (CLASS_JA · LC_RES · FIELD_JA · LC_JA) · 理由 · メモ = 日本語 (判定は v0.2 と同じ)
    v0.2 (2026-11-23 指示書 D00 B/L Draft 2 段階 · CP-A01 補完): 체크포인트 側と 1 つに — 字のまま比べる = ACL エンジンの same_text_ws (+ trim_end_punct) ·
      港の別名 = エンジンの cpAliasSame (master_port_alias · 承認の安全装置) · チェックポイント (stage BL_DRAFT の 基本 = CP 番号 · 追加 = cpRunRow) ·
      エンジンは BL.useEngine(ACL) で渡す (bl_bench · 書類ツール とも コミット + sha256 固定で読んだもの) · 試験用の港の固定値は 試験コードだけ
 ============================================================ */
 const BL = (()=>{
-  const VERSION = '0.2';
+  const VERSION = '0.3';
   /* ══════════ 共通 — 文字の形 (전수 조사 chk.py 와 같음) ══════════ */
   const ZEN='０１２３４５６７８９ＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴＵＶＷＸＹＺ，．－（）／＃＆：', HAN='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ,.-()/#&:';
   const ZMAP={}; for(let i=0;i<ZEN.length;i++) ZMAP[ZEN[i]]=HAN[i];
@@ -298,10 +300,10 @@ const BL = (()=>{
   const splitLines = s => String(s==null?'':s).split(/[\n#]/).map(x=>pyStrip(x)).filter(x=>C(x));
   function axis(inD, inA, aclKnown){
     if(inD&&(inA||!aclKnown)) return 'OK';
-    if(inD&&!inA) return 'OK (ACL 쪽 다름)';
-    if(!aclKnown) return 'S/I 와 다름 (ACL 판정 불가)';
-    if(inA) return '선사 잘못 (무료)';
-    return '우리 잘못 (LG · 유료)';
+    if(inD&&!inA) return 'OK (ACL 側が違う)';
+    if(!aclKnown) return 'S/I と違う (ACL では判断できない)';
+    if(inA) return '船社の誤り (無料)';
+    return '当社の誤り (LG · 有料)';
   }
   const CNT=/\b([A-Z]{4})\s?(\d{6})\s?(\d)\b/g;
   const W2=['ZERO','ONE','TWO','THREE','FOUR','FIVE','SIX','SEVEN','EIGHT','NINE','TEN','ELEVEN','TWELVE','THIRTEEN','FOURTEEN','FIFTEEN','SIXTEEN','SEVENTEEN','EIGHTEEN','NINETEEN','TWENTY'];
@@ -312,50 +314,50 @@ const BL = (()=>{
     const allc=C(L.map(l=>l.t).join(' ')), aclKnown=si.format==='NACCS', rows=[];
     const add=(field,read,s,dr,acl,judge,note)=>{ const r={field,read,si:s==null?'':s,draft:dr==null?'':dr,acl:acl==null?'':acl,judge,note:note||''}; rows.push(r); return r; };
     const bk=(si.cp||{}).booking_no||'', bl=(si.cp||{}).bl_number||'';
-    if(bk){ const inD=allc.indexOf(C(bk))>=0; add('Booking/B/L No.',inD?'읽힘':'못 찾음',bk,inD?'O':'','',inD?'OK':(bl&&allc.indexOf(C(bl).slice(-8))>=0?'B/L 번호만':'확인 필요')); }
-    for(const [key,fname] of [['vessel','본선·항차'],['receipt','Place of Receipt'],['pol','POL'],['pod','POD'],['delivery','Place of Delivery']]){
+    if(bk){ const inD=allc.indexOf(C(bk))>=0; add('Booking/B/L No.',inD?'読めた':'見つからない',bk,inD?'O':'','',inD?'OK':(bl&&allc.indexOf(C(bl).slice(-8))>=0?'B/L 番号だけ':'要確認')); }
+    for(const [key,fname] of [['vessel','Vessel/Voyage'],['receipt','Place of Receipt'],['pol','POL'],['pod','POD'],['delivery','Place of Delivery']]){
       const it=itemOf(si,key); if(!it) continue;
       const s=it.expected, ac=it.actual, cs=C(s);
-      if(!cs){ add(fname,'-','','',ac,'S/I 빈칸'); continue; }
+      if(!cs){ add(fname,'-','','',ac,'SI_BLANK'); continue; }
       let ln=F.findPref(labs,L,cs,key);
       if(!ln&&key==='vessel'){ let parts=pyStrip(s).split(/[\s　]+/); parts=parts.length>1?[parts.slice(0,-1).join(' '),parts[parts.length-1]]:parts;
         if(parts.length===2&&allc.indexOf(C(parts[0]))>=0&&allc.indexOf(C(parts[1]))>=0) ln=F.findLine(C(parts[0])); }
       if(!ln&&['pol','pod','delivery','receipt'].includes(key)){
         const head=C(s.split(/,| IN /)[0]); const ln2=head.length>=4?F.findLine(head):null;
-        if(ln2){ const fo=fieldOf(L,labs,ln2); add(fname,'읽힘',s,ln2.t,ac,'表記差? (도시만 같음)'+(C(ac).indexOf(C(s.split(/,| IN /)[0]))>=0?'':' · ACL 다름'),'칸='+fo); continue; } }
+        if(ln2){ const fo=fieldOf(L,labs,ln2); add(fname,'読めた',s,ln2.t,ac,'表記差? (都市だけ同じ)'+(C(ac).indexOf(C(s.split(/,| IN /)[0]))>=0?'':' · ACL と違う'),'欄='+fo); continue; } }
       if(!ln&&['pol','pod','delivery','receipt'].includes(key)){
         const al={PUSAN:'BUSAN',BUSAN:'PUSAN'}; const h=pyStrip(s)?(s.split(',')[0].trim().split(/\s+/)[0]||'').toUpperCase():'';
-        if(al[h]&&F.findLine(C(al[h]))){ const ln2=F.findLine(C(al[h])); add(fname,'읽힘',s,ln2.t,ac,'表記差? (PUSAN=BUSAN · 도시만)',''); continue; } }
+        if(al[h]&&F.findLine(C(al[h]))){ const ln2=F.findLine(C(al[h])); add(fname,'読めた',s,ln2.t,ac,'表記差? (PUSAN=BUSAN · 都市だけ)',''); continue; } }
       const inA=C(ac).indexOf(cs)>=0, fo=ln?fieldOf(L,labs,ln):null;
-      let jj=axis(!!ln,inA,aclKnown); if(key==='vessel'&&!ln) jj='본선·항차 다름 → 본선 변경? ('+jj+')';
-      add(fname,ln?'읽힘':'못 찾음',s,ln?ln.t:'',ac,jj,ln?'칸='+fo:'');
+      let jj=axis(!!ln,inA,aclKnown); if(key==='vessel'&&!ln) jj='本船・航海が違う → 本船変更? ('+jj+')';
+      add(fname,ln?'読めた':'見つからない',s,ln?ln.t:'',ac,jj,ln?'欄='+fo:'');
     }
     for(const [key,fname] of [['shipper','Shipper'],['consignee','Consignee'],['notify','Notify'],['alsoNotify','Also Notify'],['description','Description'],['marks','Marks']]){
       const it=itemOf(si,key); if(!it) continue;
       const sil=splitLines(it.expected), acc=C(it.actual);
-      if(!sil.length){ add(fname,'-','','',String(it.actual||'').slice(0,20),'S/I 빈칸'); continue; }
+      if(!sil.length){ add(fname,'-','','',String(it.actual||'').slice(0,20),'SI_BLANK'); continue; }
       const missFree=[], missLg=[], moved=[], how=[]; let okn=0, aclonly=0;
       for(const s of sil){ const cs=C(s); if(cs.length<3) continue;
         let ln=F.findPref(labs,L,cs,key); const inA=acc.indexOf(cs)>=0; let h='';
         if(!ln){ const u=pyStrip(s.toUpperCase());
           if(/^(NO MARKS?|N\/?M)$/.test(u)){ ln=LM.find(l=>/\b(N\/M|NO MARKS?|NM)\b/.test(l.t.toUpperCase()))||null; h='表記:N/M'; }
-          else if(/DEPOSIT/.test(u)&&/(X{2,}\s*$|:\s*$)/.test(u)){ ln=LM.find(l=>l.t.toUpperCase().indexOf('DEPOSIT')>=0)||null; h='Deposit 자리'; }
-          else if(/^"?FREIGHT PREPAID( AS ARRANGED)?"?$/.test(u)){ ln=LM.find(l=>l.t.toUpperCase().indexOf('PREPAID')>=0)||null; h='表記:운임 문구'; }
-          else if(/^SAME AS CONSIGNEE$/.test(u)){ ln=LM.find(l=>l.t.toUpperCase().indexOf('SAME AS')>=0)||null; h=ln?'表記:SAME AS':''; if(!ln) h='SAME AS CONSIGNEE → Draft 는 실제 주소?'; }
-          if(!ln){ ln=F.splitMatch(cs); h=ln?'넘침 이어짐':h; } }
+          else if(/DEPOSIT/.test(u)&&/(X{2,}\s*$|:\s*$)/.test(u)){ ln=LM.find(l=>l.t.toUpperCase().indexOf('DEPOSIT')>=0)||null; h='Deposit の欄'; }
+          else if(/^"?FREIGHT PREPAID( AS ARRANGED)?"?$/.test(u)){ ln=LM.find(l=>l.t.toUpperCase().indexOf('PREPAID')>=0)||null; h='表記:運賃の文言'; }
+          else if(/^SAME AS CONSIGNEE$/.test(u)){ ln=LM.find(l=>l.t.toUpperCase().indexOf('SAME AS')>=0)||null; h=ln?'表記:SAME AS':''; if(!ln) h='SAME AS CONSIGNEE → Draft は実際の住所?'; }
+          if(!ln){ ln=F.splitMatch(cs); h=ln?'はみ出しの続き':h; } }
         if(h) how.push(h);
         if(ln){ okn++; const fo=fieldOf(L,labs,ln); if(fo&&fo!==key&&!(key==='alsoNotify'&&fo==='notify')) moved.push(fo); if(!inA) aclonly++; }
         else (inA?missFree:missLg).push(s);
       }
       const n=okn+missFree.length+missLg.length; let j;
-      if(!missFree.length&&!missLg.length) j='OK'; else if(!aclKnown) j='S/I 와 다름 (ACL 판정 불가)';
-      else if(missFree.length&&!missLg.length) j='선사 잘못 (무료)'; else if(missLg.length&&!missFree.length) j='우리 잘못 (LG · 유료)'; else j='섞임 (무료+LG)';
-      let note='S/I '+n+'줄 중 Draft 에 '+okn;
-      if(moved.length) note+=' · 다른 칸 아래 '+moved.length+' ('+[...new Set(moved)].sort().join(',')+')';
-      if(aclonly) note+=' · ACL 에 없는데 Draft 에 있음 '+aclonly;
+      if(!missFree.length&&!missLg.length) j='OK'; else if(!aclKnown) j='S/I と違う (ACL では判断できない)';
+      else if(missFree.length&&!missLg.length) j='船社の誤り (無料)'; else if(missLg.length&&!missFree.length) j='当社の誤り (LG · 有料)'; else j='混在 (無料+LG)';
+      let note='S/I '+n+'行のうち Draft に '+okn;
+      if(moved.length) note+=' · 別の欄の下 '+moved.length+' ('+[...new Set(moved)].sort().join(',')+')';
+      if(aclonly) note+=' · ACL に無く Draft にある '+aclonly;
       if(how.length) note+=' · '+[...new Set(how)].sort().join(',');
       const miss=missFree.concat(missLg);
-      const r=add(fname,okn?'읽힘':'못 찾음',n+'줄',okn+'줄','',j,note+(miss.length?' · 없는 줄: '+miss.slice(0,3).map(x=>x.slice(0,12)).join(' / '):''));
+      const r=add(fname,okn?'読めた':'見つからない',n+'行',okn+'行','',j,note+(miss.length?' · 無い行: '+miss.slice(0,3).map(x=>x.slice(0,12)).join(' / '):''));
       r.miss=missFree.map(x=>[x,true]).concat(missLg.map(x=>[x,false]));
     }
     /* コンテナのセット (同じ番号が何か所にあっても全部見る · CMA は頁の終わりなら次頁の最初の SEAL 行) */
@@ -374,21 +376,21 @@ const BL = (()=>{
     const cellsOf=it=>{ const o={}; ((it.set||{}).cells||[]).forEach(c=>{ o[c.k]=c; }); return o; };
     for(const k of ['シール','Bales','重量']){ let hits=0; for(const it of sets){ const s0=it.set||{}, c=cellsOf(it)[k]; if(c&&occ.has(s0.container)&&has(k,String(c.cp==null?'':c.cp),nearText(s0.container))) hits++; } form[k]=hits; }
     for(const it of sets){ const s0=it.set||{}, cno=s0.container||'', cells=cellsOf(it);
-      if(!occ.has(cno)){ add('컨테이너 '+cno.slice(0,4)+'…','못 찾음',cno,'',(cells['番号']||{}).acl||'',axis(false,!!(cells['番号']||{}).acl,aclKnown)); continue; }
+      if(!occ.has(cno)){ add('Container '+cno.slice(0,4)+'…','見つからない',cno,'',(cells['番号']||{}).acl||'',axis(false,!!(cells['番号']||{}).acl,aclKnown)); continue; }
       const nt=nearText(cno), bad=[], noform=[];
       for(const k of ['シール','Bales','重量']){ const c=cells[k]; if(!c||!String(c.cp==null?'':c.cp)) continue; if(has(k,String(c.cp),nt)) continue;
-        if(form[k]===0) noform.push(k); else bad.push(k+(c.ok?'':'(ACL 도 다름)')); }
-      const j=bad.length?'다름 → 확인':noform.length?'OK (번호·씰만)':'OK';
-      add('컨테이너 '+cno.slice(0,4)+'…','읽힘',cno,'세트','',j,(bad.length?'Draft 와 다름: '+bad.join(',')+' ':'')+(noform.length?'Draft 양식에 컨테이너별 칸 없음: '+noform.join(','):'')); }
+        if(form[k]===0) noform.push(k); else bad.push(k+(c.ok?'':'(ACL も違う)')); }
+      const j=bad.length?'違う → 確認':noform.length?'OK (番号・シールだけ)':'OK';
+      add('Container '+cno.slice(0,4)+'…','読めた',cno,'セット','',j,(bad.length?'Draft と違う: '+bad.join(',')+' ':'')+(noform.length?'Draft の様式にコンテナ別の欄なし: '+noform.join(','):'')); }
     const tb=itemOf(si,'total:bales'), tw=itemOf(si,'total:weight'), tc=itemOf(si,'total:containers'), up=L.map(l=>l.t).join(' ').toUpperCase();
     if(tb){ const v=tb.expected; const rx=new RegExp('\\b'+reEsc(String(v))+'\\s*\\)?\\s*(BALE|BLS?|PKGS?|PACKAGES?)'); const ok=winText(L).concat([up]).some(t=>rx.test(t.toUpperCase()));
-      add('합계 Bales',ok?'읽힘':'못 찾음',v,ok?'O':'',tb.actual,ok?'OK':'확인 필요'); }
+      add('Total Bales',ok?'読めた':'見つからない',v,ok?'O':'',tb.actual,ok?'OK':'要確認'); }
     if(tw){ const v=NUM(tw.expected); let ok=false; const rx=/(\d{1,3}(?:,\d{3})+|\d{5,7})(?:\.\d+)?/g; let m; while((m=rx.exec(up))) if(NUM(m[1])===v){ ok=true; break; }
-      add('합계 중량',ok?'읽힘':'못 찾음',tw.expected,ok?'O':'',tw.actual,ok?'OK':'확인 필요'); }
+      add('Total Weight',ok?'読めた':'見つからない',tw.expected,ok?'O':'',tw.actual,ok?'OK':'要確認'); }
     if(tc){ const n=parseInt(tc.expected||0,10)||0, word=n<W2.length?W2[n]:'';
       const m=word?up.match(new RegExp('(SAY|TOTAL)[^\\n]{0,40}?\\b('+word+')\\b[^\\n]{0,20}(CONTAINER|CNTR|CTNR|CTR)')):null;
       const m2=up.match(new RegExp('\\b'+n+'\\s*(X\\s*\\d{2}|CONTAINERS?|CNTRS?|CTRS?|UNITS?)\\b')); const ok=!!(m||m2);
-      add('합계 컨테이너 수',ok?'읽힘':'못 찾음',n,m?word:(m2?m2[0]:''),tc.actual,ok?'OK':'확인 필요'); }
+      add('Total Containers',ok?'読めた':'見つからない',n,m?word:(m2?m2[0]:''),tc.actual,ok?'OK':'要確認'); }
     /* B/L 種類 · 原本通数 · 運賃条件 · T/S · On board · 現地 Agent · Deposit (内容の比較ではない 参考行) */
     const head=L.filter(l=>l.p===1&&l.y<140).map(l=>l.t).join(' ').toUpperCase();
     const body=L.filter(l=>!/CARRIER SHALL|IN THE CASE OF|WHERE ISSUED|IF THIS IS|TERMS|SURRENDER/.test(l.t.toUpperCase())).map(l=>l.t).join(' ').toUpperCase();
@@ -400,35 +402,36 @@ const BL = (()=>{
     const wb=itemOf(si,'disp:wayBill'), og=itemOf(si,'disp:originals');
     const aclK=wb?pyStrip(String(wb.detail||'').split('→').pop()).slice(0,4):'';
     kind=kindHead||kind;
-    add('B/L 종류 (SWB/OBL)',kind!=='?'?'읽힘':'못 읽음','(S/I PDF 줄 · 이번 미대조)',kind+(kindHead?' (머리 '+kindHead+')':''),aclK,(aclK&&aclK.startsWith(kind.slice(0,2)))?'OK':(aclK&&kind!=='?'?'ACL 과 다름?':'-'),kindHead&&kindHead!==kind?'머리와 본문이 다름':'');
+    add('B/L Type (SWB/OBL)',kind!=='?'?'読めた':'読めない','(S/I PDF の行 · 今回は照合しない)',kind+(kindHead?' (頭 '+kindHead+')':''),aclK,(aclK&&aclK.startsWith(kind.slice(0,2)))?'OK':(aclK&&kind!=='?'?'ACL と違う?':'-'),kindHead&&kindHead!==kind?'頭と本文が違う':'');
     const WN={ZERO:'0',NIL:'0',ONE:'1',TWO:'2',THREE:'3'}, on=orig?(WN[orig]||orig):'';
-    add('원본 통수',orig?'읽힘':'못 읽음','',on,(og||{}).actual||'',on&&on===C((og||{}).actual||'').slice(0,1)?'OK':(on?'ACL 과 다름':'-'));
+    add('Originals',orig?'読めた':'読めない','',on,(og||{}).actual||'',on&&on===C((og||{}).actual||'').slice(0,1)?'OK':(on?'ACL と違う':'-'));
     const fr=up.indexOf('PREPAID')>=0?'PREPAID':(/FREIGHT\s+COLLECT/.test(up)?'COLLECT':'');
-    add('Freight 조건',fr?'읽힘':'못 읽음','PREPAID (CIF/CFR)',fr,'',fr==='PREPAID'?'OK':'확인 필요');
+    add('Freight Term',fr?'読めた':'読めない','PREPAID (CIF/CFR)',fr,'',fr==='PREPAID'?'OK':'要確認');
     const ts=L.filter(l=>/TRANS?-?SHIP|\bT\/S\b|\bVIA\b|TRANSHIPMENT/.test(l.t.toUpperCase())&&!/RECEIVED BY|TERMS|CONDITIONS|CLAUSE|CARRIER SHALL|MERCHANT/.test(l.t.toUpperCase())).map(l=>l.t);
-    add('T/S (환적) 표시',ts.length?'읽힘':'없음',lc&&lc.transhipment?'L/C 43T: '+String(lc.transhipment).slice(0,20):'',ts.length?ts[0].slice(0,30):'없음','',ts.length&&lc&&/NOT ALLOWED|PROHIBIT/.test(String(lc.transhipment||'').toUpperCase())?'⚠️ L/C 환적 금지인데 표시':(ts.length?'확인':'OK'));
+    add('T/S',ts.length?'読めた':'なし',lc&&lc.transhipment?'L/C 43T: '+String(lc.transhipment).slice(0,20):'',ts.length?ts[0].slice(0,30):'なし','',ts.length&&lc&&/NOT ALLOWED|PROHIBIT/.test(String(lc.transhipment||'').toUpperCase())?'⚠️ L/C は積替禁止なのに表示あり':(ts.length?'確認':'OK'));
     let ob=null;
     for(const u0 of winText(L,3)){ const u=u0.toUpperCase();
       if(/(SHIPPED|LADEN)?\s*ON\s*BOARD/.test(u)&&!/RECEIVED BY|TERMS/.test(u)){
         const m=u.match(/(\d{1,2}[ -\/.]?(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*[ -\/.,]*\d{2,4}|(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*[ .]*\d{1,2},? ?\d{4}|\d{4}[-\/.]\d{1,2}[-\/.]\d{1,2}|\d{1,2}[-\/.]\d{1,2}[-\/.]\d{4})/);
         if(!ob||m) ob=[u.slice(0,40),m?m[0]:'']; if(m) break; } }
-    add('On board 날짜',ob&&ob[1]?'읽힘':(ob?'칸만':'없음'),lc?'L/C 44C '+(lc.latestShipment||''):'',ob?ob[1]:'','',!(ob&&ob[1])?'참고 (Draft 단계는 빈칸이 보통)':(lc?'44C 대조 필요':'OK'));
+    add('On Board Date',ob&&ob[1]?'読めた':(ob?'欄だけ':'なし'),lc?'L/C 44C '+(lc.latestShipment||''):'',ob?ob[1]:'','',!(ob&&ob[1])?'参考 (Draft の段階では空欄が普通)':(lc?'44C と照合が必要':'OK'));
     const ag=L.filter(l=>/DELIVERY AGENT|AGENT AT (DESTINATION|POD)|FOR DELIVERY OF GOODS|APPLY TO|DESTINATION AGENT|LOCAL AGENT|PORT AGENT|(?<!FORWARDING )AGENT\s*:/.test(l.t.toUpperCase())).map(l=>l.t);
     const asg=itemOf(si,'disp:agentSign');
-    add('현지 Agent',ag.length?'읽힘':'없음',String((asg||{}).detail||'').slice(0,30),ag.length?ag[0].slice(0,30):'',(asg||{}).actual||'',lc?'L/C 요구: '+(lc.localAgentRequired==null?'None':lc.localAgentRequired):'-');
+    add('Local Agent',ag.length?'読めた':'なし',String((asg||{}).detail||'').slice(0,30),ag.length?ag[0].slice(0,30):'',(asg||{}).actual||'',lc?'L/C の要求: '+(lc.localAgentRequired==null?'None':lc.localAgentRequired):'-');
     if((si.meta||{}).country==='VIETNAM'){
-      const dl=L.filter(l=>l.t.toUpperCase().indexOf('DEPOSIT')>=0).map(l=>l.t); let st='없음';
+      const dl=L.filter(l=>l.t.toUpperCase().indexOf('DEPOSIT')>=0).map(l=>l.t); let st='なし';
       for(const t of dl){ const u=t.toUpperCase(), m=u.match(/DEPOSIT\s*(NUMBER|NO\.?|CERTIFICATE)?\s*[:：]?\s*(.*)$/), tail=m?C(m[2]):'';
-        if(/\d{3,}/.test(tail||'')){ st='번호 있음'; break; } if(/#\s*DEPOSIT|\/GPMT/.test(u)) st='#DEPOSIT 표시만'; else if(st==='없음') st='빈칸/XX'; }
+        if(/\d{3,}/.test(tail||'')){ st='番号あり'; break; } if(/#\s*DEPOSIT|\/GPMT/.test(u)) st='#DEPOSIT の表示だけ'; else if(st==='なし') st='空欄/XX'; }
       const siDep=['consignee','notify','description'].some(k=>String((itemOf(si,k)||{}).expected||'').toUpperCase().indexOf('DEPOSIT')>=0);
-      add('Deposit 번호',dl.length?'읽힘':'없음','S/I 에 DEPOSIT 글자 '+(siDep?'있음':'없음'),st,'',['빈칸/XX','없음','#DEPOSIT 표시만'].includes(st)?'Deposit 待ち (정상)':'번호 있음 → LG 반영 확인'); }
+      add('Deposit No.',dl.length?'読めた':'なし','S/I に DEPOSIT の字 '+(siDep?'あり':'なし'),st,'',['空欄/XX','なし','#DEPOSIT の表示だけ'].includes(st)?'Deposit 待ち (正常)':'番号あり → LG の反映を確認'); }
     return {rows, labels:[...new Set(labs.map(x=>x[0]))].sort(), nLines:L.length};
   }
   /* ══════════ Step 2 A — 判定 5 つ (전수 조사 clsA.py と同じ) ══════════
      같음 · 表記 · 参考 · 판단 불가 · 진짜 차이 의심 (+ S/I 빈칸) — R1 ~ R11 は 시범 보고서の定義 */
-  const CLASS = ['같음','表記','参考','판단 불가','진짜 차이 의심','S/I 빈칸'];
-  const CLASS_JA = {'같음':'一致','表記':'表記差','参考':'参考','판단 불가':'判断不可','진짜 차이 의심':'相違の疑い','S/I 빈칸':'S/I 空欄'};
-  const CONTENT_SKIP = ['B/L 종류 (SWB/OBL)','원본 통수','Freight 조건','T/S (환적) 표시','On board 날짜','현지 Agent','Deposit 번호'];
+  const CLASS = ['SAME','NOTATION','REF','UNKNOWN','DIFF','SI_BLANK'];
+  /* v0.3: 判定の値 = 英語のコード · 画面の語は この表 (CLASS_JA · LC_RES_JA · FIELD_JA · LC_JA) 1 か所 */
+  const CLASS_JA = {'SAME':'一致','NOTATION':'表記差','REF':'参考','UNKNOWN':'判断不可','DIFF':'相違の疑い','SI_BLANK':'S/I 空欄'};
+  const CONTENT_SKIP = ['B/L Type (SWB/OBL)','Originals','Freight Term','T/S','On Board Date','Local Agent','Deposit No.'];
   const ABBR = [[/\bFLOOR\b/g,'FL'],[/\bCOMPANY\b/g,'CO'],[/\bLIMITED\b/g,'LTD'],[/\bCORPORATION\b/g,'CORP'],[/\bSTREET\b/g,'ST'],[/\bROAD\b/g,'RD'],[/\bNUMBER\b/g,'NO'],[/\bTELEPHONE|PHONE\b/g,'TEL'],[/\bINDUSTRIAL\b/g,'IND'],[/\bINTERNATIONAL\b/g,'INTL'],[/\bPUBLIC\b/g,'PUB'],[/\bAND\b/g,'&']];
   const abbrSub = s => { let a=s; for(const [p,r] of ABBR) a=a.replace(p,r); return a; };
   /* 1 つの Draft ファイルの 比べる材料 (clsA wins · 頁の文字) */
@@ -447,12 +450,12 @@ const BL = (()=>{
     let a=s.toUpperCase(); a=abbrSub(a);
     const pn=abbrSub(D.page), wa=WORDS(a), wp=WORDS(pn);
     if(wa.length){ let hit=false; for(let i=0;i<=wp.length-wa.length&&!hit;i++){ let ok=true; for(let k=0;k<wa.length;k++) if(wp[i+k]!==wa[k]){ ok=false; break; } if(ok) hit=true; }
-      if(hit&&WORDS(s.toUpperCase()).join(' ')!==wa.join(' ')) return '약어'; }
+      if(hit&&WORDS(s.toUpperCase()).join(' ')!==wa.join(' ')) return '略語'; }
     const nums=WORDS(s).filter(w=>/\d/.test(w)), cp=C(D.page);
-    if(nums.length&&nums.some(n=>cp.indexOf(n)<0)) return '숫자 다름';
+    if(nums.length&&nums.some(n=>cp.indexOf(n)<0)) return '数字が違う';
     const win=seg?(D.wins.find(w=>w.indexOf(seg.slice(0,12))>=0)||''):'';
-    if(win&&WORDS(s).filter(w=>w.length>=2).every(w=>win.indexOf(C(w))>=0)) return '순서·줄바꿈';
-    return '글자 다름';
+    if(win&&WORDS(s).filter(w=>w.length>=2).every(w=>win.indexOf(C(w))>=0)) return '順序・改行';
+    return '字が違う';
   }
   function wordsInPage(s, D){ const pw=new Set(WORDS(D.page)), ws=WORDS(s).filter(w=>w.length>=2); return ws.length>0&&ws.every(w=>pw.has(w)); }
   const fmt2 = x => (Math.round(x*100)/100).toFixed(2);
@@ -460,41 +463,41 @@ const BL = (()=>{
   function classify(r, D, allMiss){
     const j=r.judge, f=r.field;
     if(CONTENT_SKIP.includes(f)) return [null,''];
-    if(j==='S/I 빈칸'||j==='-') return ['S/I 빈칸',''];
-    if(j.startsWith('OK')){ if(['넘침 이어짐','表記:'].some(k=>(r.note||'').indexOf(k)>=0)) return ['表記','R1/R4 '+(r.note||'').slice(0,40)]; return ['같음','']; }
-    if(j.startsWith('表記差')) return ['表記','R2 항구'];
-    if(j==='확인 필요'||j==='B/L 번호만') return ['판단 불가','읽기 (합계 모양 · 번호)'];
-    if(j.startsWith('본선·항차 다름')) return ['参考','R7 본선 변경?'];
+    if(j==='SI_BLANK'||j==='-') return ['SI_BLANK',''];
+    if(j.startsWith('OK')){ if(['はみ出しの続き','表記:'].some(k=>(r.note||'').indexOf(k)>=0)) return ['NOTATION','R1/R4 '+(r.note||'').slice(0,40)]; return ['SAME','']; }
+    if(j.startsWith('表記差')) return ['NOTATION','R2 港'];
+    if(j==='要確認'||j==='B/L 番号だけ') return ['UNKNOWN','読み (合計の形 · 番号)'];
+    if(j.startsWith('本船・航海が違う')) return ['REF','R7 本船変更?'];
     if(r.miss){
       const sub=[];
       for(const [s,inA] of r.miss){ const u=pyStrip(s.toUpperCase()), cs=C(s);
-        if(/SAME AS CONSIGNEE/.test(u)){ sub.push(['表記','R9 SAME AS']); continue; }
-        if(/FREE ?TIME|DETENTION|DEMURRAGE|COMBINED/.test(u)){ sub.push(['参考','R10 선사 별도 문구']); continue; }
+        if(/SAME AS CONSIGNEE/.test(u)){ sub.push(['NOTATION','R9 SAME AS']); continue; }
+        if(/FREE ?TIME|DETENTION|DEMURRAGE|COMBINED/.test(u)){ sub.push(['REF','R10 船社の別の文言']); continue; }
         /* clsA の式そのまま: #DEPOSIT# だけ · または XXX があり XXX のすぐ後に数字 (Python の優先順位: A or (B and not (C is None))) */
-        if(/^#?\s*DEPOSIT\s*#?$/.test(u)||(/X{3,}/.test(u)&&/X{3,}\d/.test(u))){ sub.push(['参考','R5 Deposit/XX 자리']); continue; }
-        if(/X{3,}/.test(u)){ sub.push(['参考','R5 S/I XX 자리 (Draft 에 실제 값)']); continue; }
+        if(/^#?\s*DEPOSIT\s*#?$/.test(u)||(/X{3,}/.test(u)&&/X{3,}\d/.test(u))){ sub.push(['REF','R5 Deposit/XX の欄']); continue; }
+        if(/X{3,}/.test(u)){ sub.push(['REF','R5 S/I の XX の欄 (Draft に実際の値)']); continue; }
         const [sc,seg]=near(cs,D.wins);
-        if(sc>=0.85){ const st=subtype(s,D,seg); sub.push(['진짜 차이 의심','['+st+'] '+s.slice(0,60)+' ↔ '+seg.slice(0,60)+' ('+fmt2(sc)+')']); continue; }
-        if(f==='Description'&&wordsInPage(s,D)){ sub.push(['판단 불가','읽기 (열 섞임 · 낱말은 모두 있음) '+s.slice(0,40)]); continue; }
+        if(sc>=0.85){ const st=subtype(s,D,seg); sub.push(['DIFF','['+st+'] '+s.slice(0,60)+' ↔ '+seg.slice(0,60)+' ('+fmt2(sc)+')']); continue; }
+        if(f==='Description'&&wordsInPage(s,D)){ sub.push(['UNKNOWN','読み (列が混ざる · 語は全部ある) '+s.slice(0,40)]); continue; }
         if(cs.length>=20){ const [sc2,seg2]=near(cs.slice(0,30),D.wins);
-          if(sc2>=0.9){ const st=subtype(s,D,seg2); sub.push(['진짜 차이 의심','['+st+'] '+s.slice(0,60)+' ↔ '+seg2.slice(0,60)+' (앞 30자 '+fmt2(sc2)+')']); continue; } }
-        if(!inA){ sub.push(['参考','R6 S/I 에만 (ACL·Draft 없음) '+s.slice(0,30)]); continue; }
-        sub.push(['진짜 차이 의심','[줄 없음] '+s.slice(0,60)+' (ACL 에는 있음) ~ '+seg.slice(0,30)+' ('+fmt2(sc)+')']);
+          if(sc2>=0.9){ const st=subtype(s,D,seg2); sub.push(['DIFF','['+st+'] '+s.slice(0,60)+' ↔ '+seg2.slice(0,60)+' (先頭 30 字 '+fmt2(sc2)+')']); continue; } }
+        if(!inA){ sub.push(['REF','R6 S/I だけ (ACL・Draft になし) '+s.slice(0,30)]); continue; }
+        sub.push(['DIFF','[行がない] '+s.slice(0,60)+' (ACL にはある) ~ '+seg.slice(0,30)+' ('+fmt2(sc)+')']);
       }
-      const order=['진짜 차이 의심','판단 불가','参考','表記'];
-      const k=sub.length?sub.map(x=>x[0]).sort((a,b)=>order.indexOf(a)-order.indexOf(b))[0]:'같음';
+      const order=['DIFF','UNKNOWN','REF','NOTATION'];
+      const k=sub.length?sub.map(x=>x[0]).sort((a,b)=>order.indexOf(a)-order.indexOf(b))[0]:'SAME';
       return [k, sub.filter(x=>x[0]===k).map(x=>x[1]).join(' | ')];
     }
-    if(f.startsWith('컨테이너')){
-      if(r.read==='못 찾음'&&allMiss) return ['판단 불가','Draft 에 컨테이너 목록 없음 (첨부 쪽 빠짐?)'];
-      return ['진짜 차이 의심',('[컨테이너] '+j+' '+(r.note||'')).slice(0,80)]; }
-    if(['POL','POD','Place of Receipt','Place of Delivery','본선·항차'].includes(f))
-      return ['진짜 차이 의심',('[항구·본선] S/I '+r.si+' ↔ Draft '+(r.draft||'(같은 값 없음)')+' / ACL '+r.acl).slice(0,120)];
-    return ['판단 불가', j];
+    if(f.startsWith('Container')){
+      if(r.read==='見つからない'&&allMiss) return ['UNKNOWN','Draft にコンテナの一覧なし (添付の頁が無い?)'];
+      return ['DIFF',('[コンテナ] '+j+' '+(r.note||'')).slice(0,80)]; }
+    if(['POL','POD','Place of Receipt','Place of Delivery','Vessel/Voyage'].includes(f))
+      return ['DIFF',('[港・本船] S/I '+r.si+' ↔ Draft '+(r.draft||'(同じ値なし)')+' / ACL '+r.acl).slice(0,120)];
+    return ['UNKNOWN', j];
   }
   /* 1 版の行に判定を付ける */
   function classifyAll(rows, L){
-    const D=draftCtx(L), cn=rows.filter(r=>r.field.startsWith('컨테이너')), allMiss=cn.length>0&&cn.every(r=>r.read==='못 찾음');
+    const D=draftCtx(L), cn=rows.filter(r=>r.field.startsWith('Container')), allMiss=cn.length>0&&cn.every(r=>r.read==='見つからない');
     const out=[]; for(const r of rows){ const [k,why]=classify(r,D,allMiss); if(k===null) continue; out.push(Object.assign({},r,{class:k, why})); }
     return out;
   }
@@ -508,11 +511,11 @@ const BL = (()=>{
     if(ivs.length&&up.indexOf(IV)<0) why.push('別の Invoice 番号 '+ivs.slice(0,2).join(' · '));
     /* Consignee の S/I 行が ほぼ無く (Draft にあるのは 1 行以下) 似た行も無い — かつ Notify も無い か Booking/B/L 番号が無い */
     const row=f=>cls.find(x=>x.field===f)||null, parts=r=>r&&r.why?String(r.why).split(' | '):[];
-    const found=r=>{ const m=String((r&&r.note)||'').match(/S\/I (\d+)줄 중 Draft 에 (\d+)/); return m?{n:+m[1], ok:+m[2]}:null; };
+    const found=r=>{ const m=String((r&&r.note)||'').match(/S\/I (\d+)行のうち Draft に (\d+)/); return m?{n:+m[1], ok:+m[2]}:null; };
     const c=row('Consignee'), n=row('Notify'), bk=row('Booking/B/L No.');
-    const cMiss=parts(c).filter(x=>x.indexOf('[줄 없음]')===0).length, cNear=parts(c).filter(x=>/^\[(?!줄 없음)/.test(x)).length, nMiss=parts(n).filter(x=>x.indexOf('[줄 없음]')===0).length;
+    const cMiss=parts(c).filter(x=>x.indexOf('[行がない]')===0).length, cNear=parts(c).filter(x=>/^\[(?!行がない)/.test(x)).length, nMiss=parts(n).filter(x=>x.indexOf('[行がない]')===0).length;
     const cf=found(c), bkMiss=!!(bk&&bk.judge!=='OK');
-    if(c&&c.class==='진짜 차이 의심'&&cf&&cf.ok<=1&&cMiss>=1&&cNear===0&&(nMiss>=2||bkMiss)) why.push('Consignee の S/I 行が無い ('+cMiss+'/'+cf.n+') · '+(nMiss>=2?'Notify も ('+nMiss+')':'Booking/B/L 番号も無い'));
+    if(c&&c.class==='DIFF'&&cf&&cf.ok<=1&&cMiss>=1&&cNear===0&&(nMiss>=2||bkMiss)) why.push('Consignee の S/I 行が無い ('+cMiss+'/'+cf.n+') · '+(nMiss>=2?'Notify も ('+nMiss+')':'Booking/B/L 番号も無い'));
     return why.length?{other:true, why}:{other:false, why:[]};
   }
 
@@ -560,7 +563,7 @@ const BL = (()=>{
   /* L = Draft の行 · rowsA = check() の行 (On board · 種類 · 通数) · lc = lcView · alias = portAliasOf */
   function lcCheck(L, rowsA, lc, alias, carrier){
     const out=[], add=(item,res,lcq,dr,note)=>out.push({item, result:res, lc_quote:String(lcq==null?'':lcq).slice(0,220), draft:String(dr==null?'':dr).slice(0,160), note:note||''});
-    if(!lc) return [{item:'L/C 判読', result:'参考 (保管所に未登録)', lc_quote:'', draft:'', note:''}];
+    if(!lc) return [{item:'L/C 判読', result:'REF_NOLC', lc_quote:'', draft:'', note:''}];
     const LM=mergeRows(L), labs=labels(L), haslab=new Set(labs.map(x=>x[0])).size>=4, page=L.map(l=>l.t).join(' '), PU=page.toUpperCase(), PC=C(page), blu=lc.blLine.toUpperCase();
     /* 1 Consignee 銀行 */
     const cons=haslab?fieldText(LM,labs,'consignee'):'', dcons=cons||page;
@@ -568,10 +571,10 @@ const BL = (()=>{
     const bankw=v=>{ const m=String(v||'').toUpperCase().match(/(?:TO|UNTO)\s+(?:THE\s+)?ORDER\s+OF\s+(.+?)(?:,?\s*(?:MARKED|NOTIFY|SHOWING|INDICATING|AND\s+(?:MARKED|NOTIFY))|$)/); return m?m[1].trim().replace(/^[ .,]+|[ .,]+$/g,''):null; };
     let bank=lc.bank, consTxt=lc.consignee, cr=lc.reads('bl_consignee'), crBad=false;
     if(!bank&&cr&&cr.length){ const bs=cr.map(bankw); if(bs.some(Boolean)){ if(bs.every(b=>b&&WORDS(b).join(' ')===WORDS(bs[0]).join(' '))) bank=bs[0]; else crBad=true; } else consTxt=consTxt||cr[0]; }
-    if(crBad) add('Consignee 은행','L/C 판독 要確認',cr.join(' / '),'','2回判読が違う (銀行)');
+    if(crBad) add('Consignee bank','LC_READ_CHECK',cr.join(' / '),'','2回判読が違う (銀行)');
     else if(bank){
       let bb=bank, nt='';
-      if(/^(THE\s+)?APPLICANT$/.test(pyStrip(bb))){ bb=lc.applicant||bb; nt='L/C = TO ORDER OF APPLICANT → 신청인 이름으로 · '; }
+      if(/^(THE\s+)?APPLICANT$/.test(pyStrip(bb))){ bb=lc.applicant||bb; nt='L/C = TO ORDER OF APPLICANT → 申請人の名前で · '; }
       let best=[-1,''];
       for(const [l,w] of colWindows(LM,8)){ const tw=w.map(m=>m.t).join(' ').toUpperCase(); const i=tw.indexOf('ORDER OF')>=0?tw.indexOf('ORDER OF'):tw.indexOf('ORDER');
         if(i<0||!/TO\s+(THE\s+)?ORDER/.test(tw)) continue; const seg=tw.slice(i), sw=new Set(WORDS(seg)), sc=new Set(WORDS(bb).filter(x=>sw.has(x))).size; if(sc>best[0]) best=[sc,seg]; }
@@ -580,60 +583,60 @@ const BL = (()=>{
       const OVF=/\b(SH|CN|NP|AN)>|\*{1,4}[A-Z0-9]?(\s|$)|\+\+/;
       miss=miss.filter(w=>w.length<5||C(dseg).indexOf(C(w))<0);
       let res; const pw=new Set(WORDS(page));
-      if(!miss.length||C(dseg).indexOf(C(bb))>=0) res='같음';
-      else if(OVF.test(page)&&C(miss.join('')).length>=8&&miss.some(w=>w.length>=4)&&miss.every(w=>pw.has(w))){ res='같음'; nt+='R1 넘침 이어짐 (다른 곳에 이어진 낱말) · '; }
-      else if(abbrC(dseg?C(dseg):'').indexOf(abbrC(C(bb)))>=0) res='차이 (약어만 다름)';
-      else res='차이';
-      add('Consignee 은행',res,'TO ORDER OF '+bank,dseg.slice(0,80),nt+(res!=='같음'?'없는 낱말: '+miss.join(' '):'')+(cons?'':' · 칸 이름 없음 → 쪽 전체'));
+      if(!miss.length||C(dseg).indexOf(C(bb))>=0) res='SAME';
+      else if(OVF.test(page)&&C(miss.join('')).length>=8&&miss.some(w=>w.length>=4)&&miss.every(w=>pw.has(w))){ res='SAME'; nt+='R1 はみ出しの続き (別の所に続く語) · '; }
+      else if(abbrC(dseg?C(dseg):'').indexOf(abbrC(C(bb)))>=0) res='DIFF_ABBR';
+      else res='DIFF';
+      add('Consignee bank',res,'TO ORDER OF '+bank,dseg.slice(0,80),nt+(res!=='SAME'?'足りない語: '+miss.join(' '):'')+(cons?'':' · 欄の名前なし → 頁全体'));
     } else if(/TO\s+ORDER(?!\s+OF)|TO\s+ORDER\s+OF\s+SHIPPER/.test(String(consTxt||lc.blLine).toUpperCase())){
-      const ok=/TO\s+(THE\s+)?ORDER/.test(dcons.toUpperCase()); add('Consignee 은행',ok?'같음':'차이','TO ORDER (은행 없음)',dcons.slice(0,80));
-    } else add('Consignee 은행','해당 없음 (은행 지시식 아님)',String(consTxt).slice(0,80),'');
+      const ok=/TO\s+(THE\s+)?ORDER/.test(dcons.toUpperCase()); add('Consignee bank',ok?'SAME':'DIFF','TO ORDER (銀行なし)',dcons.slice(0,80));
+    } else add('Consignee bank','NA_NOTBANK',String(consTxt).slice(0,80),'');
     /* 2 Notify (APPLICANT) */
     const noti=haslab?fieldText(LM,labs,'notify'):'', dn=noti||page;
     if(lc.notifyApplicant||/APPLICANT/.test(String(lc.notify).toUpperCase())||/NOTIFY\s+(THE\s+)?APPLICANT/.test(blu)){
       const ar=lc.reads('applicant_name'), aw2=x=>WORDS(x).filter(w=>!STOP.has(w)).join(' ');
-      if(ar&&ar.length>1&&!ar.every(x=>aw2(x)===aw2(ar[0]))) add('Notify (APPLICANT)','L/C 판독 要確認',ar.join(' / '),'','2回判読が違う (申請人)');
+      if(ar&&ar.length>1&&!ar.every(x=>aw2(x)===aw2(ar[0]))) add('Notify (APPLICANT)','LC_READ_CHECK',ar.join(' / '),'','2回判読が違う (申請人)');
       else { const aw=WORDS(lc.applicant).filter(w=>!STOP.has(w)), dw=new Set(WORDS(dn)); let miss=aw.filter(w=>!dw.has(w));
         if(C(lc.applicant)&&C(dn).indexOf(C(lc.applicant))>=0) miss=[];
-        add('Notify (APPLICANT)',aw.length&&!miss.length?'같음':(!aw.length?'판단 불가':'차이'),'APPLICANT = '+lc.applicant,dn.slice(0,100),miss.length?'없는 낱말: '+miss.join(' '):(!noti?'칸 이름 없음 → 쪽 전체':'')); }
-    } else add('Notify (APPLICANT)','해당 없음 (APPLICANT 지정 아님)',String(lc.notify).toUpperCase().slice(0,80),'');
+        add('Notify (APPLICANT)',aw.length&&!miss.length?'SAME':(!aw.length?'UNKNOWN':'DIFF'),'APPLICANT = '+lc.applicant,dn.slice(0,100),miss.length?'足りない語: '+miss.join(' '):(!noti?'欄の名前なし → 頁全体':'')); }
+    } else add('Notify (APPLICANT)','NA_NOTAPP',String(lc.notify).toUpperCase().slice(0,80),'');
     /* 3 FREIGHT PREPAID */
     if(/PREPAID/.test(String(lc.freight).toUpperCase())||blu.indexOf('FREIGHT PREPAID')>=0){
       const ok=/FREIGHT\s+PREPAID/.test(PU), fm=PU.match(/FREIGHT[^\n]{0,30}/);
-      const res=ok?'같음':(/\bPREPAID\b/.test(PU)&&!/FREIGHT\s+COLLECT/.test(PU)?'확인 필요 (운임표의 PREPAID 만 · 문구 없음)':'차이');
+      const res=ok?'SAME':(/\bPREPAID\b/.test(PU)&&!/FREIGHT\s+COLLECT/.test(PU)?'CHECK_PREPAID':'DIFF');
       add('FREIGHT PREPAID',res,lc.blLine.slice(0,200)||'46A FREIGHT PREPAID',ok?'FREIGHT PREPAID':(fm?fm[0]:''));
-    } else add('FREIGHT PREPAID','해당 없음 (46A 에 문구 없음)',lc.blLine.slice(0,120),'');
+    } else add('FREIGHT PREPAID','NA_NO46A',lc.blLine.slice(0,120),'');
     /* 4 原本通数 / SWB */
-    let need=null; if(/TELEX|SURRENDER/.test(blu)) need='1 (TELEX/SURRENDER)'; else if(/FULL SET|3\/3|THREE ORIGINAL|3 ORIGINAL/.test(blu)) need='3'; else if(/2\/3/.test(blu)) need='2/3 (3통 중 2)';
+    let need=null; if(/TELEX|SURRENDER/.test(blu)) need='1 (TELEX/SURRENDER)'; else if(/FULL SET|3\/3|THREE ORIGINAL|3 ORIGINAL/.test(blu)) need='3'; else if(/2\/3/.test(blu)) need='2/3 (3 通のうち 2)';
     const swbOk=/WAY\s*-?\s*BILL/.test(blu);
-    const dorig=origRead(L)||((rowsA||[]).find(r=>r.field==='원본 통수')||{}).draft||'', dkind=((rowsA||[]).find(r=>r.field==='B/L 종류 (SWB/OBL)')||{}).draft||'';
+    const dorig=origRead(L)||((rowsA||[]).find(r=>r.field==='Originals')||{}).draft||'', dkind=((rowsA||[]).find(r=>r.field==='B/L Type (SWB/OBL)')||{}).draft||'';
     const unreliable=['Pan Ocean','Hapag-Lloyd'].includes(carrier);
-    if(!lc.blLine) add('원본 통수 / SWB','판단 불가 (46A B/L 줄 없음)','','');
-    else { let res='같음'; const note=[];
-      if(dkind.startsWith('SWB')&&!swbOk&&!unreliable){ res='차이'; note.push('L/C 는 B/L 요구 · Draft 는 SWB'); }
-      if(need==='3'&&dorig&&dorig!=='3'){ res='차이'; note.push('원본 '+dorig+'통'); }
-      if(need&&need.startsWith('1')&&dorig&&dorig!=='1'&&dorig!=='0'){ res='차이'; note.push('원본 '+dorig+'통'); }
-      if(res==='같음'&&(!dorig&&!/^(SWB|OBL)/.test(dkind))){ res='판단 불가'; note.push('Draft 에 통수 · 종류 없음'); }
-      if(res==='같음'&&!dorig) note.push('통수 칸 없음 (종류만)');
-      if(unreliable) note.push('R8 머리로 종류 판단 불가 선사');
-      add('원본 통수 / SWB',res,lc.blLine.slice(0,200),'종류 '+dkind+' · 원본 '+(dorig||'-'),note.join(' · ')); }
+    if(!lc.blLine) add('Originals / SWB','UNKNOWN_NO46A','','');
+    else { let res='SAME'; const note=[];
+      if(dkind.startsWith('SWB')&&!swbOk&&!unreliable){ res='DIFF'; note.push('L/C は B/L を要求 · Draft は SWB'); }
+      if(need==='3'&&dorig&&dorig!=='3'){ res='DIFF'; note.push('原本 '+dorig+' 通'); }
+      if(need&&need.startsWith('1')&&dorig&&dorig!=='1'&&dorig!=='0'){ res='DIFF'; note.push('原本 '+dorig+' 通'); }
+      if(res==='SAME'&&(!dorig&&!/^(SWB|OBL)/.test(dkind))){ res='UNKNOWN'; note.push('Draft に通数 · 種類なし'); }
+      if(res==='SAME'&&!dorig) note.push('通数の欄なし (種類だけ)');
+      if(unreliable) note.push('R8 頭で種類を判断できない船社');
+      add('Originals / SWB',res,lc.blLine.slice(0,200),'種類 '+dkind+' · 原本 '+(dorig||'-'),note.join(' · ')); }
     /* 5 船積日 ≤ 44C */
-    const ob=(rowsA||[]).find(r=>r.field==='On board 날짜'), lat=pdate(lc.latest);
-    if(!ob||!ob.draft) add('선적일 ≤ 44C','날짜 없음','44C '+lc.latest,'');
+    const ob=(rowsA||[]).find(r=>r.field==='On Board Date'), lat=pdate(lc.latest);
+    if(!ob||!ob.draft) add('Shipment ≤ 44C','NO_DATE','44C '+lc.latest,'');
     else { const ds=pdate(ob.draft);
-      if(!ds.length||!lat.length) add('선적일 ≤ 44C','판단 불가','44C '+lc.latest,ob.draft,'날짜 모양');
-      else { const v=ds.map(d=>d<=lat[0]); add('선적일 ≤ 44C',v.every(Boolean)?'같음 (44C 안)':(!v.some(Boolean)?'차이 (44C 지남)':'판단 불가'),'44C '+lc.latest,ob.draft,ds.length>1?'일/월 순서 모호':''); } }
+      if(!ds.length||!lat.length) add('Shipment ≤ 44C','UNKNOWN','44C '+lc.latest,ob.draft,'日付の形');
+      else { const v=ds.map(d=>d<=lat[0]); add('Shipment ≤ 44C',v.every(Boolean)?'SAME_44C':(!v.some(Boolean)?'DIFF_44C':'UNKNOWN'),'44C '+lc.latest,ob.draft,ds.length>1?'日/月の順が不明':''); } }
     /* 6 揚地 · 積地 */
     for(const [key,item,lv] of [['pod','揚地 (44F)',lc.pod],['pol','積地 (44E)',lc.pol]]){
       const u=String(lv||'').toUpperCase();
-      if(!u){ add(item,'판단 불가','',''); continue; }
-      if(key==='pol'&&(lc.polAny||!WORDS(u).filter(w=>!['ANY','ALL','PORT','PORTS','S','OF','IN','JAPAN','JAPANESE','MAIN','SEAPORT','SEAPORTS','THE','AND','OR'].includes(w)).length)){ add(item,'해당 없음 (ANY JAPAN PORT)',u,''); continue; }
+      if(!u){ add(item,'UNKNOWN','',''); continue; }
+      if(key==='pol'&&(lc.polAny||!WORDS(u).filter(w=>!['ANY','ALL','PORT','PORTS','S','OF','IN','JAPAN','JAPANESE','MAIN','SEAPORT','SEAPORTS','THE','AND','OR'].includes(w)).length)){ add(item,'NA_ANYJP',u,''); continue; }
       const CTRY=new Set(['VIETNAM','VIET','NAM','INDONESIA','THAILAND','MALAYSIA','KOREA','INDIA','TAIWAN','CHINA','PHILIPPINES','BANGLADESH','JAPAN','REPUBLIC','OF','SOUTH']);
       const src=(u.indexOf(' OR ')<0&&u.indexOf('/')<0)?u.split(',')[0]:u;
       const alts=src.split(/\s+OR\s+|\//).filter(a=>pyStrip(a));
       const cores=alts.map(a=>WORDS(a).filter(w=>!['PORT','ANY','IN','OF','THE','SEAPORT','CITY'].includes(w)&&!CTRY.has(w))).filter(c=>c.length);
       const core=cores.length?cores[0]:[];
-      if(!core.length){ add(item,'판단 불가',u,''); continue; }
+      if(!core.length){ add(item,'UNKNOWN',u,''); continue; }
       const hit=[], other=[];
       for(const [l,w] of colWindows(LM,2)){ const tw=w.map(m=>m.t).join(' '), ws=new Set(WORDS(tw));
         if(cores.some(cc=>cc.every(c=>ws.has(c))||C(tw).indexOf(C(cc.join(' ')))>=0)){ const fo=fieldOf(L,labs,l); ((([key,'delivery','pod','pol',null].includes(fo))||!haslab)?hit:other).push([fo,l.t]); } }
@@ -642,22 +645,22 @@ const BL = (()=>{
       /* port_alias (形님 D7 · 同じ港の別名 = 表記) — L/C の港と Draft の POD / Delivery 欄が 同じ組 (L/C の港の語が 他の欄 (住所) にしか無くても) */
       const podTxt=[dv].concat(L.filter(l=>['pod','delivery'].includes(fieldOf(L,labs,l))).map(l=>l.t)).join(' ');
       const g=(!hit.length&&key==='pod')?samePortGroup(alias,u,podTxt||page):null;
-      if(hit.length) add(item,'같음',u,hit[0][1].slice(0,80),'칸='+hit[0][0]);
-      else if(g) add(item,'表記 (港の別名)',u,(dv||podTxt).slice(0,80),'port_alias '+g+((alias&&alias.src==='test')?' (試験用 固定値)':'')+(other.length?' · L/C の港の語は '+other[0][0]+' 欄にだけ':''));
-      else if(other.length) add(item,'차이',u,other[0][1].slice(0,80),'다른 칸에만 ('+other[0][0]+')');
-      else add(item,'차이',u,dv||'(L/C 항구 낱말 없음)','없는 낱말: '+core.filter(c=>allp.indexOf(c)<0).join(' '));
+      if(hit.length) add(item,'SAME',u,hit[0][1].slice(0,80),'欄='+hit[0][0]);
+      else if(g) add(item,'NOTATION_ALIAS',u,(dv||podTxt).slice(0,80),'port_alias '+g+((alias&&alias.src==='test')?' (試験用 固定値)':'')+(other.length?' · L/C の港の語は '+other[0][0]+' 欄にだけ':''));
+      else if(other.length) add(item,'DIFF',u,other[0][1].slice(0,80),'別の欄だけ ('+other[0][0]+')');
+      else add(item,'DIFF',u,dv||'(L/C の港の語なし)','足りない語: '+core.filter(c=>allp.indexOf(c)<0).join(' '));
     }
     /* 7 47A L/C 番号 */
     const rx=/ALL\s+(THE\s+)?(DOCUMENTS?|DOCS)[^.]{0,80}?(MUST|SHOULD|TO|SHALL)\s+(BE\s+)?(INDICATE|SHOW|MENTION|BEAR|QUOTE|STATE|SHOWING|INDICATING|MARKED)[^.]{0,40}?(L\/?C|CREDIT|DC)\s*(NO|NUMBER)/;
     const m=lc.c47.toUpperCase().match(rx);
-    if(m){ const ok=lc.lc_no?PC.indexOf(C(lc.lc_no))>=0:false; add('47A 모든 서류 L/C 번호',ok?'같음':'차이',m[0].slice(0,150),ok?lc.lc_no:'(Draft 에 L/C 번호 없음)','L/C '+lc.lc_no); }
-    else add('47A 모든 서류 L/C 번호','해당 없음 (47A 조항 없음)','','');
+    if(m){ const ok=lc.lc_no?PC.indexOf(C(lc.lc_no))>=0:false; add('47A L/C No. in all docs',ok?'SAME':'DIFF',m[0].slice(0,150),ok?lc.lc_no:'(Draft に L/C 番号なし)','L/C '+lc.lc_no); }
+    else add('47A L/C No. in all docs','NA_NO47A','','');
     return out;
   }
 
   /* ══════════ Step 2 C — ACL と (参考 · 判定に入れない) ══════════ */
   function aclNote(clsRows){
-    return clsRows.filter(r=>r.class==='진짜 차이 의심'&&/ACL 에는 있음|선사 잘못/.test((r.why||'')+' '+(r.judge||''))).map(r=>({field:r.field, note:'ACL では一致 → Draft で変わった'}));
+    return clsRows.filter(r=>r.class==='DIFF'&&/ACL にはある|船社の誤り/.test((r.why||'')+' '+(r.judge||''))).map(r=>({field:r.field, note:'ACL では一致 → Draft で変わった'}));
   }
 
   /* ══════════ 版の間 (전수 조사 rev.py と同じ) ══════════ */
@@ -667,7 +670,7 @@ const BL = (()=>{
     const la=labels(A), lb=labels(B);
     const ca=A.filter(l=>C(l.t)&&!FIX.test(l.t)).map(l=>[C(l.t),l]), cb=B.filter(l=>C(l.t)&&!FIX.test(l.t)).map(l=>[C(l.t),l]);
     const sa=new Set(ca.map(x=>x[0])), sb=new Set(cb.map(x=>x[0])), out=[];
-    const kindOf=x=>FRT_KW.test(x)&&/\d/.test(x)?'운임·요금':(x.toUpperCase().indexOf('DEPOSIT')>=0||/GPMT/.test(x.toUpperCase())?'Deposit':(/\b(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\b|\d{4}[\/-]\d{2}[\/-]\d{2}/.test(x.toUpperCase())?'날짜':'내용'));
+    const kindOf=x=>FRT_KW.test(x)&&/\d/.test(x)?'運賃・料金':(x.toUpperCase().indexOf('DEPOSIT')>=0||/GPMT/.test(x.toUpperCase())?'Deposit':(/\b(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\b|\d{4}[\/-]\d{2}[\/-]\d{2}/.test(x.toUpperCase())?'日付':'内容'));
     ca.filter(x=>!sb.has(x[0])).forEach(([c,l])=>out.push({change:'-', field:fieldOf(A,la,l)||'', kind:kindOf(l.t), text:l.t.slice(0,160)}));
     cb.filter(x=>!sa.has(x[0])).forEach(([c,l])=>out.push({change:'+', field:fieldOf(B,lb,l)||'', kind:kindOf(l.t), text:l.t.slice(0,160)}));
     return out;
@@ -815,27 +818,29 @@ const BL = (()=>{
     /* v0.2: チェックポイント (CPX = エンジン cpPrepare の結果 · cpCtx = {lc (保管所 lc_read/1), si, ex, booking, meta}) — 渡さなければ v0.1 と同じ */
     if(input.cp) applyCp(res, input.cp, Object.assign({}, input.cpCtx||{}, {F:cpDraftFields(L)}));
     const cpOn=(res.CP||[]).filter(i=>!i.trial), cpd=cpOn.filter(i=>i.status==='DIFF'), cpu=cpOn.filter(i=>i.status==='READ_CHECK');
-    const sus=res.A.filter(r=>r.class==='진짜 차이 의심'), unk=res.A.filter(r=>r.class==='판단 불가').concat(cpu);
-    const lcd=res.B.filter(r=>/^차이/.test(r.result)).concat(cpd), lcu=res.B.filter(r=>/판단 불가|要確認|확인 필요/.test(r.result));
+    const sus=res.A.filter(r=>r.class==='DIFF'), unk=res.A.filter(r=>r.class==='UNKNOWN').concat(cpu);
+    const lcd=res.B.filter(r=>/^DIFF/.test(r.result)).concat(cpd), lcu=res.B.filter(r=>/^UNKNOWN|^LC_READ_CHECK|^CHECK/.test(r.result));
     if(res.other.other){ res.verdict='別の件'; res.conclusion='別の件の Draft の可能性 — 比べていない ('+res.other.why.join(' · ')+')'; }
     else if(!si&&!lcv){ res.verdict='基準なし'; res.conclusion='S/I (COMPASS) も L/C も無い — 比べられない'; }
     else if(sus.length||lcd.length){ res.verdict='相違'; res.conclusion='相違の疑い '+(sus.length+lcd.length)+' か所 — 船社に訂正依頼'; }
     else if(unk.length||lcu.length){ res.verdict='読めず'; res.conclusion='読めない所 '+(unk.length+lcu.length)+' か所 — Draft を開いて目で確認'; }
-    else { res.verdict='一致'; res.conclusion='一致 (表記差 '+res.A.filter(r=>r.class==='表記').length+' · 参考 '+res.A.filter(r=>r.class==='参考').length+')'; }
+    else { res.verdict='一致'; res.conclusion='一致 (表記差 '+res.A.filter(r=>r.class==='NOTATION').length+' · 参考 '+res.A.filter(r=>r.class==='REF').length+')'; }
     return res;
   }
 
   /* 結果表示 (DOM なし · 文字列) — 結論 → 確認した項目 全部 → 相違 (ACL 画面と同じ並び) */
-  const FIELD_JA={'Booking/B/L No.':'Booking / B/L 番号','본선·항차':'本船・航海','POL':'積地 (POL)','POD':'揚地 (POD)','Place of Receipt':'受取地','Place of Delivery':'引渡地','합계 Bales':'合計 Bales','합계 중량':'合計 重量','합계 컨테이너 수':'合計 コンテナ本数'};
-  const LC_JA={'Consignee 은행':'Consignee 銀行 (46A)','Notify (APPLICANT)':'Notify (APPLICANT)','FREIGHT PREPAID':'FREIGHT PREPAID','원본 통수 / SWB':'原本通数 / SWB','선적일 ≤ 44C':'船積日 ≤ 44C','揚地 (44F)':'揚地 (44F)','積地 (44E)':'積地 (44E)','47A 모든 서류 L/C 번호':'47A 全書類に L/C 番号','L/C 判読':'L/C 判読'};
-  const fieldJa = f => FIELD_JA[f]||(String(f).indexOf('컨테이너 ')===0?'コンテナ '+String(f).slice(5):f);
-  const lcCls = r => /^같음/.test(r.result)?'ok':/^차이/.test(r.result)?'ng':/^表記/.test(r.result)?'note':/^해당|^参考|^날짜 없음/.test(r.result)?'na':'read';
+  const FIELD_JA={'Booking/B/L No.':'Booking / B/L 番号','Vessel/Voyage':'本船・航海','POL':'積地 (POL)','POD':'揚地 (POD)','Place of Receipt':'受取地','Place of Delivery':'引渡地','Total Bales':'合計 Bales','Total Weight':'合計 重量','Total Containers':'合計 コンテナ本数'};
+  const LC_JA={'Consignee bank':'Consignee 銀行 (46A)','Notify (APPLICANT)':'Notify (APPLICANT)','FREIGHT PREPAID':'FREIGHT PREPAID','Originals / SWB':'原本通数 / SWB','Shipment ≤ 44C':'船積日 ≤ 44C','揚地 (44F)':'揚地 (44F)','積地 (44E)':'積地 (44E)','47A L/C No. in all docs':'47A 全書類に L/C 番号','L/C 判読':'L/C 判読'};
+  const fieldJa = f => FIELD_JA[f]||(String(f).indexOf('Container ')===0?'コンテナ '+String(f).slice(10):f);
+  const lcCls = r => /^SAME/.test(r.result)?'ok':/^DIFF/.test(r.result)?'ng':/^NOTATION/.test(r.result)?'note':/^NA|^REF|^STOPPED|^NO_DATE/.test(r.result)?'na':'read';
   /* 判定の語 (内部は 전수 조사と同じ 韓国語 · 画面は日本語) */
-  const LC_RES=[[/^같음 \(44C 안\)/,'一致 (44C 以内)'],[/^같음/,'一致'],[/^차이 \(약어만 다름\)/,'相違 (略語だけ違う)'],[/^차이 \(44C 지남\)/,'相違 (44C を過ぎた)'],[/^차이/,'相違'],[/^날짜 없음/,'日付なし (Draft 段階は普通)'],
-    [/^판단 불가 \(46A B\/L 줄 없음\)/,'判断不可 (46A に B/L の行なし)'],[/^판단 불가/,'判断不可'],[/^해당 없음 \(ANY JAPAN PORT\)/,'対象外 (日本のどの港でも)'],[/^해당 없음 \(은행 지시식 아님\)/,'対象外 (銀行指図式でない)'],[/^해당 없음 \(APPLICANT 지정 아님\)/,'対象外 (APPLICANT 指定でない)'],
-    [/^해당 없음 \(46A 에 문구 없음\)/,'対象外 (46A に文言なし)'],[/^해당 없음 \(47A 조항 없음\)/,'対象外 (47A の条項なし)'],[/^해당 없음/,'対象外'],[/^확인 필요/,'要確認 (運賃表の PREPAID だけ · 文言なし)']];
-  const lcResJa = t => { for(const [rx,j] of LC_RES) if(rx.test(t)) return j; return t; };
-  const CLS_CSS={'같음':'ok','表記':'note','参考':'na','판단 불가':'read','진짜 차이 의심':'ng','S/I 빈칸':'na'};
+  const LC_RES=[[/^SAME_44C/,'一致 (44C 以内)'],[/^SAME/,'一致'],[/^DIFF_ABBR/,'相違 (略語だけ違う)'],[/^DIFF_44C/,'相違 (44C を過ぎた)'],[/^DIFF/,'相違'],[/^NO_DATE/,'日付なし (Draft 段階は普通)'],
+    [/^UNKNOWN_NO46A/,'判断不可 (46A に B/L の行なし)'],[/^UNKNOWN/,'判断不可'],[/^NA_ANYJP/,'対象外 (日本のどの港でも)'],[/^NA_NOTBANK/,'対象外 (銀行指図式でない)'],[/^NA_NOTAPP/,'対象外 (APPLICANT 指定でない)'],
+    [/^NA_NO46A/,'対象外 (46A に文言なし)'],[/^NA_NO47A/,'対象外 (47A の条項なし)'],[/^NA/,'対象外'],[/^CHECK_PREPAID/,'要確認 (運賃表の PREPAID だけ · 文言なし)'],
+    [/^LC_READ_CHECK/,'L/C 判読 要確認'],[/^REF_NOLC/,'参考 (保管所に未登録)'],[/^NOTATION_ALIAS/,'表記 (港の別名)'],[/^STOPPED/,'参考 (停止中)']];
+  const LC_RES_JA = code => { for(const [rx,j] of LC_RES) if(rx.test(code)) return j; return code; };
+  const lcResJa = t => LC_RES_JA(t)+(/^STOPPED/.test(t)&&t.indexOf(':')>0?' '+t.slice(t.indexOf(':')+1):'');
+  const CLS_CSS={'SAME':'ok','NOTATION':'note','REF':'na','UNKNOWN':'read','DIFF':'ng','SI_BLANK':'na'};
   const MARKS={ok:'✓', note:'△', na:'ー', read:'？', ng:'✗'};
   /* opt.admin = 試験 · 承認待ち のチェックも出す (管理者だけ) · CP 番号 = ボタン (data-cp — 書類ツール が説明を開く) */
   function viewHtml(res, opt){
@@ -856,7 +861,7 @@ const BL = (()=>{
       if(K.length){ h+='<tr class="av-g"><td colspan="3">C. チェック (追加)</td></tr>';
         K.forEach(i=>{ const c=kc(i); h+='<tr title="'+E(i.detail||'')+'"><td class="av-m av-'+c+'">'+MARKS[c]+'</td><td>'+E(i.label)+cpB(i.cp)+'</td><td class="av-'+c+'">'+E(kw(i))+'</td></tr>'; }); }
       h+='</table>'; }
-    const dA=A.filter(r=>r.class==='진짜 차이 의심'), dB=B.filter(r=>/^차이/.test(r.result)), dK=K.filter(i=>!i.trial&&i.status==='DIFF');
+    const dA=A.filter(r=>r.class==='DIFF'), dB=B.filter(r=>/^DIFF/.test(r.result)), dK=K.filter(i=>!i.trial&&i.status==='DIFF');
     if(dA.length||dB.length||dK.length){ h+='<div class="av-h av-ng">相違 '+(dA.length+dB.length+dK.length)+' か所 — 直してもらうところ</div>';
       dA.forEach(r=>{ h+='<div class="av-diff"><div class="av-dn">'+E(fieldJa(r.field))+cpB(r.cp)+'</div><div class="av-sub">'+E(r.why)+'</div></div>'; });
       dB.forEach(r=>{ h+='<div class="av-diff"><div class="av-dn">'+E(LC_JA[r.item]||r.item)+' — '+E(lcResJa(r.result))+cpB(r.cp)+'</div><table class="av-cols"><tr><th>Draft</th><th>L/C（正）</th></tr><tr><td>'+E(r.draft)+'</td><td>'+E(r.lc_quote)+'</td></tr></table><div class="av-sub">'+E(r.note)+'</div></div>'; });
@@ -879,27 +884,29 @@ const BL = (()=>{
   }
   /* 結果の CSV (1 行 = 1 項目) */
   const csvCell = v => { const s=String(v==null?'':v); return /[",\n\r]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; };
+  /* CSV — コード (class · result) と 日本語 (画面の語) の両方 */
   function toCsv(results){
-    const H=['invoice','carrier','verdict','conclusion','file','part','item','class','why','note'], out=[H.join(',')];
+    const H=['invoice','carrier','verdict','conclusion','file','part','item','item_ja','class','class_ja','why','note'], out=[H.join(',')];
     (results||[]).forEach(r=>{
       const base=[r.iv,r.carrier,r.verdict,r.conclusion,r.file||''];
-      if(!(r.A||[]).length&&!(r.B||[]).length) out.push(base.concat(['','','','','']).map(csvCell).join(','));
-      (r.A||[]).forEach(x=>out.push(base.concat(['A',x.field,x.class,x.why,x.note]).map(csvCell).join(',')));
-      (r.B||[]).forEach(x=>out.push(base.concat(['B',x.item,x.result,x.lc_quote+' ↔ '+x.draft,x.note]).map(csvCell).join(','))); });
-    return '﻿'+out.join('\r\n')+'\r\n';
+      if(!(r.A||[]).length&&!(r.B||[]).length) out.push(base.concat(['','','','','','','']).map(csvCell).join(','));
+      (r.A||[]).forEach(x=>out.push(base.concat(['A',x.field,fieldJa(x.field),x.class,CLASS_JA[x.class]||x.class,x.why,x.note]).map(csvCell).join(',')));
+      (r.B||[]).forEach(x=>out.push(base.concat(['B',x.item,LC_JA[x.item]||x.item,x.result,lcResJa(x.result),x.lc_quote+' ↔ '+x.draft,x.note]).map(csvCell).join(','))); });
+    return '\ufeff'+out.join('\r\n')+'\r\n';
   }
+
 
   /* ══════════ 2 段階: チェックポイント (master_checkpoint · stage BL_DRAFT) — ACL エンジン v0.12 の部品をそのまま使う ══════════
      ・基本 = この照合の項目 (A = COMPASS · B = L/C 7 項目 · 別の件) に engine_key 「bl:…」 で CP 番号 · 停止 (管理者の承認あり) → 参考 「停止中」
      ・追加 = stage に BL_DRAFT のある行 (例 CP-A01) を エンジンの cpStageRows · cpRunRow で実行 — 「書類の欄」 = この Draft の欄 (acl.consignee → Draft の Consignee)
      ・有効 だけ 判定に入れる · 試験 · 候補 · 承認待ち = 参考 (trial — 管理者の画面だけ)
      ・CPX (cpPrepare の結果) を渡さない → v0.1 と同じ結果 (CP 番号なし) */
-  const CP_A_KEYS = {'Booking/B/L No.':'bl:booking','본선·항차':'bl:vessel','Place of Receipt':'bl:receipt','POL':'bl:pol','POD':'bl:pod','Place of Delivery':'bl:delivery',
+  const CP_A_KEYS = {'Booking/B/L No.':'bl:booking','Vessel/Voyage':'bl:vessel','Place of Receipt':'bl:receipt','POL':'bl:pol','POD':'bl:pod','Place of Delivery':'bl:delivery',
     'Shipper':'bl:shipper','Consignee':'bl:consignee','Notify':'bl:notify','Also Notify':'bl:alsoNotify','Description':'bl:description','Marks':'bl:marks',
-    '합계 Bales':'bl:total:bales','합계 중량':'bl:total:weight','합계 컨테이너 수':'bl:total:cntr'};
-  const CP_B_KEYS = {'Consignee 은행':'bl:lc:consignee','Notify (APPLICANT)':'bl:lc:notify','FREIGHT PREPAID':'bl:lc:freight','원본 통수 / SWB':'bl:lc:originals','선적일 ≤ 44C':'bl:lc:shipment',
-    '揚地 (44F)':'bl:lc:pod','積地 (44E)':'bl:lc:pol','47A 모든 서류 L/C 번호':'bl:lc:47a','L/C 判読':'bl:lc:none'};
-  const cpKeyA = f => CP_A_KEYS[f]||(String(f).indexOf('컨테이너 ')===0?'bl:cntr:'+String(f).slice(5):'bl:other:'+f);
+    'Total Bales':'bl:total:bales','Total Weight':'bl:total:weight','Total Containers':'bl:total:cntr'};
+  const CP_B_KEYS = {'Consignee bank':'bl:lc:consignee','Notify (APPLICANT)':'bl:lc:notify','FREIGHT PREPAID':'bl:lc:freight','Originals / SWB':'bl:lc:originals','Shipment ≤ 44C':'bl:lc:shipment',
+    '揚地 (44F)':'bl:lc:pod','積地 (44E)':'bl:lc:pol','47A L/C No. in all docs':'bl:lc:47a','L/C 判読':'bl:lc:none'};
+  const cpKeyA = f => CP_A_KEYS[f]||(String(f).indexOf('Container ')===0?'bl:cntr:'+String(f).slice(10):'bl:other:'+f);
   const cpKeyB = it => CP_B_KEYS[it]||'bl:lc:other:'+it;
   /* Draft の欄 (ACL の欄の名前で) — 칸 이름 の行の 下 · 右の行 (칸 이름 の行そのものは外す) · 칸 이름 が 4 種類未満の様式 = 読めない
      ・その欄の 칸 이름 がある 最初の頁だけ (添付の頁の同じ欄は使わない)
@@ -927,9 +934,9 @@ const BL = (()=>{
     const E=engine(), basics=CPX.rows.filter(r=>r.kind==='基本'&&r.engine_key&&r.stages.indexOf('BL_DRAFT')>=0);
     const hit=k=>basics.find(b=>E.cpKeyHit(b.engine_key,k));
     (res.A||[]).forEach(r=>{ const b=hit(cpKeyA(r.field)); if(!b) return; r.cp=b.id;
-      if(b.state==='停止'&&r.class!=='参考'&&r.class!=='S/I 빈칸'){ r.stopped=r.class; r.class='参考'; r.why='停止中 ('+b.id+') — '+(r.why||''); } });
+      if(b.state==='停止'&&r.class!=='REF'&&r.class!=='SI_BLANK'){ r.stopped=r.class; r.class='REF'; r.why='停止中 ('+b.id+') — '+(r.why||''); } });
     (res.B||[]).forEach(r=>{ const b=hit(cpKeyB(r.item)); if(!b) return; r.cp=b.id;
-      if(b.state==='停止'&&!/^해당|^参考/.test(r.result)){ r.stopped=r.result; r.result='参考 (停止中 '+b.id+')'; } });
+      if(b.state==='停止'&&!/^NA|^REF|^STOPPED/.test(r.result)){ r.stopped=r.result; r.result='STOPPED:'+b.id; } });
     (res.C||[]).forEach(r=>{ const b=hit('bl:acl'); if(b) r.cp=b.id; });
     const ob=hit('bl:other'); if(ob&&res.other) res.other.cp=ob.id;
     const lc=ctx.lc||null, meta=ctx.meta||{};
@@ -944,7 +951,7 @@ const BL = (()=>{
   const BLX = {VERSION, C, Z, NUM, WORDS, seqRatio, draftName, linesOf, tokenBoxes, isBlPage, isScan, pagesOf, blPages, editions,
     mergeRows, labels, fieldOf, colWindows, finder, check, CLASS, CLASS_JA, CONTENT_SKIP, draftCtx, near, subtype, classify, classifyAll, otherDraft,
     useEngine, samePortGroup, pdate, lcView, lcCheck, aclNote, revDiff,
-    freightTargets, pageRoles, maskPlan, moneyAll, judgeInvoice, viewHtml, fieldJa, siFromCompare, toCsv, lcResJa,
+    freightTargets, pageRoles, maskPlan, moneyAll, judgeInvoice, viewHtml, fieldJa, siFromCompare, toCsv, lcResJa, /* v0.3 */ LC_RES, LC_RES_JA, FIELD_JA, LC_JA, CLS_CSS,
     /* v0.2 */ CP_A_KEYS, CP_B_KEYS, cpKeyA, cpKeyB, CP_F_KEYS, cpDraftFields, applyCp};
   return BLX;
 })();
@@ -965,7 +972,7 @@ const BB_CMAPS  = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/';   /
 const BB_JSPDF  = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';   // バイヤー用 Draft (画像 PDF) — 固定版
 const BB_DPI = 200;
 const SRC_WIP = '古紙/-. 古紙書類/▲ 書類作成中', SRC_OLD = '古紙/_OLD_DOC';
-const ACL_ENGINE = {commit:'44b4b6c2817bbfaaca11529136d8399c62ee7c4b', sha256:'b076b336509a4621127c696a689dc8a9d29749e1590e8716d6e11572d5f582f9', ver:'0.12'};   // v0.2: コミット固定 (書類ツール と同じ)
+const ACL_ENGINE = {commit:'f063889e3d8dd746d72696d43197cd1e360c5a53', sha256:'be8130aeddc1e44eb935bb8df6476ce3494e9ce2034f9c7265bc43e2e9540068', ver:'0.13'};   // v0.2: コミット固定 (書類ツール と同じ)
 /* ── 以下 acl_bench v0.10 (af46667) の fetchCompass · L/C 保管所 · 乙仲 の写し (通信の部分 — 書類ツール と同じく写し · エンジン acl-core は コミット固定で共有) ── */
 async function fetchCompass(inv){
   if(!/^[A-Za-z0-9_\-]+$/.test(inv)) return {ok:false, reason:'Invoice 番号の形が違う'};
@@ -1255,7 +1262,7 @@ async function makeBuyerLocal(cur){
 window.BLAPP = {runOne, buildBuyerPdf, readPages, loadAclCore, loadCp, cpVersions, ACL_ENGINE, S};
 
 LEENAI.init({
-  sys:'D-00', name:'B/L Draft 照合試験', version:'0.2', date:'2026-11-23',
+  sys:'D-00', name:'B/L Draft 照合試験', version:'0.3', date:'2026-11-23',
   desc:'B/L Draft (船社 PDF) を座標で読み、COMPASS (S/I · ブッキング · コンテナ) と L/C 保管所に照合 · バイヤー用 Draft (運賃だけ隠した画像 PDF) を作る (読むだけ · AI なし)',
   graphScopes:['Sites.ReadWrite.All'],
   redirectUri:'https://mhlee205.github.io/CONTRACT_SEND/bl_bench.html',

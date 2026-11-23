@@ -84,19 +84,19 @@ for(const iv of ivs){
   E.editions.forEach((e,i)=>{
     const ed=i===n-1?'last':(i===0?'first':'mid');
     if(si){ const ch=BL.check(si,e.L,null); const cls=BL.classifyAll(ch.rows,e.L); const od=BL.otherDraft(iv,cls,e.L,si);
-      cls.forEach(r=>outA.push({iv, carrier, pay, file:e.name, ed, ed_idx:i+1, ed_n:n, field:r.field, class:r.class, why:r.why, judge:r.judge, note:r.note, other:od.other?od.why.join(' · '):''})); }
+      cls.forEach(r=>outA.push({iv, carrier, pay, file:e.name, ed, ed_idx:i+1, ed_n:n, field:r.field, field_ja:BL.fieldJa?BL.fieldJa(r.field):'', class:r.class, class_ja:(BL.CLASS_JA||{})[r.class]||'', why:r.why, judge:r.judge, note:r.note, other:od.other?od.why.join(' · '):''})); }
     if(i>0) BL.revDiff(E.editions[i-1].L,e.L).forEach(x=>outRev.push(Object.assign({iv, from_file:E.editions[i-1].name, to_file:e.name},x)));
   });
   if(pay==='LC'){ const e=E.editions[n-1]; const store=lcStore(contract); const rowsA=BL.check(si||{items:[],cp:{},meta:{}},e.L,null).rows;
-    BL.lcCheck(e.L,rowsA,BL.lcView(store),alias,carrier).forEach(r=>outB.push(Object.assign({iv, carrier, contract, file:e.name},r))); }
+    BL.lcCheck(e.L,rowsA,BL.lcView(store),alias,carrier).forEach(r=>outB.push(Object.assign({iv, carrier, contract, file:e.name, item_ja:(BL.LC_JA||{})[r.item]||'', result_ja:BL.lcResJa?BL.lcResJa(r.result):''},r))); }
   if(CPX){ const e=E.editions[n-1], store=pay==='LC'?lcStore(contract):null, res={};
     const NM={MATCH:'一致',DIFF:'相違',NOTATION:'注意',READ_CHECK:'読取確認',INFO:'参考'};
     BL.applyCp(res, CPX, {lc:store, si:null, ex:null, booking:b, meta:{pay, carrier, country:((si||{}).meta||{}).country||'', contract}, F:BL.cpDraftFields(e.L)});
     (res.CP||[]).forEach(it=>outCP.push({iv, carrier, contract, file:e.name, cp:it.cp, result:NM[it.status]||it.status, expected:it.expected, actual:it.actual, detail:it.detail})); }
   if(++k%50===0) console.log(k,'IV',Math.round((Date.now()-t0)/1000)+'s');
 }
-writeCsv('repro_compass.csv',outA,['iv','carrier','pay','file','ed','ed_idx','ed_n','field','class','why','judge','note','other']);
-writeCsv('repro_lc.csv',outB,['iv','carrier','contract','file','item','result','lc_quote','draft','note']);
+writeCsv('repro_compass.csv',outA,['iv','carrier','pay','file','ed','ed_idx','ed_n','field','field_ja','class','class_ja','why','judge','note','other']);   // v0.3: コード + 日本語
+writeCsv('repro_lc.csv',outB,['iv','carrier','contract','file','item','item_ja','result','result_ja','lc_quote','draft','note']);
 writeCsv('repro_editions.csv',outE,['iv','carrier','pay','contract','editions','src','names','scans','excl']);
 writeCsv('repro_revision.csv',outRev,['iv','from_file','to_file','change','field','kind','text']);
 if(CPX) writeCsv('repro_cp.csv',outCP,['iv','carrier','contract','file','cp','result','expected','actual','detail']);
