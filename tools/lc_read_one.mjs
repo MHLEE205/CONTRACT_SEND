@@ -6,6 +6,7 @@
      L/C PDF の読み方 (0 復元 = extractLcPdfExact · 文字なし = extractPdfText → イメージ L/C) は a1_bench <script id="a1-d01"> (D-01 v3.2 の複写) をそのまま · Amend 適用 = A1C.analyzeLcTexts ·
      2 回判読の照合 = A1C.r2Check · モデル claude-opus-5-5 · thinking adaptive · effort high · max_tokens 32000 · 2 回 (A1 run A1_20261116-164541_full の設定)
    その後の整理は tools/lc_read_lib.mjs buildRecord (lc_read_build.mjs と同じ)
+   lc_read 1.1: --put で前の判があり Amend 込みの判読なら mergeRecords (Amend が変えた欄だけ新しい判読 · 空欄は埋める · そのほか前の判) — 指示書 (2026-11-23)MAC-THOR_6 C1
    API キー = Mac キーチェーン LEENAI_ANTHROPIC_API_KEY (ファイル · 画面に出さない) · Microsoft トークン = ~/thor_work/d00_acl_survey/ms.py のキャッシュ (出さない)
    読むもの: 古紙/LC/2026/ の L/C · Amend PDF · 書くもの: --put のときだけ 古紙/LC/_READ/ の下 (それ以外は書かない)
    指示書: (2026-11-23)THOR_指示書_D00_LC보관소_ACL전환_v1_0 Step 2 */
@@ -14,7 +15,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { REPO, loadA1, loadAcl, buildRecord, renderMd, indexRow, sameContent, splitLcText } from './lc_read_lib.mjs';
+import { REPO, loadA1, loadAcl, buildRecord, renderMd, indexRow, sameContent, splitLcText, mergeRecords, LC_READ_VER } from './lc_read_lib.mjs';
 
 export const R2 = { model:'claude-opus-5-5', effort:'high', maxTokens:32000, reads:2, run:'lc_read_one' };
 const PRICE = { 'claude-opus-5-5':{in:4, out:20, cacheWrite:5, cacheRead:0.4} };   // US$ / 100 万トークン (費用の目安) — 入力 · 出力は a1_bench A1_PRICE と同じ · キャッシュ書き 1.25 倍 · 読み 0.1 倍
@@ -123,29 +124,36 @@ export async function readOne(contract){
   const cost=spent.reduce((s,c)=>s+costOf(c.usage,c.model),0);
   return {rec, r2, lcText, spent, cost};
 }
+/* 保管所に置く — 前の判と同じ内容なら そのまま · 違えば 前の判を _old/{契約}_v{n}.json へ · version = 前 + 1 以上 · _index.json の 1 行を差し替え */
+export async function putRecord(contract, rec, lcText, prevIn){
+  const prev = prevIn!==undefined ? prevIn : (b=>b?JSON.parse(b.toString('utf8')):null)(await spGet(READ_DIR+'/'+contract+'.json'));
+  if(prev&&sameContent(prev,rec)) return prev;
+  if(prev){ rec.version=Math.max(+rec.version||1, (+prev.version||1)+1); await spMove(READ_DIR+'/'+contract+'.json', READ_DIR+'/_old', contract+'_v'+prev.version+'.json'); }
+  await spPut(READ_DIR+'/'+contract+'.json', JSON.stringify(rec,null,1), 'application/json');
+  await spPut(READ_DIR+'/'+contract+'.md', renderMd(rec), 'text/markdown; charset=utf-8');
+  if(lcText!=null) await spPut(READ_DIR+'/_text/'+contract+'.txt', lcText, 'text/plain; charset=utf-8');
+  const ib=await spGet(READ_DIR+'/_index.json'), ix=ib?JSON.parse(ib.toString('utf8')):{schema:'lc_read_index/1', items:[]};
+  ix.items=(ix.items||[]).filter(r=>r.contract!==contract).concat([indexRow(rec)]).sort((a,b)=>a.contract.localeCompare(b.contract)); ix.contracts=ix.items.length; ix.updated_at=new Date().toISOString();
+  await spPut(READ_DIR+'/_index.json', JSON.stringify(ix,null,1), 'application/json');
+  return rec;
+}
 async function main(){
   const args=process.argv.slice(2), contract=args.find(a=>!a.startsWith('--')&&!/^\.|\//.test(a)), arg=k=>{ const i=args.indexOf('--'+k); return i>=0?args[i+1]:null; };
   if(!contract||!/^[A-Z]{2,4}-\d{4}[A-Z0-9]{1,4}$/.test(contract)){ console.error('使い方: node tools/lc_read_one.mjs <契約番号 例 LRS-2611XX1> [--out dir] [--put]'); process.exit(2); }
   const out=arg('out')||'lc_read_out'; fs.mkdirSync(out,{recursive:true});
   const {rec, r2, lcText, spent, cost}=await readOne(contract);
-  let fin=rec;
+  let fin=rec, merged=false;
   if(args.includes('--put')){
+    /* lc_read 1.1 (C1) — 前の判があり 今回 Amend 込みで読んだなら 「Amend 칸만 교체」 で合わせる (Amend がない契約は 今までどおり) */
     const prevBuf=await spGet(READ_DIR+'/'+contract+'.json'), prev=prevBuf?JSON.parse(prevBuf.toString('utf8')):null;
-    if(prev&&sameContent(prev,rec)) fin=prev;
-    else { if(prev){ rec.version=(+prev.version||1)+1; await spMove(READ_DIR+'/'+contract+'.json', READ_DIR+'/_old', contract+'_v'+prev.version+'.json'); }
-      await spPut(READ_DIR+'/'+contract+'.json', JSON.stringify(rec,null,1), 'application/json');
-      await spPut(READ_DIR+'/'+contract+'.md', renderMd(rec), 'text/markdown; charset=utf-8');
-      await spPut(READ_DIR+'/_text/'+contract+'.txt', lcText, 'text/plain; charset=utf-8');
-      /* _index.json の 1 行を差し替え */
-      const ib=await spGet(READ_DIR+'/_index.json'), ix=ib?JSON.parse(ib.toString('utf8')):{schema:'lc_read_index/1', items:[]};
-      ix.items=(ix.items||[]).filter(r=>r.contract!==contract).concat([indexRow(rec)]).sort((a,b)=>a.contract.localeCompare(b.contract)); ix.contracts=ix.items.length; ix.updated_at=new Date().toISOString();
-      await spPut(READ_DIR+'/_index.json', JSON.stringify(ix,null,1), 'application/json'); }
+    if(prev && (rec.source.amends||[]).length){ fin=mergeRecords(prev, rec, lcText, {A1:loadA1(), ACL:loadAcl(), now:rec.created_at}); merged=true; }
+    fin=await putRecord(contract, fin, lcText, prev);
   }
   fs.writeFileSync(path.join(out,contract+'.json'), JSON.stringify(fin,null,1));
   fs.writeFileSync(path.join(out,contract+'.md'), renderMd(fin));
   fs.writeFileSync(path.join(out,contract+'.r2.json'), JSON.stringify(r2,null,1));
   fs.writeFileSync(path.join(out,contract+'.lc_text.txt'), lcText);
-  console.log(JSON.stringify({contract, version:fin.version, checks:fin.checks.length, image:fin.image, amends:fin.source.amends.length, put:args.includes('--put'), calls:spent.length, cost_usd:+cost.toFixed(3),
+  console.log(JSON.stringify({contract, version:fin.version, merged, lc_read:LC_READ_VER, checks:fin.checks.length, image:fin.image, amends:fin.source.amends.length, put:args.includes('--put'), calls:spent.length, cost_usd:+cost.toFixed(3),
     tokens:spent.reduce((s,c)=>({in:s.in+(c.usage.input_tokens||0), out:s.out+(c.usage.output_tokens||0), cw:s.cw+(c.usage.cache_creation_input_tokens||0), cr:s.cr+(c.usage.cache_read_input_tokens||0)}),{in:0,out:0,cw:0,cr:0})}));
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===path.resolve(new URL(import.meta.url).pathname)) main().catch(e=>{ console.error('ERROR', e.message); process.exit(1); });
