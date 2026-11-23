@@ -37,6 +37,7 @@ tr.ab-d td{background:var(--surface)}
 .av-hon{font-size:12px;font-weight:400;color:var(--text2);margin-left:8px}
 .av-h{font-size:13px;font-weight:700;margin-top:6px}
 .av-sub{font-size:11.5px;color:var(--text2);font-weight:400}
+.av-cp{font:inherit;font-size:10.5px;font-weight:600;line-height:1.4;padding:0 5px;margin-left:6px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text2);cursor:pointer;vertical-align:1px}
 .av-list{border-collapse:collapse;font-size:12.5px;width:100%;max-width:900px}
 .av-list td{padding:3px 8px;border-bottom:1px solid var(--border)}
 .av-list tr.av-g td{background:var(--surface2);font-weight:700;font-size:12px}
@@ -137,6 +138,9 @@ tr.ab-d td{background:var(--surface)}
    v0.9 (2026-11-22 指示書 acl_bench v0.9 정확도 · 토르_2 ACL 정확도 조사 · 형님 D1 ~ D8): 表記 P1 (改行 · 空白 · 句読点 · FLOOR=FL · VIET NAM · NO MARK=N/M · FREIGHT 行の位置 · 港の形) ·
      読み P2 (ラベル 0 → 読取確認要 · Booking 末尾 「-」 · コンテナ = 番号 + チェックデジット · 港の後ろの数字 · コンテナ行数 ↔ 本数) · Shipper's Mail 空欄 = 参考 (D1) · 本船変更 = 相違のまま 「本船変更依頼」 (D5) ·
      担当者メールの判断 (本文の自分の部分 · B/L 段階の件名は除く · [ACL訂正依頼] タグ · 3 か月 jsonl) · L/C JSON 照合 (L/C 番号 · 日付 · 揚地 · 積地 · 原本通数 · Notify) — 違えば 相違 (D2 · D5) · しないこと: S/I 確認を分ける (P3) · 連絡先を参考 (P6) · HS 末尾 0 · 1 〜 2 文字の許容
+   v0.11 (2026-11-23 指示書 D00 체크포인트 마스터 v1 · 형님 D1 ~ D7): チェックポイント (master_checkpoint) — 照合項目に CP 番号 (基本 · engine_key) · 基本の停止 (管理者承認) ·
+     追加のチェックを マスターの行から実行 (比べ方 8 つ CP_OPS · 値の出どころ CP_SRC = cpCatalog) · 有効 (承認者 + 最後の変更者が 管理者) だけ判定 · 試験 = 参考 ·
+     港の別名 (master_port_alias) — L/C 揚地 · 引渡地 が同じ港の組なら 表記差 · opts.checkpoints を渡さなければ v0.10 と同じ
    v0.10 (2026-11-23 指示書 D00 L/C 保管所 · ACL 転換 · 형님 D1 ~ D7): L/C は 保管所 古紙/LC/_READ/{契約}.json (lc_read/1 · A1 R2 判読を 1 回整理) から読む (D-01 JSON 読み取りは削除 · 代替なし) ·
      照合 2 つ追加 = Consignee 銀行 (L/C 46A TO ORDER OF {銀行} ↔ S/I · ACL) · 船積期限 ↔ ETD (crcf9_bl_etd 優先) · 判読に 確認要 の欄は 照合せず 読取確認要 「L/C 判読 要確認」 · 判読なし = 参考 「保管所に未登録」
    v0.8 (2026-11-22 指示書 書類ツール v0.6 수정묶음 · 형님 D2 · D3): コンテナ別記載の指示 ✓ → S/I のコンテナの行 (「CNTR : …KGS, …BALES」 の形) は 最終確認で 「ある」 (final.byCntr) ·
@@ -1034,9 +1038,13 @@ const ACL = (()=>{
     /* v0.9 Step 1-7 → v0.10: L/C 照合 (L/C 取引 · 保管所 古紙/LC/_READ の判読) — 違えば 相違 (D5 · どちらが悪いかはここでは決めない) */
     const meta=opts.meta||cp.meta||{};
     if(String(meta.pay||'').toUpperCase()==='LC') lcItems(cp.lc||opts.lc||null, ex, F, items.find(i=>i.key==='pod'), items.find(i=>i.key==='delivery'), meta).forEach(d=>{ items.push(d); if(d.kind) kind(d.kind); });
+    /* v0.11: チェックポイント (opts.checkpoints = cpPrepare の結果) — CP 番号 · 基本の停止 · 港の別名 · 追加の実行 (渡さなければ v0.10 と同じ) */
+    const CPR=opts.checkpoints?cpApply(items, kinds, opts.checkpoints, {lc:cp.lc||opts.lc||null, ex, si:ex.si, booking:cp.booking||{}, meta, F}):null;
     /* v0.9 P2: ラベルを 1 つも読めない ACL (NACCS の型が違う等) → 相違 ではなく 読取確認要 (コンテナ · 合計だけで 相違 を出さない) */
     if(readFail(F0)){ items.forEach(i=>{ if(i.status==='DIFF'||i.status==='DROP'||i.status==='ADD'){ if(i.kind&&kinds[i.kind]){ kinds[i.kind]--; if(!kinds[i.kind]) delete kinds[i.kind]; } i.status='READ_CHECK'; i.detail='ACL のラベルを 1 つも読めない — '+(i.detail||''); i.kind='読取確認要:ラベルなし'; kind(i.kind); } }); }
-    return {verdict:verdictOf(items), items, kinds, sets:sc, xx, final, siTentative:tent, expected:{sino:ex.sino, booking:ex.booking}};
+    const out={verdict:verdictOf(items), items, kinds, sets:sc, xx, final, siTentative:tent, expected:{sino:ex.sino, booking:ex.booking}};
+    if(CPR) out.cp=CPR;
+    return out;
   }
   /* v0.9 P2 */
   const readFail = F => { const v=Object.values(F||{}); return v.length>0&&v.every(f=>!f||f.conf==='MISSING'); };
@@ -1490,7 +1498,7 @@ const ACL = (()=>{
        ① 結論 1 行 ② 確認した項目の全部 (1 項目 1 行 · ✓ 一致 · △ 表記差 · ✗ 相違 · ー 読めず · ー 対象外 · セットは 1 組 1 行)
        ③ 相違だけ開く (ACL · S/I（正） を行ごとに並べ、違う文字だけ色) ④ 表記差は 「中身を見る」 で開く
      中の名前 (crcf9_… · ブッキング POD の根拠 …) は 管理者だけ (title)。職員には 日本語の項目名だけ。 */
-  const GROUP_JA = {'ブッキング':'ブッキング','本船・港':'本船・港','コンテナ':'コンテナ','合計':'合計','S/I 文面':'文面','NACCS 表示欄':'表示欄'};
+  const GROUP_JA = {'ブッキング':'ブッキング','本船・港':'本船・港','コンテナ':'コンテナ','合計':'合計','S/I 文面':'文面','NACCS 表示欄':'表示欄'};   // v0.11: L/C · チェック は そのまま (並びは最後)
   const GROUP_ORDER = ['ブッキング','本船・港','コンテナ','合計','文面','表示欄'];
   const ITEM_JA = {booking:'ブッキング番号', masterBl:'B/L 番号', multi:'同じ Invoice のブッキング', vessel:'本船・航海', receipt:'受取地', pol:'積地', pod:'揚地', delivery:'引渡地',
     shipper:'荷送人', consignee:'荷受人', notify:'通知先', alsoNotify:'第二通知先', description:'品名・記載', marks:'荷印',
@@ -1500,7 +1508,7 @@ const ACL = (()=>{
   function itemName(i){ const k=String(i.key||''); if(/^set:/.test(k)) return 'コンテナ '+k.slice(4); if(/^aclOnly:/.test(k)) return 'ACL だけにあるコンテナ '+k.slice(8); if(/^cpOnly:/.test(k)) return 'COMPASS だけにあるコンテナ '+k.slice(7);
     if(/^disp:/.test(k)) return i.label+' 欄'; const ja=ITEM_JA[k]; return ja?ja+(LABELS[k]?' ('+LABELS[k]+')':''):i.label; }
   function viewOf(res){
-    const its=(res&&res.items)||[], rows=its.map(i=>{ const m=MARK[i.status]||['ー','対象外','na']; return {group:GROUP_JA[i.group]||i.group, name:itemName(i), mark:m[0], word:i.set&&i.set.cells.some(c=>c.info)&&i.status==='MATCH'?'一致 (形態は COMPASS 未入力)':m[1], cls:m[2], item:i}; });
+    const its=(res&&res.items)||[], rows=its.map(i=>{ const m=MARK[i.status]||['ー','対象外','na']; return {group:GROUP_JA[i.group]||i.group, name:itemName(i), mark:m[0], word:i.trial?'試験 ('+((MARK[i.would]||[])[1]||'参考')+')':i.set&&i.set.cells.some(c=>c.info)&&i.status==='MATCH'?'一致 (形態は COMPASS 未入力)':m[1], cls:m[2], item:i}; });   // v0.11: 試験のチェック = 「試験 (相違)」 など (判定に入れない)
     rows.sort((a,b)=>(GROUP_ORDER.indexOf(a.group)+1||99)-(GROUP_ORDER.indexOf(b.group)+1||99));
     const n=c=>rows.filter(r=>r.cls===c).length, nd=n('ng'), nr=n('read');
     const stop=res&&(res.verdict==='読取対象外'||res.verdict==='COMPASS照会不可');
@@ -1545,7 +1553,8 @@ const ACL = (()=>{
   function finalHtml(res, opt, E){
     const fv=finalView(res); if(!fv) return ''; const f=res.final, st=f.sets||{}, ad=!!(opt&&opt.admin);
     const tip=t=>ad&&t?' title="'+E(t)+'"':'';
-    let h='<div class="av-final"><div class="av-fh">最終確認</div>';
+    const cpm=(res.cp&&res.cp.map)||{}, cpB=k=>cpm[k]?' <button type="button" class="av-cp" data-cp="'+E(cpm[k])+'">'+E(cpm[k])+'</button>':'';   // v0.11
+    let h='<div class="av-final"><div class="av-fh">最終確認'+cpB('final')+'</div>';
     h+='<div class="av-fl av-'+(fv.content.ok?'ok':fv.content.read?'read':'ng')+'">'+E(fv.content.text)+'</div>';
     if(fv.byCntr&&f.missing.length) h+='<div class="av-sub">コンテナの行 '+fv.byCntr+' 項目はコンテナ別記載の指示 ✓ で確認済み（足りない に数えない）</div>';
     if(f.missing.length) h+='<ul class="av-fu">'+f.missing.map(m=>'<li'+tip(m.srcCol)+'><b>'+E(m.text)+'</b> <span class="av-sub">S/I '+E(m.srcLabel)+(m.similar?' · 似ている ACL の文 ('+E(LABELS[m.similarField]||m.similarField)+'): 「'+E(m.similar)+'」':' · ACL に似た文なし')+'</span></li>').join('')+'</ul>';
@@ -1554,7 +1563,7 @@ const ACL = (()=>{
     if(fv.cntr){ h+='<div class="av-fl av-'+(fv.cntr.ok?'ok':fv.cntr.read?'read':'ng')+'">'+E(fv.cntr.text)+'</div>';   // v0.7
       const bad=(f.instr.cntr.rows||[]).filter(r=>!r.ok); if(bad.length) h+='<ul class="av-fu">'+bad.map(r=>'<li>'+E(r.container)+' <span class="av-sub">'+E(r.why)+'</span></li>').join('')+'</ul>'; }
     if(f.instr&&(f.instr.tent||[]).length) h+='<details class="av-more"><summary>（仮）の行 '+f.instr.tent.length+'（S/I 未確定の印 — 照合しない）</summary><ul class="av-fu">'+f.instr.tent.map(x=>'<li>'+E(x.text)+' <span class="av-sub">S/I '+E(x.srcLabel)+'</span></li>').join('')+'</ul></details>';   // v0.8
-    if(fv.instr) h+='<details class="av-more"><summary>乙仲への指示 '+fv.instr+'（S/I の日本語の行 — 照合しない）</summary><ul class="av-fu">'+f.instr.list.map(x=>'<li>'+E(x.text)+' <span class="av-sub">S/I '+E(x.srcLabel)+'</span></li>').join('')+'</ul></details>';
+    if(fv.instr) h+='<details class="av-more"><summary>乙仲への指示 '+fv.instr+'（S/I の日本語の行 — 照合しない）'+cpB('final:instr')+'</summary><ul class="av-fu">'+f.instr.list.map(x=>'<li>'+E(x.text)+' <span class="av-sub">S/I '+E(x.srcLabel)+'</span></li>').join('')+'</ul></details>';
     if(f.aclOnly.length) h+='<details class="av-more"><summary>△ ACL にだけある内容 '+f.aclOnly.length+'</summary><ul class="av-fu">'+f.aclOnly.map(a=>'<li>'+E(a.text)+' <span class="av-sub">'+E(a.fieldLabel)+'</span></li>').join('')+'</ul></details>';
     if(f.moved.length) h+='<details class="av-more"><summary>△ 場所が違う '+f.moved.length+'</summary><ul class="av-fu">'+f.moved.map(m=>'<li'+tip(m.srcCol)+'>'+E(m.text)+' <span class="av-sub">S/I '+E(m.srcLabel)+' → ACL '+E(m.fieldLabels.join(' · '))+'</span></li>').join('')+'</ul></details>';
     if(opt&&opt.hon) h+='<div class="av-fl av-hon">'+opt.hon+'</div>';
@@ -1562,7 +1571,10 @@ const ACL = (()=>{
   }
   /* HTML (DOM なし · 文字列) — opt = {admin, hon:'本登録 の 1 行 (HTML)'} · 色はクラス av-* (各 TOOL の CSS 変数) */
   function viewHtml(res, opt){
-    opt=opt||{}; const V=viewOf(res), E=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    opt=opt||{};
+    if(!opt.admin&&res&&(res.items||[]).some(i=>i.trial)) res=Object.assign({},res,{items:res.items.filter(i=>!i.trial)});   // v0.11: 試験 · 承認待ち のチェックは 管理者だけ
+    const V=viewOf(res), E=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    const cpB=i=>i.cp?' <button type="button" class="av-cp" data-cp="'+E(i.cp)+'" title="チェックポイント '+E(i.cp)+' の説明">'+E(i.cp)+'</button>':'';   // v0.11: CP 番号 → 説明 (書類ツール)
     const tip=i=>opt.admin&&(i.detail||i.kind)?' title="'+E([i.detail,i.kind].filter(Boolean).join('\n'))+'"':'';
     const segH=S=>S.map(s=>s.d?'<span class="av-hl">'+E(s.t)+'</span>':E(s.t)).join('');
     const joinNote=i=>{ const j=i.join; if(!j) return ''; const f=(side,x)=>x?(x.removed?side+': Description の 続きの段落 '+x.removed.map(p=>p.m).join(' ')+' を 他の欄へ つないだので ここでは比べない':side+': 続き '+(x.joins||[]).map(z=>z.m).join(' ')+' を Description からつないだ'+((x.missing||[]).length?' (見つからない: '+x.missing.join(' ')+')':'')):'';
@@ -1581,11 +1593,11 @@ const ACL = (()=>{
       h+='<div class="av-h">確認した項目 ('+V.rows.length+') <span class="av-sub">✓ 一致 '+V.conclusion.match+' · △ 表記差 '+V.conclusion.note+' · ✗ 相違 '+V.conclusion.diff+' · ー 読めず '+V.conclusion.read+' · ー 対象外 '+V.conclusion.na+'</span></div><table class="av-list">';
       let g=''; V.rows.forEach(r=>{ if(r.group!==g){ g=r.group; h+='<tr class="av-g"><td colspan="3">'+E(g)+'</td></tr>'; }
         const cells=r.item.set?' <span class="av-sub">'+r.item.set.cells.map(c=>E(c.k)+' '+(c.info?'ー':c.read?'ー':c.ok?'✓':'✗')).join(' · ')+'</span>':'';
-        h+='<tr'+tip(r.item)+'><td class="av-m av-'+r.cls+'">'+r.mark+'</td><td>'+E(r.name)+cells+'</td><td class="av-'+r.cls+'">'+E(r.word)+'</td></tr>'; });
+        h+='<tr'+tip(r.item)+'><td class="av-m av-'+r.cls+'">'+r.mark+'</td><td>'+E(r.name)+cells+cpB(r.item)+'</td><td class="av-'+r.cls+'">'+E(r.word)+'</td></tr>'; });
       h+='</table>'; }
-    if(V.diffs.length) h+='<div class="av-h av-ng">相違 '+V.diffs.length+' か所 — 直してもらうところ</div>'+V.diffs.map(r=>'<div class="av-diff"'+tip(r.item)+'><div class="av-dn">'+E(r.name)+'</div>'+pair(r.item)+'</div>').join('');
-    if(V.reads.length) h+='<div class="av-h av-read">読めないところ '+V.reads.length+' か所 — ACL を開いて目で確認</div>'+V.reads.map(r=>'<div class="av-diff"'+tip(r.item)+'><div class="av-dn">'+E(r.name)+'</div>'+(/続き/.test(r.item.detail||'')?'<div class="av-sub">'+E(r.item.detail)+'</div>':'')+(r.item.actual?'<div class="av-sub">ACL: '+E(r.item.actual)+'</div>':'')+'</div>').join('');
-    if(V.notes.length) h+='<details class="av-more"><summary>表記差 '+V.notes.length+' か所（空白 · 大文字小文字 · 行の折り返し など）— 中身を見る</summary>'+V.notes.map(r=>'<div class="av-diff"'+tip(r.item)+'><div class="av-dn">'+E(r.name)+'</div>'+pair(r.item)+'</div>').join('')+'</details>';
+    if(V.diffs.length) h+='<div class="av-h av-ng">相違 '+V.diffs.length+' か所 — 直してもらうところ</div>'+V.diffs.map(r=>'<div class="av-diff"'+tip(r.item)+'><div class="av-dn">'+E(r.name)+cpB(r.item)+(r.item.cp&&r.item.group==='チェック'&&r.item.detail?' <span class="av-sub">'+E(r.item.detail)+'</span>':'')+'</div>'+pair(r.item)+'</div>').join('');
+    if(V.reads.length) h+='<div class="av-h av-read">読めないところ '+V.reads.length+' か所 — ACL を開いて目で確認</div>'+V.reads.map(r=>'<div class="av-diff"'+tip(r.item)+'><div class="av-dn">'+E(r.name)+cpB(r.item)+'</div>'+(/続き/.test(r.item.detail||'')?'<div class="av-sub">'+E(r.item.detail)+'</div>':'')+(r.item.actual?'<div class="av-sub">ACL: '+E(r.item.actual)+'</div>':'')+'</div>').join('');
+    if(V.notes.length) h+='<details class="av-more"><summary>表記差 '+V.notes.length+' か所（空白 · 大文字小文字 · 行の折り返し など）— 中身を見る</summary>'+V.notes.map(r=>'<div class="av-diff"'+tip(r.item)+'><div class="av-dn">'+E(r.name)+cpB(r.item)+(r.item.alias?' <span class="av-sub">'+E(r.item.detail.split(' · ')[0])+'</span>':'')+'</div>'+pair(r.item)+'</div>').join('')+'</details>';
     return h;
   }
 
@@ -1621,7 +1633,187 @@ const ACL = (()=>{
     L.push('','---','✦ Powered by LEENAI Automation System','');
     return L.join('\n');
   }
+  /* ══════════ v0.11 チェックポイント (master_checkpoint · master_port_alias) — 指示書 (2026-11-23) D00 체크포인트 마스터 v1 · DOC-D-00 §2-13 ══════════
+     ・基本 = このエンジンの照合項目 (engine_key で項目に CP 番号を付ける) · 停止 (管理者の承認あり) → 判定に入れず 参考 「停止中」
+     ・追加 = マスターの 1 行を ここの 比べ方 (CP_OPS) と 値の出どころ (CP_SRC) で実行 → 項目 (group チェック · key cp:{id})
+     ・有効 (管理者の承認あり) だけ 判定に入れる · 試験 · 候補 · 承認待ち = 参考 (trial:true — 管理者の画面だけに出す)
+     ・承認の安全装置: approved_by が portal_admin の職員 かつ その行の最後の変更者 (SharePoint の版の記録) も管理者 — でなければ 承認待ち
+     ・港の別名 (port_alias): L/C の揚地 · 引渡地 (lc:pod · lc:delivery) が 相違 でも 同じ港の組なら 表記差
+     ・マスターを渡さない (opts.checkpoints なし) → v0.10 と全く同じ結果 */
+  const CP_RESULT = {'相違':'DIFF', '注意':'NOTATION', '参考':'INFO'};   // 注意 = 人が見る (表記差と同じ段 — 判定 「表記差のみ」)
+  const CP_STATES = ['候補','試験','有効','停止'];
+  const CP_KINDS = ['基本','追加'];
+  const CP_STAGES = ['ACL','BL_DRAFT','BL','INS','FD'];
+  const CP_SCOPES = ['all','country','buyer','bank','carrier'];
+  /* ── 比べ方 (8 つ) — 純粋関数 (L = 基準の値 · R = 書類の欄の値 · p = 比べ方の後ろの 「:」 の値) → {ok:true|false|null, why} · null = 比べられない (値なし) ── */
+  const cpStr = v => v==null?'':String(v);
+  const cpWs = s => cpStr(s).normalize('NFKC').split('\n').map(l=>l.replace(/^\s*\*+\s*|\s*\*+\s*$/g,'')).join('\n').replace(/\s+/g,'');   // 空白 · 改行 · 行頭/行末の 続き記号 「*」 だけ外す (句読点 · 略語は そのまま)
+  const CP_NUMW = {ONE:1,TWO:2,THREE:3,FOUR:4,FIVE:5,SIX:6,SEVEN:7,EIGHT:8,NINE:9,TEN:10};
+  const cpNum = s => { const m=cpStr(s).replace(/,/g,'').match(/-?\d+(?:\.\d+)?/); return m?+m[0]:null; };
+  const cpCount = s => { const t=cpStr(s).toUpperCase(), m=t.match(/\d+/); if(m) return +m[0]; const w=Object.keys(CP_NUMW).find(k=>new RegExp('\\b'+k+'\\b').test(t)); return w?CP_NUMW[w]:null; };
+  const cpDate = s => { const t=cpStr(s).trim(); if(/^\d{4}-\d{2}-\d{2}/.test(t)) return t.slice(0,10); return lcDateKey(t)||''; };
+  const cpWords = s => cpStr(s).normalize('NFKC').toUpperCase().split(/[^A-Z0-9]+/).filter(w=>w&&!LC_RULE.BANK_SKIP.test(w));
+  const CP_OPS = {
+    same_text:{ja:'文字がそのまま同じ', fn:(L,R)=>{ if(!cpStr(L)||!cpStr(R)) return {ok:null, why:'値なし'}; return cpStr(L)===cpStr(R)?{ok:true, why:''}:{ok:false, why:'文字が違う'}; }},
+    same_text_ws:{ja:'空白 · 改行 · 続き記号 「*」 だけ無視して同じ (句読点 · 略語は違いになる)', fn:(L,R)=>{ if(!cpWs(L)||!cpWs(R)) return {ok:null, why:'値なし'};
+      if(cpWs(L)===cpWs(R)) return {ok:true, why:''}; const a=cpWs(L), b=cpWs(R); let i=0; while(i<a.length&&i<b.length&&a[i]===b[i]) i++;
+      return {ok:false, why:'「'+a.slice(Math.max(0,i-12),i)+'」 の後から違う — 基準 「'+a.slice(i,i+24)+'」 / 書類 「'+b.slice(i,i+24)+'」'}; }},
+    contains_words:{ja:'基準の語が 書類の欄に 全部ある (空白 · 記号を外した文字の並びで)', fn:(L,R)=>{ const w=cpWords(L); if(!w.length||!cpStr(R)) return {ok:null, why:'値なし'}; const T=lcN(R), miss=w.filter(x=>T.indexOf(lcN(x))<0);
+      return miss.length?{ok:false, why:'足りない語: '+miss.join(' · ')}:{ok:true, why:''}; }},
+    not_contains:{ja:'書類の欄に 基準の文字が ない', fn:(L,R)=>{ if(!lcN(L)) return {ok:null, why:'基準の値なし'}; return lcN(R).indexOf(lcN(L))>=0?{ok:false, why:'「'+cpStr(L)+'」 がある'}:{ok:true, why:''}; }},
+    date_not_after:{ja:'書類の日付が 基準の日付より 後でない (「:日数」 = その日数以内の前なら 注意)', fn:(L,R,p)=>{ const a=cpDate(L), b=cpDate(R); if(!a||!b) return {ok:null, why:'日付なし'}; const d=lcDays(b,a);
+      if(d==null) return {ok:null, why:'日付なし'}; if(d<0) return {ok:false, why:(-d)+' 日 後'}; const n=p==null||p===''?null:+p; if(n!=null&&Number.isFinite(n)&&d<=n) return {ok:'near', why:'期限まで '+d+' 日'}; return {ok:true, why:'期限まで '+d+' 日'}; }},
+    number_range:{ja:'書類の数が 基準の数 ± 幅 の中 (「:5%」 = 5 % · 「:100」 = ±100 · なし = 同じ数)', fn:(L,R,p)=>{ const a=cpNum(L), b=cpNum(R); if(a==null||b==null) return {ok:null, why:'数なし'};
+      const s=cpStr(p).trim(), w=/%$/.test(s)?Math.abs(a)*(+s.slice(0,-1))/100:(s?+s:0); if(!Number.isFinite(w)) return {ok:null, why:'幅が読めない ('+s+')'};
+      return Math.abs(b-a)<=w+1e-9?{ok:true, why:'差 '+(Math.round((b-a)*1000)/1000)}:{ok:false, why:'差 '+(Math.round((b-a)*1000)/1000)+' (幅 ±'+(Math.round(w*1000)/1000)+')'}; }},
+    count_equal:{ja:'通数 · 枚数が同じ (数字 · ONE〜TEN)', fn:(L,R)=>{ const a=cpCount(L), b=cpCount(R); if(a==null||b==null) return {ok:null, why:'数なし'}; return a===b?{ok:true, why:''}:{ok:false, why:a+' ↔ '+b}; }},
+    format:{ja:'書類の欄が 基準に書いた形 (例 「{税番号}#{許可}#{会社}」 の 区切り 「#」 の順 · 「/正規表現/」) に合う', fn:(L,R)=>{ const f=cpStr(L), r=cpStr(R).normalize('NFKC').replace(/\s+/g,' ').trim(); if(!f||!r) return {ok:null, why:'値なし'};
+      const re=f.match(/^\/(.+)\/([imsu]*)$/); if(re){ let x; try{ x=new RegExp(re[1],re[2]); }catch(e){ return {ok:null, why:'形が読めない'}; } return x.test(r)?{ok:true, why:''}:{ok:false, why:'形 '+f+' に合わない'}; }
+      const seps=f.replace(/\{[^}]*\}/g,'\u0000').split('\u0000').slice(1,-1);   // {…} と {…} の間の区切り
+      if(!seps.length) return {ok:null, why:'形に区切りがない'}; let rest=r; for(let i=0;i<seps.length;i++){ const s=seps[i].trim(), j=s?rest.indexOf(s):-1; if(j<=0||!rest.slice(0,j).trim()) return {ok:false, why:(i+1)+' 番目の区切り 「'+s+'」 の前が空 / ない'}; rest=rest.slice(j+s.length); }
+      return rest.trim()?{ok:true, why:''}:{ok:false, why:'最後の部分が空'}; }}
+  };
+  const cpOp = op => { const m=cpStr(op).trim().match(/^([a-z_]+)(?::(.*))?$/); return m&&CP_OPS[m[1]]?{name:m[1], p:m[2]==null?null:m[2].trim(), def:CP_OPS[m[1]]}:null; };
+  /* ── 値の出どころ (マスターの 「基準」 「書類の欄」 に書ける名前) — ctx = {lc, si, ex, booking, meta, F} → {value, check} (check = 判読 · 読取 の確認要) ── */
+  const lcChk = (lc,k) => { const f=lc&&lc.fields&&lc.fields[k]; return f&&f.check?String(f.check):''; };
+  /* L/C 46A の B/L 宛先の文から 「(MADE OUT (AND/OR ENDORSED)) TO」 などの指示の言葉を外し 「TO (THE) ORDER OF …」 の部分 (MARKED · NOTIFY … の前まで) — 原文の形のまま */
+  const CP_CONS_HEAD = /\bTO\s+(?:THE\s+)?ORDER\b/i, CP_CONS_END = /[\s,;]+(?:AND\s+)?(?:MARKED|NOTIFY(?:ING)?|SHOWING|INDICATING)\b/i;
+  const CP_ABBR = /\b(?:CO|LTD|TBK|INC|CORP|JSC|BHD|PLC|LLC|BR|NO|N\.A|S\.A|P\.?T|PVT|CO\.,?\s*LTD)\.$/i;
+  function cpConsOrder(text){ const t=cpStr(text).replace(/\s+/g,' ').trim(), h=t.match(CP_CONS_HEAD); if(!h) return null;
+    const rest=t.slice(h.index), e=rest.slice(h[0].length).search(CP_CONS_END); let v=e<0?rest:rest.slice(0,h[0].length+e);
+    v=v.replace(/[\s"'“”‘’,;:]+$/,'').trim(); if(/\.$/.test(v)&&!CP_ABBR.test(v)) v=v.replace(/[\s.,;:]+$/,'');   // 文の区切りの 「,」「;」 は外す · 「.」 は 略語 (CO. LTD. TBK. …) のときだけ残す
+    return /\bORDER\s+OF\s+(?:THE\s+)?APPLICANT\b/i.test(v)?null:v; }   // 「TO ORDER OF APPLICANT」 = 書類に会社名が入る → 文字の比較はしない
+  /* 2 回の判読が違う (引用の範囲だけ違う) とき — check 「2回判読が違う: A | B」 の A · B から それぞれ出して 同じなら使う (v0.10 の エンジン値と同じ考え方) */
+  function cpConsFromCheck(chk){ const m=cpStr(chk).match(/^2回判読が違う: ([\s\S]*) \| ([\s\S]*)$/); if(!m) return {value:null, check:chk};
+    const a=cpConsOrder(m[1]), b=cpConsOrder(m[2]); if(!a&&!b) return {value:null, check:''};   // どちらの判読にも 「TO ORDER」 の文がない = 比べる文がない (確認要ではない)
+    return a&&b&&cpWs(a)===cpWs(b)?{value:a, check:''}:{value:null, check:chk}; }
+  const lcPath = (lc,p) => p.split('.').reduce((o,k)=>o==null?null:o[k], lc);
+  const CP_LC = [   // [名前, 表示, lc_read/1 の場所 (または関数), 判読の欄 (check を見る)]
+    ['lc.lc_no','L/C 番号','lc_no','lc_no'], ['lc.issue_date','L/C 発行日','issue_date','issue_date'], ['lc.expiry_date','有効期限 (31D)','expiry_date','expiry'], ['lc.expiry_place','有効期限の場所','expiry_place','expiry'],
+    ['lc.latest_shipment','船積期限 (44C)','latest_shipment','latest_shipment'], ['lc.amount.text','金額 (32B)','amount.text',''], ['lc.amount.number','金額 (数)','amount.number',''], ['lc.amount.currency','通貨','amount.currency',''],
+    ['lc.tolerance.pct','過不足 (%)','tolerance.pct','tolerance'], ['lc.pol.text','積地 (44E)','pol.text','port_loading'], ['lc.pod.text','揚地 (44F)','pod.text','port_discharge'],
+    ['lc.price_term','価格条件','price_term','price_term'], ['lc.applicant.name','Applicant 名','applicant.name','applicant_name'], ['lc.applicant.address','Applicant 住所','applicant.address','applicant_address'],
+    ['lc.beneficiary','Beneficiary','beneficiary','beneficiary'], ['lc.po','P/O 番号','po','po'], ['lc.hs','HS コード','hs','hs'], ['lc.port_45A','45A の港','port_45A','port_45A'],
+    ['lc.bl.consignee_full','B/L Consignee の指示 (46A 原文)','bl.consignee_text','bl_consignee'],
+    ['lc.bl.consignee_text','B/L Consignee の文 (46A — 「MADE OUT TO」 等を外した 「TO (THE) ORDER OF …」)',lc=>{ const t=lc.bl&&lc.bl.consignee_text; if(t) return {value:cpConsOrder(t), check:''}; const c=lcChk(lc,'bl_consignee'); return c?cpConsFromCheck(c):{value:null, check:''}; },''],
+    ['lc.bl.consignee_bank','Consignee の銀行 (TO ORDER OF の後)','bl.consignee_bank','bl_consignee_bank'], ['lc.bl.notify_text','B/L Notify の指示','bl.notify_text','bl_notify'],
+    ['lc.bl.originals','原本通数 (46A)','bl.originals','bl_originals'], ['lc.bl.freight','運賃 (PREPAID / COLLECT)','bl.freight',''],
+    ['lc.docs_46A.text','46A 書類の文 (全部)',lc=>({value:(lc.docs_46A||[]).map(d=>d.quote||'').filter(Boolean).join('\n')||null, check:(lc.docs_46A||[]).map(d=>d.check).filter(Boolean)[0]||''}),''],
+    ['lc.conditions_47A.text','47A 条件の文 (全部)',lc=>({value:(lc.conditions_47A||[]).map(d=>d.quote||'').filter(Boolean).join('\n')||null, check:(lc.conditions_47A||[]).map(d=>d.check).filter(Boolean)[0]||''}),'']
+  ];
+  const CP_SI_DOC = [['sidoc.shipper','S/I 書類の Shipper (D-03 の印字)','shipper'],['sidoc.consignee','S/I 書類の Consignee','consignee'],['sidoc.notify','S/I 書類の Notify (名前 · 住所 · TEL)','notify'],
+    ['sidoc.description','S/I 書類の Description','description'],['sidoc.marks','S/I 書類の Marks','marks'],['sidoc.pol','S/I 書類の積地','pol']];
+  const CP_SI_COLS = ['cr49f_lc_no','crcf9_consignee','crcf9_notify_party','crcf9_address','crcf9_tel','crcf9_fax','crcf9_shipper','crcf9_shipper_address','crcf9_place_of_delivery_1','crcf9_pod_bl1','crcf9_bl_text1','crcf9_bl_text2','crcf9_shipping_mark','crcf9_local_agent_note','crcf9_sino'];
+  const CP_BK_COLS = ['cr49f_booking_no','cr49f_bl_number','cr49f_main_ship_name','cr49f_etd','crcf9_bl_etd','crcf9_delivery_location'];
+  const CP_ACL_KEYS = ['shipper','consignee','notify','alsoNotify','booking','masterBl','refNo','vessel','voy','receipt','pol','pod','delivery','finalDest','originals','issuePlace','wayBill','received','freight','hsMain','description','marks','totalContainers','numberOf','totalPkgs','totalWeight','totalMeasure','agentSign','shipperMail'];
+  /* 一覧 (報告書 · 画面の 「書ける名前」) — {name, label, from} */
+  function cpCatalog(){
+    return [].concat(CP_LC.map(([n,l])=>({name:n, label:l, from:'L/C 保管所 (lc_read/1)'})),
+      CP_SI_DOC.map(([n,l])=>({name:n, label:l, from:'S/I 書類 (エンジンが組み立てた文面 · D-03 と同じ)'})),
+      CP_SI_COLS.map(c=>({name:'si.'+c, label:'S/I (sino 1) の COMPASS 欄 '+c, from:'COMPASS S/I (ほかの欄名も si.{欄名} で書ける)'})),
+      [{name:'booking.etd', label:'ETD (crcf9_bl_etd · なければ cr49f_etd)', from:'COMPASS ブッキング'}], CP_BK_COLS.map(c=>({name:'booking.'+c, label:'ブッキングの COMPASS 欄 '+c, from:'COMPASS ブッキング (ほかの欄名も booking.{欄名})'})),
+      CP_ACL_KEYS.map(k=>({name:'acl.'+k, label:'ACL の欄 '+(LABELS[k]||k), from:'ACL (エンジンが読んだ欄 · 続き記号 * はつないだ後)'})),
+      [{name:'text:…', label:'書いた文字そのもの (例 text:FREIGHT PREPAID)', from:'マスターの行'}]);
+  }
+  function cpValue(name, ctx){
+    const n=cpStr(name).trim(), c=ctx||{};
+    if(/^text:/.test(n)) return {value:n.slice(5), check:''};
+    if(/^lc\./.test(n)){ const lc=c.lc; if(!lc) return {value:null, check:'', none:'L/C 判読なし'}; const d=CP_LC.find(x=>x[0]===n);
+      if(d){ if(typeof d[2]==='function') return d[2](lc); const ck=d[3]?lcChk(lc,d[3]):''; const v=lcPath(lc,d[2]); return {value:ck?null:(v==null?null:v), check:ck}; }
+      const v=lcPath(lc,n.slice(3)); return {value:v==null||typeof v==='object'?null:v, check:''}; }
+    if(/^sidoc\./.test(n)){ const d=CP_SI_DOC.find(x=>x[0]===n); return {value:d&&c.ex?c.ex[d[2]]||null:null, check:''}; }
+    if(/^si\./.test(n)){ const si=c.si||(c.ex&&c.ex.si)||{}, k=n.slice(3), fv=si[k+'@OData.Community.Display.V1.FormattedValue']; return {value:fv!=null?fv:si[k]==null?null:si[k], check:''}; }
+    if(n==='booking.etd'){ const v=(c.meta&&c.meta.etd)||''; return {value:v?String(v).slice(0,10):null, check:''}; }
+    if(/^booking\./.test(n)){ const b=c.booking||{}, k=n.slice(8); return {value:b[k]==null?null:b[k], check:''}; }
+    if(/^acl\./.test(n)){ const k=n.slice(4), f=c.F&&c.F[k]; if(!f||f.conf==='MISSING') return {value:null, check:'ACL の 「'+(LABELS[k]||k)+'」 を読めない'};
+      if(f.conf!=='SURE') return {value:null, check:'ACL の 「'+(LABELS[k]||k)+'」 の位置があいまい'}; return {value:dash(f.text), check:''}; }
+    return {value:null, check:'', unknown:true};
+  }
+  /* ── マスターの行 → 使う形 · 承認 ── */
+  const cpSplit = s => cpStr(s).split(/[,、・\s]+/).map(x=>x.trim().toUpperCase()).filter(Boolean);
+  const cpTrue = v => v===true||/^(true|1|yes|はい)$/i.test(cpStr(v).trim());
+  /* staff = master_staff の items · lastBy = {行のキー: 最後に変えた人 (職員コード · メール · 名前)} (null = 分からない) → 管理者か */
+  function cpAdmins(staff){ const set=new Set(); (staff||[]).forEach(s=>{ if(s&&cpTrue(s.portal_admin)) ['code','email','mail','name','name_ja','name_en'].forEach(k=>{ if(s[k]) set.add(cpStr(s[k]).trim().toLowerCase()); }); }); return set; }
+  const cpIsAdmin = (admins, who) => !!who&&admins.has(cpStr(who).trim().toLowerCase());
+  /* 行の状態 (画面 · 実行) — 有効 · 停止 は 「approved_by = 管理者」 かつ 「最後の変更者 = 管理者」 のときだけ · でなければ 承認待ち */
+  function cpState(row, guard){
+    const st=cpStr(row.status).trim(); if(CP_STATES.indexOf(st)<0) return {state:'候補', raw:st, why:'状態 「'+st+'」 は使えない'};
+    if(st!=='有効'&&st!=='停止') return {state:st, raw:st, why:''};
+    const g=guard||{}; if(g.trustAll) return {state:st, raw:st, why:''};
+    const ad=g.admins||new Set(), by=g.lastBy?g.lastBy[cpKey(row)]:undefined;
+    if(!cpIsAdmin(ad,row.approved_by)) return {state:'承認待ち', raw:st, why:'承認者 '+(row.approved_by||'(空)')+' は管理者でない'};
+    if(by===undefined) return {state:'承認待ち', raw:st, why:'最後に変えた人が分からない (版の記録を読めない)'};
+    if(!cpIsAdmin(ad,by)) return {state:'承認待ち', raw:st, why:'最後に変えた人 '+by+' は管理者でない'};
+    return {state:st, raw:st, why:''};
+  }
+  const cpKey = r => r&&r.id!=null?'id:'+cpStr(r.id).trim():'alias:'+cpStr(r&&r.group).trim().toUpperCase()+'|'+cpStr(r&&r.name).trim().toUpperCase();
+  /* 版の記録 (新しい順 [{by, items}]) → 行ごとに 最後に変えた人 {キー: by} — 一番古い版から変わっていない行は その版の人 */
+  function cpLastChangers(versions, keyOf){
+    const kf=keyOf||cpKey, out={}, V=(versions||[]).filter(v=>v&&Array.isArray(v.items)); if(!V.length) return out;
+    const maps=V.map(v=>{ const m={}; v.items.forEach(r=>{ m[kf(r)]=JSON.stringify(r); }); return m; });
+    Object.keys(maps[0]).forEach(k=>{ let i=0; while(i+1<V.length&&maps[i+1][k]===maps[0][k]) i++; out[k]=V[i].by; });
+    return out;
+  }
+  /* マスターの items → {rows (基本 · 追加 · 状態つき), alias (港の組 — 有効なものだけ), warnings} */
+  function cpPrepare(cpItems, aliasItems, guard){
+    const warnings=[], rows=[], seen={};
+    (Array.isArray(cpItems)?cpItems:[]).forEach((r,i)=>{ r=r||{}; const id=cpStr(r.id).trim(); if(!id){ warnings.push((i+1)+'行: ID が空 — 無視'); return; }
+      if(seen[id]){ warnings.push(id+': ID が重複 — 後の行を無視'); return; } seen[id]=1;
+      const kind=cpStr(r.kind).trim(); if(CP_KINDS.indexOf(kind)<0){ warnings.push(id+': 種類 「'+kind+'」 は使えない — 無視'); return; }
+      const s=cpState(r, guard);
+      rows.push({id, kind, row:r, state:s.state, raw:s.raw, why:s.why, stages:cpSplit(r.stage), pay:cpStr(r.pay).trim().toUpperCase()||'ALL', scope_type:cpStr(r.scope_type).trim()||'all', scope:cpStr(r.scope).trim(),
+        engine_key:cpStr(r.engine_key).trim(), left:cpStr(r.left).trim(), op:cpStr(r.op).trim(), right:cpStr(r.right).trim(), result:cpStr(r.result).trim()||'相違', title:cpStr(r.title_ja).trim()||id}); });
+    const alias=[]; (Array.isArray(aliasItems)?aliasItems:[]).forEach(a=>{ a=a||{}; const g=cpStr(a.group).trim().toUpperCase(), n=cpStr(a.name).trim().toUpperCase(); if(!g||!n) return;
+      const s=cpState(Object.assign({status:'有効'},a), guard); alias.push({group:g, name:n, country:cpStr(a.country).trim().toUpperCase(), ok:s.state==='有効', why:s.why}); });
+    return {rows, alias, warnings};
+  }
+  /* engine_key — 「set:*」 のように 末尾 * は 前方一致 */
+  const cpKeyHit = (pat, key) => { const p=cpStr(pat).trim(); if(!p) return false; return /\*$/.test(p)?cpStr(key).indexOf(p.slice(0,-1))===0:p===key; };
+  /* 範囲 — all · country · buyer (名前 / コード) · bank (L/C の Consignee 銀行の語) · carrier (ブッキングの船会社) */
+  function cpScopeHit(row, meta, lc){ const m=meta||{}, st=row.scope_type, v=rKey(row.scope);
+    if(st==='all') return true; if(!v) return false;
+    if(st==='country') return rKey(m.country)===v; if(st==='buyer') return [rKey(m.buyer),rKey(m.buyerCode)].indexOf(v)>=0;
+    if(st==='carrier') return !!m.carrier&&lcN(m.carrier).indexOf(lcN(v))>=0;
+    if(st==='bank'){ const b=lc&&lc.bl&&lc.bl.consignee_bank; return !!b&&lcN(b).indexOf(lcN(v))>=0; }
+    return false; }
+  /* 1 行を実行 → 項目 · trial = 判定に入れない (試験 · 候補 · 承認待ち) */
+  function cpRunRow(row, ctx){
+    const trial=row.state!=='有効', base={group:'チェック', key:'cp:'+row.id, cp:row.id, label:row.title, cpState:row.state, trial};
+    const O=cpOp(row.op), res=CP_RESULT[row.result]||'DIFF';
+    const mk=(st,e,a,d,k,would)=>Object.assign({},base,{status:trial?'INFO':st, expected:e==null?'':String(e), actual:a==null?'':String(a), detail:(trial?'【'+row.state+(row.why?' · '+row.why:'')+'】 ':'')+d, kind:trial?'':(k||''), would:trial?st:undefined});
+    if(!O) return mk('INFO','','','比べ方 「'+row.op+'」 がない — 実行しない','',undefined);
+    const L=cpValue(row.left, ctx), R=cpValue(row.right, ctx);
+    if(L.unknown||R.unknown) return mk('INFO','','','値の名前 「'+(L.unknown?row.left:row.right)+'」 がない — 実行しない','');
+    if(L.check||R.check) return mk('READ_CHECK','','',(L.check?'基準 ('+row.left+'): '+L.check:'書類の欄 ('+row.right+'): '+R.check),'読取確認要:チェック:'+row.id);
+    if(L.value==null||cpStr(L.value)===''||R.value==null||cpStr(R.value)==='') return mk('INFO',L.value,R.value,(L.none||R.none||'値なし ('+(L.value==null||cpStr(L.value)===''?row.left:row.right)+')')+' — 比べない','');
+    const r=O.def.fn(L.value, R.value, O.p);
+    if(r.ok===null) return mk('INFO',L.value,R.value,r.why+' — 比べない','');
+    if(r.ok==='near') return mk('NOTATION',L.value,R.value,r.why+' (間近 — 注意)','注意:チェック:'+row.id);
+    if(r.ok) return mk('MATCH',L.value,R.value,r.why||'','');
+    return mk(res,L.value,R.value,r.why,(row.result||'相違')+':チェック:'+row.id);
+  }
+  /* 港の別名 — 文 (「A OR B」 も) と 港の組 → 組の名前の一覧 */
+  function cpAliasGroups(text, alias){ const T=lcN(cpStr(text).toUpperCase().replace(/\bPORT\b/g,'')); const out=[]; (alias||[]).filter(a=>a.ok).forEach(a=>{ const n=lcN(a.name); if(n&&T.indexOf(n)>=0&&out.indexOf(a.group)<0) out.push(a.group); }); return out; }
+  function cpAliasNames(group, alias){ return (alias||[]).filter(a=>a.ok&&a.group===group).map(a=>a.name); }
+  /* 照合結果に チェックポイントを当てる — items を直す (CP 番号 · 停止 · 港の別名 · 追加の実行) · 戻り値 = {items, map (最終確認 · 指示 の CP), rows} */
+  function cpApply(items, kinds, CPX, ctx){
+    if(!CPX||!Array.isArray(CPX.rows)) return null;
+    const dec=k=>{ if(k&&kinds[k]){ kinds[k]--; if(!kinds[k]) delete kinds[k]; } }, inc=k=>{ if(k) kinds[k]=(kinds[k]||0)+1; };
+    const meta=ctx.meta||{}, pay=String(meta.pay||'').toUpperCase();
+    /* 港の別名 (lc:pod · lc:delivery が 相違 のときだけ) */
+    items.forEach(it=>{ if((it.key==='lc:pod'||it.key==='lc:delivery')&&it.status==='DIFF'){ const a=cpAliasGroups(it.expected, CPX.alias), b=cpAliasGroups(it.actual, CPX.alias), g=a.find(x=>b.indexOf(x)>=0);
+      if(g){ dec(it.kind); it.status='NOTATION'; it.alias=g; it.detail='港の別名 ('+cpAliasNames(g,CPX.alias).join(' = ')+')'+(it.detail?' · '+it.detail:''); it.kind='表記差:港の別名'; inc(it.kind); } } });
+    /* 基本 — engine_key で CP 番号 · 停止 */
+    const basics=CPX.rows.filter(r=>r.kind==='基本'&&r.engine_key), map={};
+    items.forEach(it=>{ const r=basics.find(b=>cpKeyHit(b.engine_key, it.key)); if(!r) return; it.cp=r.id;
+      if(r.state==='停止'&&it.status!=='INFO'){ dec(it.kind); it.stopped={status:it.status, kind:it.kind}; it.status='INFO'; it.detail='停止中 ('+r.id+') — '+(it.detail||''); it.kind=''; } });
+    basics.forEach(b=>{ if(/^(final|xx)/.test(b.engine_key)) map[b.engine_key]=b.id; });
+    /* 追加 — stage に ACL · 決済 · 範囲 · 状態 (停止 は実行しない) */
+    CPX.rows.filter(r=>r.kind==='追加'&&r.state!=='停止'&&r.stages.indexOf('ACL')>=0&&(r.pay==='ALL'||r.pay===pay)&&cpScopeHit(r,meta,ctx.lc)).forEach(r=>{ const it=cpRunRow(r, ctx); items.push(it); inc(it.kind); });
+    return {map, warnings:CPX.warnings||[]};
+  }
   return {SP_OUT, SRC_DIRS, ISO, D03, LABELS, VERDICTS, invoiceOf,
+    /* v0.11 */ CP_RESULT, CP_STATES, CP_KINDS, CP_STAGES, CP_SCOPES, CP_OPS, cpOp, cpWs, cpValue, cpCatalog, cpConsOrder, cpConsFromCheck, cpAdmins, cpState, cpKey, cpLastChangers, cpPrepare, cpKeyHit, cpScopeHit, cpRunRow, cpAliasGroups, cpApply,
     /* v0.9 */ PARTY_KEYS, P1, p1Key, portKey, comparePort, readFail, cntrOk, LC_RULE, lcN, lcDateKey, lcNoOf, lcNotifyName, lcItems, /* v0.10 */ lcOriginalsText, lcPodSplit, lcConsigneeBank, lcNameWords, lcNotifyIsApplicant, lcDays, mailKindOf, mailsFromJsonl, mergeMails, ownPart,
     /* v0.8 */ CNTR_LINE, isCntrLine, cntrLineKeys, TENT_RE, TENT_NOTE, siTentative,
     /* v0.7 */ JP_RE, CNTR_INSTR, isCntrInstr, jpSplit, cntrListed, CNTR_OK, CNTR_NG,
@@ -1938,7 +2130,7 @@ function startPage(){
 }
 
 LEENAI.init({
-  sys:'D-00', name:'ACL 照合試験', version:'0.10', date:'2026-11-23',
+  sys:'D-00', name:'ACL 照合試験', version:'0.11', date:'2026-11-23',
   desc:'ACL (NACCS PDF) を座標で読み、COMPASS の S/I (sino 1) · ブッキング · コンテナ (セット) · 表示欄 (S/I ルールマスター) と 100% 照合 · 担当者メールの実績と突き合わせ (読むだけ · AI なし)',
   graphScopes:['Sites.ReadWrite.All'],
   redirectUri:'https://mhlee205.github.io/CONTRACT_SEND/acl_bench.html',

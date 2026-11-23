@@ -96,6 +96,6 @@ console.log('4 보관소 만들기 규칙 (tools/lc_read_lib.mjs)');
   const r2b=JSON.parse(JSON.stringify(rec)); r2b.created_at='other'; r2b.version=9; ok(lib.sameContent(rec,r2b),'같은 내용 = 판 그대로 (만든 날 · 판 번호는 안 봄)');
   ok(A.lcOriginalsText('2/3 ORIGINAL B/L')===null,'원본 통수 규칙 = 엔진 lcOriginalsText (2/3 만 → 모름)');
   console.log('버전');
-  ok(/version:'0\.10'/.test(fs.readFileSync(HTML,'utf8')),"version:'0.10'");
+  { const v=(fs.readFileSync(HTML,'utf8').match(/version:'(\d+)\.(\d+)'/)||[]).slice(1).map(Number); ok(v.length&&(v[0]>0||v[1]>=10),"version:'0.10' 이상"); }   // v0.11: 숫자로 비교
   console.log('v10 pass '+pass+' fail '+fail); process.exit(fail?1:0);
 })().catch(e=>{ console.log('FAIL 예외',e.message); process.exit(1); });

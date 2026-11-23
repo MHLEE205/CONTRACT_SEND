@@ -126,5 +126,5 @@ console.log('5+ 실자료에서 고친 L/C · 넘침 모양 (가짜 값)');
   const cp=FX.compass(3), ex=ACL.expected(cp), keep=ex.notify.split('\n').filter(l=>!/TEL|FAX/.test(l)).join('\n'), tl=ex.notify.split('\n').filter(l=>/TEL|FAX/.test(l));
   const r=run(cp,{notify:keep, description:ex.description+'\n**SAMPLE CITY,\n'+tl.join('\n')+'\n*VIETNAM'}); eq(item(r,'notify').kind,'表記:続き (Description の * 行):Notify Party','넘침 단락 = 「*」 줄부터 여러 줄 (실자료 NA2609-05 모양)'); }
 console.log('버전');
-ok(/version:'0\.(?:9|10)'/.test(fs.readFileSync(HTML,'utf8')),"version:'0.9' 이상");
+{ const v=(fs.readFileSync(HTML,'utf8').match(/version:'(\d+)\.(\d+)'/)||[]).slice(1).map(Number); ok(v.length&&(v[0]>0||v[1]>=9),"version:'0.9' 이상"); }   // v0.11: 0.10 · 0.11 … (숫자로 비교)
 console.log('v09 pass '+pass+' fail '+fail); process.exit(fail?1:0);
