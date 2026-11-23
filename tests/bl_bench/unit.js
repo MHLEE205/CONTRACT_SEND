@@ -78,7 +78,7 @@ async function run(siOver, dOver){ const L=await pdfLines([F.draftItems(dOver)])
   R=await run(); ok(!BL.otherDraft(F.IV,R.rows,R.L,R.si).other,'같은 건 ≠ 다른 건');
 
   /* B — L/C 보관소 7항목 */
-  const lcRun=async(lcOver,dOver,alias)=>{ const L=await pdfLines([F.draftItems(dOver)]); const rowsA=BL.check(F.si(),L,null).rows; return BL.lcCheck(L,rowsA,BL.lcView(F.lc(lcOver)),alias||BL.portAliasOf(null),'TEST'); };
+  const lcRun=async(lcOver,dOver,alias)=>{ const L=await pdfLines([F.draftItems(dOver)]); const rowsA=BL.check(F.si(),L,null).rows; return BL.lcCheck(L,rowsA,BL.lcView(F.lc(lcOver)),alias||[],'TEST'); };
   const res=(rows,item)=>((rows.find(r=>r.item===item)||{}).result||'');
   let B=await lcRun({},{extra:[{x:200,y:480,t:'L/C NO.: TLC0001'}]});
   ['Consignee 은행','Notify (APPLICANT)','FREIGHT PREPAID','원본 통수 / SWB','선적일 ≤ 44C','揚地 (44F)','47A 모든 서류 L/C 번호'].forEach(it=>ok(/^같음/.test(res(B,it)),'L/C 같음 '+it+' — '+res(B,it)));
@@ -95,17 +95,19 @@ async function run(siOver, dOver){ const L=await pdfLines([F.draftItems(dOver)])
   B=await lcRun({checks:[{field:'bl_consignee', reason:'2回判読が違う: MADE OUT TO THE ORDER OF SAMPLE BANK NORTH BRANCH | TO THE ORDER OF SAMPLE BANK NORTH BRANCH'}], bl:{consignee_text:null, consignee_bank:null, notify_text:'APPLICANT', freight:'PREPAID'}},{});
   ok(/^같음/.test(res(B,'Consignee 은행')),'2회 판독 인용만 다름 = 비교함');
   eq(BL.lcCheck([],[],null,null,'')[0].result,'参考 (保管所に未登録)','보관소 없음 = 参考');
-  /* 항구 별칭 (D7): 같은 묶음 = 表記 · 없으면 차이 · 마스터 없으면 시험용 고정값 */
-  const alias=BL.portAliasOf([{group:'T1', names:['SAMPLEPORT ALPHA','SAMPLEPORT BETA']}]);
+  /* 항구 별칭 (D7) — v0.2: 엔진의 cpAliasSame (master_port_alias → cpPrepare · 승인 안전장치) — 같은 묶음 = 表記 · 없으면 차이 */
+  const ACLE=T.loadAcl(), AD=[{code:'ADM_A', email:'adm_a@example.com', portal_admin:true}];
+  const prepA=(rows,by)=>ACLE.cpPrepare([], rows.map(r=>Object.assign({approved_by:'ADM_A'},r)), {admins:ACLE.cpAdmins(AD), lastBy:rows.reduce((o,r)=>(o[ACLE.cpKey(r)]=by||'adm_a@example.com',o),{})}).alias;
+  const alias=prepA([{group:'T1', name:'SAMPLEPORT ALPHA'},{group:'T1', name:'SAMPLEPORT BETA'}]);
   B=await lcRun({pod:{text:'SAMPLEPORT ALPHA, SAMPLELAND', list:['SAMPLEPORT ALPHA']}},{pod:'SAMPLEPORT BETA', delivery:'SAMPLEPORT BETA'},alias); eq(res(B,'揚地 (44F)'),'表記 (港の別名)','港の別名 = 表記');
   B=await lcRun({pod:{text:'SAMPLEPORT ALPHA, SAMPLELAND', list:['SAMPLEPORT ALPHA']}},{pod:'SAMPLEPORT GAMMA', delivery:'SAMPLEPORT GAMMA'},alias); eq(res(B,'揚地 (44F)'),'차이','별칭 아님 = 차이');
-  const rowsAlias=BL.portAliasOf([{group:'SAMPLEPORT ALPHA', name:'SAMPLEPORT ALPHA'},{group:'SAMPLEPORT ALPHA', name:'SAMPLEPORT BETA'},{group:'OTHERPORT', name:'OTHERPORT'}]);
-  ok(rowsAlias.src==='master'&&rowsAlias.groups.length===1&&rowsAlias.groups[0].names.length===2,'master_port_alias 1 행 1 별명 모양');
-  B=await lcRun({pod:{text:'SAMPLEPORT ALPHA, SAMPLELAND', list:['SAMPLEPORT ALPHA']}},{pod:'SAMPLEPORT BETA', delivery:'SAMPLEPORT BETA'},rowsAlias); eq(res(B,'揚地 (44F)'),'表記 (港の別名)','마스터 모양으로 港の別名 = 表記');
-  B=await lcRun({pod:{text:'SAMPLEPORT ALPHA, SAMPLELAND', list:['SAMPLEPORT ALPHA']}},{pod:'SAMPLEPORT BETA', delivery:'SAMPLEPORT BETA', consignee:['TO ORDER OF SAMPLE BANK','NORTH BRANCH SAMPLEPORT ALPHA']},rowsAlias);
+  B=await lcRun({pod:{text:'SAMPLEPORT ALPHA, SAMPLELAND', list:['SAMPLEPORT ALPHA']}},{pod:'SAMPLEPORT BETA', delivery:'SAMPLEPORT BETA', consignee:['TO ORDER OF SAMPLE BANK','NORTH BRANCH SAMPLEPORT ALPHA']},alias);
   eq(res(B,'揚地 (44F)'),'表記 (港の別名)','L/C 항구 낱말이 주소에만 있어도 별칭 = 表記');
-  const fb=BL.portAliasOf(null); ok(fb.src==='test'&&fb.groups.length===1&&fb.groups[0].names.length===2,'port_alias 없음 → 시험용 고정값 1묶음');
-  ok(BL.literalSame('TO ORDER OF\nSAMPLE BANK','TO ORDER OF SAMPLE BANK')&&!BL.literalSame('SAMPLE BANK,','SAMPLE BANK.'),'글자 그대로 (공백만 같음 · 구두점 다름)');
+  B=await lcRun({pod:{text:'SAMPLEPORT ALPHA, SAMPLELAND', list:['SAMPLEPORT ALPHA']}},{pod:'SAMPLEPORT BETA', delivery:'SAMPLEPORT BETA'},prepA([{group:'T1', name:'SAMPLEPORT ALPHA'},{group:'T1', name:'SAMPLEPORT BETA'}],'stf_b@example.com'));
+  eq(res(B,'揚地 (44F)'),'차이','직원이 넣은 별칭 (마지막 변경자 = 직원) = 쓰지 않음 (승인 안전장치)');
+  B=await lcRun({pod:{text:'SAMPLEPORT ALPHA, SAMPLELAND', list:['SAMPLEPORT ALPHA']}},{pod:'SAMPLEPORT BETA', delivery:'SAMPLEPORT BETA'},[]); eq(res(B,'揚地 (44F)'),'차이','별칭 없음 (마스터 없음) = 차이 (bl-core 안에 고정값 없음)');
+  ok(T.PORT_ALIAS_TEST.length===2&&BL.samePortGroup(T.PORT_ALIAS_TEST,'JAKARTA, INDONESIA','TAN'+'JUNG PRIOK')==='JAKARTA','시험용 고정값 (시험 코드에만) = 같은 묶음');
+  ok(BL.PORT_ALIAS_TEST===undefined&&BL.portAliasOf===undefined&&BL.literalSame===undefined,'bl-core 의 임시 부품 (고정값 · portAliasOf · literalSame) 없음 = 엔진 하나');
   /* C — ACL 참고 */
   R=await run({},{notify:['SAMPLE PAPER INDUSTRY CO., LTD.','ADD: LOT CN5, SAMPLE ZONE, SAMPLE DISTRICT']}); ok(BL.aclNote(R.rows).some(x=>x.field==='Notify'),'ACL では一致 → Draft で変わった');
   /* 판 사이 */

@@ -1,18 +1,20 @@
 /* B/L Draft 엔진 (bl_bench.html 의 bl-core) 을 Node 에서 전수로 돌림 — 전수 조사 (AI 0 · Mac PDFKit) 와 판정 비교용.
    읽기만 · 쓰기 = --out 폴더 (로컬) 만 · 네트워크 0 (입력은 미리 받아 둔 로컬 파일).
-   node tools/bl_repro.mjs --data <dir> --out <dir> [--core bl_bench.html] [--meta coverage.csv] [--only IV,IV]
+   node tools/bl_repro.mjs --data <dir> --out <dir> [--core bl_bench.html] [--acl acl_bench.html] [--cp master_checkpoint.json] [--meta coverage.csv] [--only IV,IV]
+     v0.2: ACL エンジン (--acl · 既定 = 同じレポの acl_bench.html) を BL.useEngine で渡す (港の別名 · 比べ方 = エンジン)
+           --cp = マスター (master_checkpoint の JSON) の 追加 で stage に BL_DRAFT のある行を 最後の版に 「有効」 として試す (cp_trial と同じ考え) → repro_cp.csv
      <dir>/folders.json   [{iv, files:[{id,name,mod}]}]  (Invoice 폴더 목록)
      <dir>/pdf/{id}.pdf    (Draft · FRT MEMO 후보)
      <dir>/acl.json        ACL 엔진 결과 ({results:[{invoice, items, cp, meta, format}]}) — S/I 기대값
      <dir>/compass.json    {bookings, carriers, contracts} — 선사 · 지불 · 계약 · 운임값
      <dir>/lc_read/{계약}.json  L/C 보관소 (lc_read/1)
-     <dir>/port_alias.json (있으면) master_port_alias 의 items
+     <dir>/port_alias.json (있으면) master_port_alias 의 items (오프라인 재현 — 승인 확인 없이 전부 사용)
    필요: tests/bl_bench/node_modules (pdfjs-dist 3.11.174) */
 import fs from 'fs'; import path from 'path'; import vm from 'vm'; import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const here = path.dirname(new URL(import.meta.url).pathname);
 const arg = k => { const i=process.argv.indexOf('--'+k); return i>0?process.argv[i+1]:null; };
-const DATA=arg('data'), OUT=arg('out'), CORE=arg('core')||path.join(here,'..','bl_bench.html'), META=arg('meta'), ONLY=(arg('only')||'').split(',').filter(Boolean);
+const DATA=arg('data'), OUT=arg('out'), CORE=arg('core')||path.join(here,'..','bl_bench.html'), ACLP=arg('acl')||path.join(here,'..','acl_bench.html'), CPF=arg('cp'), META=arg('meta'), ONLY=(arg('only')||'').split(',').filter(Boolean);
 if(!DATA||!OUT){ console.error('--data · --out 필요'); process.exit(2); }
 fs.mkdirSync(path.join(OUT,'lines'),{recursive:true});
 
@@ -24,6 +26,8 @@ function loadCore(p){
   const ctx={module:{exports:{}}, console}; vm.createContext(ctx); vm.runInContext(code+'\n;module.exports=BL;',ctx); return ctx.module.exports;
 }
 const BL=loadCore(CORE);
+const ACL=new Function('module', fs.readFileSync(ACLP,'utf8').match(/<script id="acl-core">([\s\S]*?)<\/script>/)[1]+';return ACL;')(undefined);
+if(BL.useEngine) BL.useEngine(ACL);
 const NM=path.join(here,'..','tests','bl_bench','node_modules');
 const pdfjs=require(path.join(NM,'pdfjs-dist/legacy/build/pdf.js'));
 /* 브라우저 bl-app readPdf 와 같은 모양 (pdf.js 3.11.174 · cMap) */
@@ -57,7 +61,10 @@ const con={}; cpj.contracts.forEach(c=>{ con[c.cr49f_sale_contractid]=c; });
 const bk={}; cpj.bookings.forEach(b=>{ const iv=String(b.cr49f_invoice_no||'').trim().toUpperCase(); if(iv) (bk[iv]=bk[iv]||[]).push(b); });
 const NORM={'CNC':'CMA CGM','YANGMING':'Yang Ming','INTERASIA':'Interasia','INTERASIA(N)':'Interasia','HEUNG A':'Heung-A','PAN OCEAN':'Pan Ocean','WAN HAI':'Wan Hai','HAPAG':'Hapag-Lloyd','HAPAG(N)':'Hapag-Lloyd','JIN JIANG':'JJ Shipping','MAERSK':'Maersk','SEALAND':'Maersk','SEALAND(N)':'Maersk','SINOKOR':'Sinokor','NAMSUNG':'Namsung','T.S.LINES':'TS Lines','OOCL(N)':'OOCL'};
 const meta={}; if(META) readCsv(META).forEach(r=>{ meta[r.invoice]=r; });
-let alias=null; try{ alias=BL.portAliasOf(JSON.parse(fs.readFileSync(path.join(DATA,'port_alias.json'),'utf8'))); }catch(e){ alias=BL.portAliasOf(null); }
+let alias=[]; try{ const j=JSON.parse(fs.readFileSync(path.join(DATA,'port_alias.json'),'utf8')); alias=ACL.cpPrepare([], Array.isArray(j)?j:j.items||[], {trustAll:true}).alias; }catch(e){ alias=[]; }
+/* --cp: 追加 (stage BL_DRAFT) を 有効 として試す */
+let CPX=null; if(CPF){ const j=JSON.parse(fs.readFileSync(CPF,'utf8')), rows=(Array.isArray(j)?j:j.items||[]).filter(r=>r.kind==='追加').map(r=>Object.assign({},r,{status:'有効'})); CPX=ACL.cpPrepare(rows, [], {trustAll:true}); }
+const outCP=[];
 const lcStore=c=>{ try{ return JSON.parse(fs.readFileSync(path.join(DATA,'lc_read',c+'.json'),'utf8')); }catch(e){ return null; } };
 
 const by={}; for(const o of folders){ const iv=String(o.iv).split(/\s+/)[0].toUpperCase(); (by[iv]=by[iv]||[]).push(...(o.files||[])); }
@@ -82,10 +89,15 @@ for(const iv of ivs){
   });
   if(pay==='LC'){ const e=E.editions[n-1]; const store=lcStore(contract); const rowsA=BL.check(si||{items:[],cp:{},meta:{}},e.L,null).rows;
     BL.lcCheck(e.L,rowsA,BL.lcView(store),alias,carrier).forEach(r=>outB.push(Object.assign({iv, carrier, contract, file:e.name},r))); }
+  if(CPX){ const e=E.editions[n-1], store=pay==='LC'?lcStore(contract):null, res={};
+    const NM={MATCH:'一致',DIFF:'相違',NOTATION:'注意',READ_CHECK:'読取確認',INFO:'参考'};
+    BL.applyCp(res, CPX, {lc:store, si:null, ex:null, booking:b, meta:{pay, carrier, country:((si||{}).meta||{}).country||'', contract}, F:BL.cpDraftFields(e.L)});
+    (res.CP||[]).forEach(it=>outCP.push({iv, carrier, contract, file:e.name, cp:it.cp, result:NM[it.status]||it.status, expected:it.expected, actual:it.actual, detail:it.detail})); }
   if(++k%50===0) console.log(k,'IV',Math.round((Date.now()-t0)/1000)+'s');
 }
 writeCsv('repro_compass.csv',outA,['iv','carrier','pay','file','ed','ed_idx','ed_n','field','class','why','judge','note','other']);
 writeCsv('repro_lc.csv',outB,['iv','carrier','contract','file','item','result','lc_quote','draft','note']);
 writeCsv('repro_editions.csv',outE,['iv','carrier','pay','contract','editions','src','names','scans','excl']);
 writeCsv('repro_revision.csv',outRev,['iv','from_file','to_file','change','field','kind','text']);
+if(CPX) writeCsv('repro_cp.csv',outCP,['iv','carrier','contract','file','cp','result','expected','actual','detail']);
 console.log('done IV',k,'rows A',outA.length,'B',outB.length,'sec',Math.round((Date.now()-t0)/1000));

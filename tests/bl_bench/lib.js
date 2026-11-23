@@ -2,7 +2,12 @@
 const fs=require('fs'), path=require('path'), vm=require('vm');
 const HTML=path.resolve(process.env.BL_HTML||path.join(__dirname,'../../bl_bench.html'));
 function script(id, html){ const s=fs.readFileSync(html||HTML,'utf8'), m=s.match(new RegExp('<script id="'+id+'">([\\s\\S]*?)</script>')); if(!m) throw new Error('script '+id+' 없음'); return m[1]; }
-function loadCore(html){ const ctx={module:{exports:{}}, console}; vm.createContext(ctx); vm.runInContext(script('bl-core',html)+'\n;module.exports=BL;',ctx); return ctx.module.exports; }
+/* v0.2: ACL エンジン (同じレポの acl_bench.html の acl-core) を BL.useEngine で渡す — 画面ではコミット固定 + sha256 で読むもの */
+const ACL_HTML=path.join(__dirname,'../../acl_bench.html');
+function loadAcl(html){ return new Function('module', fs.readFileSync(html||ACL_HTML,'utf8').match(/<script id="acl-core">([\s\S]*?)<\/script>/)[1]+';return ACL;')(undefined); }
+function loadCore(html, acl){ const ctx={module:{exports:{}}, console}; vm.createContext(ctx); vm.runInContext(script('bl-core',html)+'\n;module.exports=BL;',ctx); const B=ctx.module.exports; if(B.useEngine) B.useEngine(acl||loadAcl()); return B; }
+/* 港の別名の 試験用 固定値 (형님 지시 · master_port_alias が無いときの試験 — 2 段階で bl-core から ここへ移した) = cpPrepare の alias の形 */
+const PORT_ALIAS_TEST = [['JAKARTA','JAKARTA'],['JAKARTA','TAN'+'JUNG PRIOK']].map(([g,n])=>({group:g, name:n, country:'', ok:true, why:''}));
 const {PDFDocument, StandardFonts, rgb}=require('pdf-lib');
 const pdfjs=require('pdfjs-dist/legacy/build/pdf.js');
 /* pages = [[{x, y(위에서), t, size}]] → PDF bytes (A4) */
@@ -22,4 +27,4 @@ let pass=0, fail=0; const fails=[];
 function ok(c, msg){ if(c) pass++; else { fail++; fails.push(msg); console.log('FAIL', msg); } }
 function eq(a, b, msg){ ok(JSON.stringify(a)===JSON.stringify(b), msg+' — got '+JSON.stringify(a)+' want '+JSON.stringify(b)); }
 function done(name){ console.log(name+' pass '+pass+' fail '+fail); process.exit(fail?1:0); }
-module.exports={HTML, script, loadCore, mkPdf, readPages, ok, eq, done};
+module.exports={HTML, script, loadCore, loadAcl, ACL_HTML, PORT_ALIAS_TEST, mkPdf, readPages, ok, eq, done};

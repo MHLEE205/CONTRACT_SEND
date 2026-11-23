@@ -1,5 +1,6 @@
 /* 통합 (jsdom) — bl_bench.html 을 그대로 열고 가짜 COMPASS · SharePoint (Invoice 폴더 · Draft PDF · ACL 없음) · L/C 보관소로 ① 照合 → ② 結果
-   통신은 전부 가짜 fetch · GET 만 (그 밖은 기록하고 실패) · ACL 엔진은 같은 레포의 acl_bench.html 을 그대로 읽음 */
+   통신은 전부 가짜 fetch · GET 만 (그 밖은 기록하고 실패) · ACL 엔진은 같은 레포의 acl_bench.html 을 그대로 (v0.2: 고정한 커밋 주소 · sha256 확인)
+   v0.2: 마스터 (checkpoint · port_alias · staff) — 1 회째 없음 (v0.1 과 같은 판정) · 2 회째 가짜 마스터 + 판 기록 (CP 번호 · CP-A01 試験 · 승인 안전장치) */
 const fs=require('fs'), path=require('path'), T=require('./lib.js'), F=require('./fixtures.js'), {ok, eq}=T;
 const {JSDOM}=require('jsdom');
 const ACLF=require('../acl_bench/fixtures.js');
@@ -18,13 +19,13 @@ const pdfjs=require('pdfjs-dist/legacy/build/pdf.js');
   const draft=await T.mkPdf([d.concat(F.FREIGHT)]);
   const lcStore=F.lc({lc_no:'TLC0001', bl:{consignee_text:'TO ORDER OF SAMPLE BANK HO CHI MINH BRANCH', consignee_bank:'SAMPLE BANK HO CHI MINH BRANCH', notify_text:'APPLICANT', notify_is_applicant:true, originals:3, freight:'PREPAID'},
     applicant:{name:'SAMPLE PAPER CO., LTD.'}, pod:{text:'CAT LAI PORT, VIETNAM', list:['CAT LAI']}});
-  const calls=[], writes=[];
+  const calls=[], writes=[]; let MASTERS=null;
   const J=(o,st)=>({ok:(st||200)<400, status:st||200, headers:{get:()=>null}, json:async()=>o, text:async()=>JSON.stringify(o), arrayBuffer:async()=>new ArrayBuffer(0)});
   const B=(u8)=>({ok:true, status:200, headers:{get:()=>null}, arrayBuffer:async()=>u8.buffer.slice(u8.byteOffset,u8.byteOffset+u8.byteLength)});
   const WIP=encodeURIComponent('古紙')+'/'+encodeURIComponent('-. 古紙書類')+'/'+encodeURIComponent('▲ 書類作成中');
   async function fakeFetch(url, opt){
     const m=(opt&&opt.method)||'GET'; url=String(url); calls.push(m+' '+url); if(m!=='GET'){ writes.push(m+' '+url); throw new Error('write blocked'); }
-    if(url==='acl_bench.html') return {ok:true, status:200, text:async()=>aclHtml};
+    if(/^https:\/\/raw\.githubusercontent\.com\/MHLEE205\/CONTRACT_SEND\/[0-9a-f]{40}\/acl_bench\.html$/.test(url)){ const b=Buffer.from(aclHtml,'utf8'); return {ok:true, status:200, arrayBuffer:async()=>b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength)}; }
     const u=decodeURIComponent(url);
     if(/graph\.microsoft\.com/.test(url)){
       if(u.indexOf('/root:/古紙/-. 古紙書類/▲ 書類作成中:/children')>=0) return J({value:[{id:'F1', name:IV, folder:{}}]});
@@ -32,6 +33,10 @@ const pdfjs=require('pdfjs-dist/legacy/build/pdf.js');
       if(u.indexOf('/root:/古紙/-. 古紙書類/▲ 書類作成中/'+IV+':/children')>=0) return J({value:[{id:'D1', name:IV+'_DRAFT.pdf', file:{}, size:draft.length, lastModifiedDateTime:'2026-10-14T00:00:00Z', webUrl:'https://example.invalid/d1'},{id:'X1', name:IV+'_SI.pdf', file:{}}]});
       if(u.indexOf('/items/D1/content')>=0) return B(draft);
       if(u.indexOf('/root:/古紙/LC/_READ/LRS-2601FK1.json:/content')>=0) return J(lcStore);
+      /* v0.2: マスターの版の記録 (承認の安全装置) — 版 1 つ · 保存者 = 管理者 */
+      const mm=u.match(/\/root:\/古紙\/-\. AI 活用\/MASTER\/master_(checkpoint|port_alias)\.json\?\$select=id$/); if(mm&&MASTERS) return J({id:'M_'+mm[1]});
+      const mv=u.match(/\/items\/M_(checkpoint|port_alias)\/versions\?/); if(mv&&MASTERS) return J({value:[{id:'2.0', lastModifiedBy:{user:{email:'adm_a@example.com'}}}]});
+      const mc=u.match(/\/items\/M_(checkpoint|port_alias)\/content$/); if(mc&&MASTERS) return J({items:MASTERS[mc[1]]});
       return J({error:{message:'not found'}},404);
     }
     if(/dynamics\.com/.test(url)){
@@ -53,11 +58,11 @@ const pdfjs=require('pdfjs-dist/legacy/build/pdf.js');
   const page=html.replace(/<script src="https:\/\/mhlee205\.github\.io\/LEENAI_COMMON\/v1\/leenai-common\.js"><\/script>/,'');
   let ready=null; const readyP=new Promise(r=>{ ready=r; });
   const dom=new JSDOM(page,{runScripts:'dangerously', url:'https://mhlee205.github.io/CONTRACT_SEND/bl_bench.html', beforeParse(w){
-    w.fetch=fakeFetch; w.pdfjsLib=pdfjs;
+    w.fetch=fakeFetch; w.pdfjsLib=pdfjs; Object.defineProperty(w,'crypto',{value:require('crypto').webcrypto, configurable:true}); w.TextDecoder=TextDecoder;
     w.LEENAI={init(cfg){ w.__cfg=cfg; w.document.addEventListener('DOMContentLoaded',()=>{ w.document.getElementById('app').style.display=''; cfg.onReady(); ready(); }); },
-      auth:{token:async()=>'FAKE', status:{dataverse:'ok', graph:'ok'}}, SP:{DRIVE_ID:'DRIVE'}, master:{get:async n=>{ calls.push('MASTER '+n); return null; }}}; }});
+      auth:{token:async()=>'FAKE', status:{dataverse:'ok', graph:'ok'}}, SP:{DRIVE_ID:'DRIVE'}, master:{get:async n=>{ calls.push('MASTER '+n); return MASTERS?MASTERS[n]||null:null; }}}; }});
   const w=dom.window; await readyP;
-  eq(w.__cfg.version,'0.1','LEENAI.init 버전'); ok(/bl_bench\.html$/.test(w.__cfg.redirectUri),'redirectUri = bl_bench.html');
+  eq(w.__cfg.version,'0.2','LEENAI.init 버전'); ok(/bl_bench\.html$/.test(w.__cfg.redirectUri),'redirectUri = bl_bench.html');
   /* ① 照合 */
   w.document.getElementById('bbInv').value=IV+'\nNOT-AN-IV'; w.document.getElementById('bbRun').click();
   for(let i=0;i<200&&!/完了/.test(w.document.getElementById('bbRunSt').textContent);i++) await new Promise(r=>setTimeout(r,50));
@@ -69,9 +74,10 @@ const pdfjs=require('pdfjs-dist/legacy/build/pdf.js');
   ['Shipper','Consignee','Notify','Booking/B/L No.'].forEach(f=>eq(cls(f),'같음','A '+f));
   const lcr=it=>((R.B||[]).find(r=>r.item===it)||{}).result||'';
   ok(/^같음/.test(lcr('Consignee 은행')),'B Consignee 은행 '+lcr('Consignee 은행')); ok(/^같음/.test(lcr('47A 모든 서류 L/C 번호')),'B 47A');
-  ok(calls.some(c=>/acl_bench\.html$/.test(c)),'ACL 엔진 = acl_bench.html 에서 읽음'); ok(calls.some(c=>c==='MASTER port_alias'),'port_alias 마스터 읽기 (없음 → 고정값)');
+  ok(calls.some(c=>/raw\.githubusercontent\.com\/MHLEE205\/CONTRACT_SEND\/[0-9a-f]{40}\/acl_bench\.html$/.test(c)),'ACL 엔진 = 고정한 커밋의 acl_bench.html (sha256 일치)');
+  ok(['checkpoint','port_alias','staff'].every(n=>calls.indexOf('MASTER '+n)>=0),'마스터 읽기 (checkpoint · port_alias · staff)');
   eq(writes,[],'쓰기 0'); ok(calls.every(c=>/^(GET|MASTER) /.test(c)),'GET 만');
-  ok(/港の別名: master_port_alias なし/.test(w.document.getElementById('bbLog').textContent),'로그: 고정값 사용');
+  ok(/チェックポイント なし · 港の別名 なし/.test(w.document.getElementById('bbLog').textContent),'로그: 마스터 없음 (고정값 없음)'); eq(R.CP,undefined,'마스터 없음 → 체크 없음 (v0.1 과 같은 결과)');
   /* ② 結果 화면 */
   w.document.querySelector('#bbOut tr[data-i]').dispatchEvent(new w.Event('click'));
   const det=w.document.getElementById('bbDetail').innerHTML;
@@ -83,5 +89,16 @@ const pdfjs=require('pdfjs-dist/legacy/build/pdf.js');
   eq(w.document.getElementById('bbBuyerSt').textContent,'やめました','やめる = 만들지 않음');
   /* CSV */
   const csv=w.eval('BL').toCsv(w.BLAPP.S.results); ok(csv.indexOf(IV)>0&&csv.split('\r\n').length>15,'CSV');
+  /* v0.2 — 가짜 마스터 (基本 BL_DRAFT 2 · CP-A01 試験 · 직원 관리자 1) + 판 기록 → CP 번호 · 試験 = 参考 · 판정 같음 */
+  const Bk=(id,key)=>({id, kind:'基本', stage:'BL_DRAFT', pay:'ALL', scope_type:'all', scope:'ALL', engine_key:key, title_ja:key, status:'有効', approved_by:'ADM_A', approved_at:'2026-11-23'});
+  MASTERS={checkpoint:[Bk('CP-B50','bl:consignee'),Bk('CP-B52','bl:lc:consignee'),{id:'CP-A01', kind:'追加', stage:'ACL,BL_DRAFT,BL', pay:'LC', scope_type:'all', scope:'ALL', left:'lc.bl.consignee_text', op:'same_text_ws:trim_end_punct', right:'acl.consignee', result:'相違', title_ja:'Consignee は L/C 46A の文言どおり', status:'試験'}],
+    port_alias:[], staff:[{code:'ADM_A', email:'adm_a@example.com', portal_admin:true}]};
+  w.BLAPP.S.alias=null; const v1=R.verdict; w.document.getElementById('bbRun').click();
+  for(let i=0;i<200&&!(w.BLAPP.S.results[0]&&w.BLAPP.S.results[0]!==R&&/完了/.test(w.document.getElementById('bbRunSt').textContent));i++) await new Promise(r=>setTimeout(r,50));
+  const R2=w.BLAPP.S.results[0]||{}, a01=(R2.CP||[]).find(i=>i.cp==='CP-A01')||{};
+  eq([(R2.A||[]).find(r=>r.field==='Consignee').cp,(R2.B||[]).find(r=>r.item==='Consignee 은행').cp],['CP-B50','CP-B52'],'마스터 → A · B 항목 CP 번호');
+  eq([a01.trial,a01.cpState,R2.verdict],[true,'試験',v1],'CP-A01 試験 = 参考 · 판정 그대로');
+  ok(/チェックポイント 3 行 \(B\/L Draft\) · 港の別名 0 行 有効/.test(w.document.getElementById('bbLog').textContent)&&!/版の記録を読めない/.test(w.document.getElementById('bbLog').textContent),'로그: 마스터 · 판 기록 읽음');
+  ok(calls.some(c=>/\/items\/M_checkpoint\/versions\?/.test(decodeURIComponent(c))),'판 기록 (versions) 읽음'); eq(writes,[],'쓰기 0 (2 회째)');
   T.done('e2e');
 })().catch(e=>{ console.log('FAIL exception',e.stack); process.exit(1); });

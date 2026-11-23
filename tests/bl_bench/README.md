@@ -20,10 +20,11 @@ cd tests/bl_bench && npm install && node run_all.js
 | `run_all.js` | 아래 전부 |
 | `check.js` | 문법 · 버전 1곳 · 공통 파일 1회 · confirm/alert 0 · 쓰기 0 · CDN 고정판 · 보안 grep 0 · 실명 0 · 푸터 |
 | `unit.js` | 이름 · 판 · B/L 쪽 · 판정 5가지 · R1~R11 · 다른 건 Draft · L/C 7항목 · 항구 별칭 · 판 사이 · 가리기 좌표 · 쪽 빼기 |
-| `e2e.js` | jsdom 통합 — 가짜 COMPASS · Invoice 폴더 · L/C 보관소 → 照合 · 結果 · 확인 문구 (GET 만 · 쓰기 0) |
+| `e2e.js` | jsdom 통합 — 가짜 COMPASS · Invoice 폴더 · L/C 보관소 → 照合 · 結果 · 확인 문구 (GET 만 · 쓰기 0) · v0.2: 고정 커밋의 ACL 엔진 (sha256) · 가짜 마스터 + 판 기록 |
+| `v02.js` | v0.2 — 체크포인트 (stage BL_DRAFT 基本 CP 번호 · 停止 · CP-A01 을 Draft 에 · 끝 쉼표 · 試験 = 参考) · Draft 칸 · 화면 · 当社書類 쪽 · B/L 쪽 없음 · 마스터 없음 = v0.1 |
 | `mask_browser.js` | Chrome 에서 바이어용 Draft — 글자 층 0 · 검은 칸 화소 · 쪽 빼기 |
-| `lib.js` · `fixtures.js` | bl-core 읽기 · 가짜 PDF · 가짜 S/I · 가짜 L/C 보관소 |
+| `lib.js` · `fixtures.js` | bl-core 읽기 (+ 같은 레포의 ACL 엔진 `useEngine`) · 가짜 PDF · 가짜 S/I · 가짜 L/C 보관소 · 港の別名 시험용 고정값 (`PORT_ALIAS_TEST`) |
 
-전수 재현 (실제 자료 · 로컬) 은 `tools/bl_repro.mjs` — 레포에는 실제 값이 없다.
+전수 재현 (실제 자료 · 로컬) 은 `tools/bl_repro.mjs` (`--cp` = 체크포인트 追加 를 Draft 에 시험) — 레포에는 실제 값이 없다.
 
 ✦ Powered by LEENAI Automation System
