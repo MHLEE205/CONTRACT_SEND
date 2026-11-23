@@ -1,4 +1,5 @@
 /* (v0.3.1) readPdf 가 다 읽은 PDF 를 닫는지 — node pdfclose.js [html] [v0.3 html]   (가짜 데이터만)
+   (v0.12: cmaps 주소 AB_CMAPS 도 넘김)
    도구의 readPdf · mapLimit · ① 一覧 의 mapLimit 콜백을 원문 그대로 꺼내, 가짜 pdf.js / 실제 pdf.js (pdfread.js 와 같은 방식) 로 돌린다 */
 const fs=require('fs'),path=require('path'),FX=require('./fixtures'),N=require('./fake_naccs'),R=require('./pdfread');
 const html=fs.readFileSync(process.argv[2]||path.join(__dirname,'../../acl_bench.html'),'utf8');
@@ -10,8 +11,8 @@ const fnSrc=(h,re)=>{ const m=h.match(re); if(!m) throw new Error('원문 없음
 const READ=/async function readPdf\(file\)\{[\s\S]*?\n\}\n/, MAPL=/async function mapLimit\([\s\S]*?\n/;
 /* 원문 그대로 · 주변 (graphFetch · drv · ensurePdfJs · logLine · window) 만 가짜 */
 function load(h, env){
-  return new Function('window','graphFetch','drv','ensurePdfJs','AB_PDFJS','logLine', fnSrc(h,READ)+fnSrc(h,MAPL)+';return {readPdf, mapLimit};')(
-    env.window, async()=>({ok:true, arrayBuffer:async()=>env.bytes(env.cur)}), ()=>'/drv', async()=>{}, '/pdfjs/', env.log);
+  return new Function('window','graphFetch','drv','ensurePdfJs','AB_PDFJS','logLine','AB_CMAPS', fnSrc(h,READ)+fnSrc(h,MAPL)+';return {readPdf, mapLimit};')(
+    env.window, async()=>({ok:true, arrayBuffer:async()=>env.bytes(env.cur)}), ()=>'/drv', async()=>{}, '/pdfjs/', env.log, '/cmaps/');
 }
 /* ① 一覧 의 콜백 (runList 902행) 원문 — t.format='ERROR' 경로 확인용 */
 const CB=html.match(/await mapLimit\(g\.targets,4,(async t=>\{[\s\S]*?\}\);)\n\s*S\.list=/)[1].replace(/\);$/,'');
@@ -55,8 +56,8 @@ console.log('1) 세 경우 모두 destroy 정확히 1번 · 오류는 그대로 
   const window={pdfjsLib:{GlobalWorkerOptions:{}, getDocument:opt=>{ const f=fakePdfjs(mode[opt.__id]), t=f.lib.getDocument(opt), wrap=x=>{ const d=x.destroy; x.destroy=()=>{ st.destroyed++; return d(); }; return x; };
     return {promise:t.promise.then(wrap), destroy:wrap(t).destroy}; }}};
   let cur=null; const logs=[];
-  const F=new Function('window','graphFetch','drv','ensurePdfJs','AB_PDFJS','logLine', fnSrc(html,READ)+fnSrc(html,MAPL)+';return {readPdf, mapLimit};')(
-    window, async u=>{ cur=u.split('/')[2]; return {ok:true, arrayBuffer:async()=>new ArrayBuffer(8)}; }, ()=>'', async()=>{}, '', (m,c)=>logs.push(c));
+  const F=new Function('window','graphFetch','drv','ensurePdfJs','AB_PDFJS','logLine','AB_CMAPS', fnSrc(html,READ)+fnSrc(html,MAPL)+';return {readPdf, mapLimit};')(
+    window, async u=>{ cur=u.split('/')[2]; return {ok:true, arrayBuffer:async()=>new ArrayBuffer(8)}; }, ()=>'', async()=>{}, '', (m,c)=>logs.push(c), '');
   const realGD=window.pdfjsLib.getDocument; window.pdfjsLib.getDocument=opt=>realGD(Object.assign(opt,{__id:cur}));
   const $=()=>({}); const cb=new Function('readPdf','S','ACL','logLine','$','g','let k=0; return '+CB+';')(F.readPdf,S,ACL,(m,c)=>logs.push(c),$,g);
   for(const t of g.targets) await cb(t);
@@ -82,8 +83,8 @@ if(oldHtml){
   const bufs=[]; for(const s of specs) bufs.push(await N.build(s));
   const byId=i=>{ const b=bufs[i]; return b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength); };
   const run=async h=>{ const e={window:{pdfjsLib:R.pdfjsForWindow()}, bytes:byId, cur:null}, logs=[]; e.log=(m,c)=>logs.push(m);
-    const F=new Function('window','graphFetch','drv','ensurePdfJs','AB_PDFJS','logLine', fnSrc(h,READ)+fnSrc(h,MAPL)+';return {readPdf, mapLimit};')(
-      e.window, async u=>({ok:true, arrayBuffer:async()=>byId(+u.split('/')[2])}), ()=>'', async()=>{}, '', e.log);
+    const F=new Function('window','graphFetch','drv','ensurePdfJs','AB_PDFJS','logLine','AB_CMAPS', fnSrc(h,READ)+fnSrc(h,MAPL)+';return {readPdf, mapLimit};')(
+      e.window, async u=>({ok:true, arrayBuffer:async()=>byId(+u.split('/')[2])}), ()=>'', async()=>{}, '', e.log, '');
     const out=[]; for(let i=0;i<bufs.length;i++) out.push(J(await F.readPdf({id:String(i)}))); return {out, logs}; };
   const a=await run(oldHtml), b=await run(html);
   ok(a.out.length===5&&a.out.every((s,i)=>s===b.out[i])&&b.out[1].length>a.out[0].length,'5개 (완전 · 컨테이너 20개 2쪽 이상 · 스캔 · 다른 양식) — v0.3 과 JSON 바이트 같음',a.out.map((s,i)=>[s.length,b.out[i].length]));
