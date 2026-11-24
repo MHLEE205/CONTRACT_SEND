@@ -92,7 +92,7 @@ tr.ab-d td{background:var(--surface)}
       <button id="abRun" class="ab-btn" disabled>照合 実行</button>
       <button id="abStop" class="ab-btn ghost" disabled>止める</button>
     </div>
-    <div class="ab-row"><label class="ab-note"><input type="checkbox" id="abScanAi"> スキャン ACL (文字なし) を AI で読む — 2 回読んで 同じ欄だけ照合 · 1 件 約 US$0.3 · 読んだ結果は保存し 同じファイルは 2 度読まない (AI キーは D-01 · A1 と同じ保存場所)</label></div>
+    <div class="ab-row"><label class="ab-note"><input type="checkbox" id="abScanAi"> スキャン ACL (文字なし) · 乙仲の独自様式の ACL を AI で読む — 2 回読んで 同じ欄だけ照合 (様式にない欄は 対象外) · 1 件 約 US$0.3 · 読んだ結果は保存し 同じファイルは 2 度読まない (AI キーは D-01 · A1 と同じ保存場所)</label></div>
     <div id="abRunSt" class="ab-note"></div>
   </div>
 
@@ -140,6 +140,7 @@ tr.ab-d td{background:var(--surface)}
      読み P2 (ラベル 0 → 読取確認要 · Booking 末尾 「-」 · コンテナ = 番号 + チェックデジット · 港の後ろの数字 · コンテナ行数 ↔ 本数) · Shipper's Mail 空欄 = 参考 (D1) · 本船変更 = 相違のまま 「本船変更依頼」 (D5) ·
      担当者メールの判断 (本文の自分の部分 · B/L 段階の件名は除く · [ACL訂正依頼] タグ · 3 か月 jsonl) · L/C JSON 照合 (L/C 番号 · 日付 · 揚地 · 積地 · 原本通数 · Notify) — 違えば 相違 (D2 · D5) · しないこと: S/I 確認を分ける (P3) · 連絡先を参考 (P6) · HS 末尾 0 · 1 〜 2 文字の許容
    v0.13 (2026-11-23 指示書 D00 B/L 照合結果の保存 · 日本語化): 画面に出る文の韓国語をなくした (Shipper's Mail 空欄の参考 · 報告の 「制作」 · 説明) — 判定 · 結果は v0.12 と同じ
+   v0.15 (2026-11-24 指示書 THOR_10 G9): 乙仲の独自様式 (OTHER · 文字あり · スキャン) も AI で 2 回読み 同じ照合 — 様式にない欄 = 対象外 (相違にしない) · 様式名を記録 · 保存 _scan_ai/{sha256}.other.json — NACCS · スキャン NACCS の判定は v0.14 と同じ<br>
    v0.14 (2026-11-23 指示書 MAC-THOR_6 C4 · 형님 D2): スキャン ACL (文字なし) を AI で 2 回読み、2 回同じ欄だけ NACCS と同じ照合 (scanPrompt · scanMerge · naccsTotals) — NACCS の判定は v0.13 と同じ
    v0.12 (2026-11-23 指示書 D00 B/L Draft 2 段階 · CP-A01 補完 · 형님 D1): 比べ方 same_text_ws に 「:trim_end_punct」 (書類の欄の 末尾の , ; : 1 つを無視 · CP-A01 用) ·
      追加の行の選び方 cpStageRows · 港の別名 cpAliasSame を B/L Draft 照合 (bl_bench) と共通に (ACL の結果は v0.11 と同じ)
@@ -374,15 +375,17 @@ const ACL = (()=>{
      ・2 回の値が同じ欄だけ使う (空白 · 大文字小文字だけの違いは同じ) · 違う欄 = conf 'AI_DIFF' (値は空 · 2 つの値を amb に) → 照合で 読取確認要
      ・原文のまま (翻訳 · 整理しない) · 欄ごとに ページ番号
      ・その後は NACCS と同じ compareOne (照合 · チェックポイント) — 結果に ai (AI 判読 (スキャン)) を付ける */
-  const SCAN_AI = {ver:'1', model:'claude-opus-5-5', effort:'high', maxTokens:32000, reads:2, label:'AI 判読 (スキャン)', price:{in:4, out:20, cacheWrite:5, cacheRead:0.4}};   // price = US$ / 100 万トークン (lc_read_one と同じ目安)
+  const SCAN_AI = {ver:'1', model:'claude-opus-5-5', effort:'high', maxTokens:32000, reads:2, label:'AI 判読 (スキャン)', otherLabel:'AI 判読 (乙仲様式)', otherVer:'o2', price:{in:4, out:20, cacheWrite:5, cacheRead:0.4}};   // price = US$ / 100 万トークン (lc_read_one と同じ目安)
   const scanCost = u => { const p=SCAN_AI.price; u=u||{}; return ((u.input_tokens||0)*p.in+(u.output_tokens||0)*p.out+(u.cache_creation_input_tokens||0)*p.cacheWrite+(u.cache_read_input_tokens||0)*p.cacheRead)/1e6; };
   const SCAN_ROW_KEYS = ['container','seal','type','size','kind','bales','cargo','measure','tare'];
   const SCAN_NUM = {bales:1, cargo:1, measure:1, tare:1};
   const SCAN_SYSTEM = 'You transcribe scanned shipping documents (Japanese export "ACL" / B/L instruction forms, usually the NACCS standard layout, sometimes a forwarder\'s own layout) into JSON. You copy the printed characters exactly as they appear: no translation, no spelling correction, no reformatting, no guessing. Output only JSON.';
-  function scanPrompt(){
-    const L=HEAD_KEYS.map(k=>'  "'+k+'": "'+LABELS[k]+'"').join(',\n');
-    return ['This PDF is a scanned ACL (shipping instruction / B/L instruction). Read every page and return ONE JSON object:',
-      '{"layout":"NACCS" or "OTHER", "pages":<number of pages>, "fields":{<key>:{"text":<string or null>,"page":<page number>,"label":<label printed on the form>}}, "rows":[{"container":"","seal":"","type":"","size":"","kind":"","bales":<number or null>,"cargo":<number or null>,"measure":<number or null>,"tare":<number or null>,"page":<page>}], "note":""}',
+  /* v0.15 (G9): opt.other = 乙仲の独自様式 (OTHER) 用の追加の指示 (様式名 · 欄がない = absent · コンテナ表の有無) — 引数なしは v0.14 と 1 文字も同じ */
+  function scanPrompt(opt){
+    const L=HEAD_KEYS.map(k=>'  "'+k+'": "'+LABELS[k]+'"').join(',\n'), O=!!(opt&&opt.other);
+    return (O?SCAN_OTHER_HEAD:[]).concat(['This PDF is a scanned ACL (shipping instruction / B/L instruction). Read every page and return ONE JSON object:',
+      O?'{"layout":"NACCS" or "OTHER", "form":<short name of this form as printed>, "containerTable":<true or false>, "pages":<number of pages>, "fields":{<key>:{"text":<string or null>,"absent":<true or false>,"page":<page number>,"label":<label printed on the form>}}, "rows":[{"container":"","seal":"","type":"","size":"","kind":"","bales":<number or null>,"cargo":<number or null>,"measure":<number or null>,"tare":<number or null>,"page":<page>}], "note":""}'
+       :'{"layout":"NACCS" or "OTHER", "pages":<number of pages>, "fields":{<key>:{"text":<string or null>,"page":<page number>,"label":<label printed on the form>}}, "rows":[{"container":"","seal":"","type":"","size":"","kind":"","bales":<number or null>,"cargo":<number or null>,"measure":<number or null>,"tare":<number or null>,"page":<page>}], "note":""}',
       '',
       'fields — one entry for EACH key below. The value is the NACCS box label; on another layout use the box with the same meaning and put its printed label in "label":',
       L,
@@ -398,8 +401,18 @@ const ACL = (()=>{
       '- container = container number (4 letters + 7 digits) as printed; seal = seal number(s) as printed; type / size = the Type and Size columns; kind = package kind word (e.g. BALES).',
       '- bales = number of packages, cargo = cargo (net) weight in KG, measure = measurement, tare = tare weight — numbers only (no commas, no units). Empty → null.',
       '',
-      'Return only the JSON object.'].join('\n');
+      ], O?SCAN_OTHER_TAIL:[], ['Return only the JSON object.']).join('\n');
   }
+  /* v0.15 (G9) — 乙仲の独自様式: 欄がない ≠ 空欄 ≠ 読めない を AI に分けて返させる */
+  const SCAN_OTHER_HEAD = ['This ACL is NOT the NACCS standard layout: it is a forwarder\'s own form (it may be a text PDF or a scan). Read it from the page images.', ''];
+  const SCAN_OTHER_TAIL = ['Rules for this form (not NACCS):',
+    '- "form" = the short name of this form as printed (issuing company and/or document title, e.g. "ABC LOGISTICS DOCK RECEIPT"). Copy the printed words; do not invent a name.',
+    '- For every key: if this form has NO box with that meaning at all, return {"text":null,"absent":true}. If the box exists, "absent":false and copy its content ("" when it is empty, "?" for unreadable characters).',
+    '- Do not move text from another box to fill a key. Only use a box whose printed label (or obvious position) has the same meaning.',
+    '- If vessel and voyage are printed in ONE box, put the vessel name part in "vessel" and the voyage number part in "voy" (each copied as printed).',
+    '- A key whose box is a CHECKBOX (e.g. WAYBILL, RECEIVED B/L, FREIGHT AS ARRANGED, NEED AGENT NAME): "text" = "1" if the box is checked (a tick, a cross, a dot or any mark inside it — look closely, faxed boxes are small), "" if the box is empty. Do not copy the checkbox caption.',
+    '- "containerTable" = true if the form lists containers (number, seal, packages or weights per container) anywhere, otherwise false and "rows":[].',
+    ''];
   /* 同じ = 空白 · 大文字小文字だけの違い (指示書 C4 「공백 · 대소문자만 다른 것은 같음」 — 空白の有無も含む: 「BALE,COMPRESSED」 = 「BALE, COMPRESSED」) */
   const scanSame = (a,b) => String(a==null?'':a).replace(/\s+/g,'').toUpperCase()===String(b==null?'':b).replace(/\s+/g,'').toUpperCase();
   const scanTxt = v => { const t=v==null ? null : typeof v==='object' ? (v.text==null?null:String(v.text)) : String(v); return t!=null&&t.trim()==='-'?'':t; };   // 「-」 = 記載なし
@@ -407,12 +420,19 @@ const ACL = (()=>{
   const scanNum = v => v==null||v==='' ? null : typeof v==='number' ? v : num(v);
   /* 2 回の判読 (j1 · j2 = AI の JSON) → readNaccs と同じ形 + ai */
   function scanMerge(j1, j2, meta){
-    j1=j1||{}; j2=j2||{}; const f1=j1.fields||{}, f2=j2.fields||{}, fields={}, diffF=[];
+    j1=j1||{}; j2=j2||{}; const f1=j1.fields||{}, f2=j2.fields||{}, fields={}, diffF=[], O=!!(meta&&meta.other), naF=[];
+    /* v0.15 (G9): 乙仲様式 — 2 回とも 「この様式に欄がない」 (absent · text null) → NA (対象外 · 相違にしない) · 片方だけ → AI_DIFF (読取確認要) */
+    const absent=v=>v==null||(typeof v==='object'&&(v.absent===true||v.text==null));
     HEAD_KEYS.forEach(k=>{ const a=scanTxt(f1[k]), b=scanTxt(f2[k]), pa=f1[k]&&f1[k].page||null, pb=f2[k]&&f2[k].page||null;
+      if(O){ const na=absent(f1[k]), nb=absent(f2[k]);
+        if(na&&nb){ fields[k]={text:'', conf:'NA', page:null, ai:true}; naF.push(k); return; }
+        if(na!==nb){ fields[k]={text:'', conf:'AI_DIFF', page:pa||pb, amb:[na?'(欄なし)':a, nb?'(欄なし)':b], ai:true}; diffF.push(k); return; } }
       if(a==null&&b==null){ fields[k]={text:'', conf:'MISSING', page:null, ai:true}; return; }
       if(scanSame(a,b)){ const t=(a!=null?a:b).replace(/\r\n?/g,'\n'); fields[k]={text:t, conf:'SURE', page:pa||pb, ai:true}; if(a!=null&&b!=null&&a.replace(/\r\n?/g,'\n')!==b.replace(/\r\n?/g,'\n')) fields[k].wsOnly=[a,b]; return; }
       fields[k]={text:'', conf:'AI_DIFF', page:pa||pb, amb:[a==null?'(なし)':a, b==null?'(なし)':b], ai:true}; diffF.push(k); });
     const rowsOf=j=>(j.rows||[]).filter(r=>r&&String(r.container||'').trim()), R1=rowsOf(j1), R2=rowsOf(j2), keys=[];
+    /* v0.15 (G9): 乙仲様式 — コンテナ表に その列がない (2 回とも どの行も空) → naCols (照合しない · 行の確かさにも入れない) */
+    const naCols={}; if(O&&R1.length+R2.length) SCAN_ROW_KEYS.slice(1).forEach(f=>{ if(R1.concat(R2).every(r=>r[f]==null||String(r[f]).trim()==='')) naCols[f]=true; });
     R1.concat(R2).forEach(r=>{ const k=idK(r.container); if(keys.indexOf(k)<0) keys.push(k); });
     const rows=keys.map(k=>{ const a=R1.find(r=>idK(r.container)===k), b=R2.find(r=>idK(r.container)===k), row={page:(a||b).page||null, container:String((a||b).container).trim()}, d={};
       if(!a||!b){ d.container=[a?'あり':'なし', b?'あり':'なし']; }
@@ -424,12 +444,15 @@ const ACL = (()=>{
       if(Object.keys(note).length) row.aiNote=note;
       const nd=Object.keys(d).length;
       if(nd) row.aiDiff=d;
-      row.conf=!nd&&row.seal&&row.bales!=null&&row.cargo!=null?'SURE':'AMBIGUOUS';
+      row.conf=!nd&&(row.seal||naCols.seal)&&(row.bales!=null||naCols.bales)&&(row.cargo!=null||naCols.cargo)?'SURE':'AMBIGUOUS';
       return row; });
     /* 数の欄 — AI が 「117, 450. 000」 のように 区切りの後に空白を入れることがある → 数の中の空白だけ除く (合計が 117 になるのを防ぐ) */
     ['totalWeight','totalMeasure','totalPkgs','numberOf'].forEach(k=>{ if(fields[k]&&fields[k].text) fields[k].text=fields[k].text.replace(/(\d)\s*([,.])\s*(?=\d)/g,'$1$2'); });
     const fullText=HEAD_KEYS.map(k=>fields[k].text).filter(Boolean).join('\n');
     const ai={label:SCAN_AI.label, ver:SCAN_AI.ver, model:(meta&&meta.model)||SCAN_AI.model, reads:2, pages:j1.pages||j2.pages||null, layout:[j1.layout||'', j2.layout||''], diffFields:diffF, diffRows:rows.filter(r=>r.aiDiff).map(r=>r.container), at:(meta&&meta.at)||null, sha256:(meta&&meta.sha256)||null, cost_usd:(meta&&meta.cost_usd)||null};
+    if(O){ const fa=String(j1.form||'').trim(), fb=String(j2.form||'').trim();
+      /* 様式名 = 2 回同じならその名前 · 違えば 1 回目 (参考 — 照合には使わない) · コンテナ表 = 2 回とも 「ない」 のときだけ ない */
+      Object.assign(ai,{label:SCAN_AI.otherLabel, ver:SCAN_AI.otherVer, other:true, form:fa&&fb&&!scanSame(fa,fb)?fa+' / '+fb:(fa||fb), naFields:naF, naCols:Object.keys(naCols), noTable:j1.containerTable===false&&j2.containerTable===false}); }
     return {fields, rows, totals:naccsTotals(fields, fullText), fullText, ai};
   }
   /* AI の返事 → JSON (```json の囲み · 前後の文 を除く) — 読めなければ null */
@@ -953,7 +976,7 @@ const ACL = (()=>{
     const lines=[]; CONTENT_KEYS.forEach(k=>String(txt(k)).split('\n').forEach(l=>{ if(norm(l)) lines.push({field:k, text:norm(l)}); }));
     const missing=[], moved=[], unread=[]; let found=0;
     /* 欄のラベルを読めない (MISSING) → その欄に入るはずの項目は 「無い」 と言わない (読めない — 推測しない · 実データ: ラベルが 1 つも取れない ACL がある) */
-    const noRead=k=>!F[k]||F[k].conf==='MISSING';
+    const noRead=k=>!F[k]||F[k].conf==='MISSING'||F[k].conf==='NA';   // v0.15: NA (乙仲様式に欄がない) も 「無い」 と言わない
     items.forEach(it=>{ const at=keys.filter(k=>itemIn(it, txt(k), D[k]));
       const row={text:it.text, type:it.type, kind:it.kind, group:it.group, src:it.src, srcs:it.srcs, srcLabel:it.srcs.map(s=>SRC[s][0]).join(' · '), srcCol:it.srcs.map(s=>SRC[s][1]).join(' · ')};
       const exp0=[].concat(...it.srcs.map(s=>SRC_FIELDS[s]||[]));
@@ -983,6 +1006,8 @@ const ACL = (()=>{
     /* v0.5 Step 1: ACL · S/I の続き記号をつないでから比べる (F · ex = つないだ後) */
     const OA=overflowJoin(OV_KEYS.reduce((o,k)=>(F0[k]&&(o[k]=F0[k].text||''),o),{}), F0.description&&F0.description.text||'', F0.description&&F0.description.ys);
     const F={}; Object.keys(F0).forEach(k=>{ F[k]=Object.assign({},F0[k]); if(k in OA.texts) F[k].text=OA.texts[k]; }); if(F.description) F.description.text=OA.desc;
+    /* v0.15 (G9): 乙仲様式で 航海番号の欄がない (本船の欄に一緒) → 航海 = 空 として 本船の欄だけで比べる */
+    const OTH=!!(acl.ai&&acl.ai.other); if(OTH&&F.voy&&F.voy.conf==='NA'&&F.vessel&&F.vessel.conf==='SURE') F.voy={text:'', conf:'SURE', page:null, ai:true, naJoin:true};
     const SI_OV=['shipper','consignee','notify','marks'], OS=overflowJoin(SI_OV.reduce((o,k)=>(o[k]=ex0[k]||'',o),{}), ex0.description||'', null);
     const ex1=Object.assign({},ex0,OS.texts,{description:OS.desc}), siJoin=t=>ovJoinText(t, OS.paras, null);
     /* v0.7 (형님 D3): S/I の日本語の行 = 乙仲への指示 — 欄別比較 · 最終確認 から外す */
@@ -992,10 +1017,22 @@ const ACL = (()=>{
     const kind=k=>{ kinds[k]=(kinds[k]||0)+1; };
     const add=(group,key,label,status,expv,actv,detail,k)=>{ items.push({group,key,label,status,expected:expv==null?'':String(expv),actual:actv==null?'':String(actv),detail:detail||'',kind:k||''}); if(k) kind(k); };
     const readOk=k=>F[k]&&F[k].conf==='SURE';
-    const readNote=k=>F[k]?(F[k].conf==='MISSING'?'ラベルなし':F[k].conf==='AI_DIFF'?'AI 2 回の判読が違う ('+(F[k].amb||[]).join(' / ')+')':'位置あいまい'+((F[k].amb||[]).length?' ('+F[k].amb.join(' / ')+')':'')):'';   // v0.14: AI_DIFF = スキャン AI 判読
+    const readNote=k=>F[k]?(F[k].conf==='MISSING'?'ラベルなし':F[k].conf==='NA'?'欄なし':F[k].conf==='AI_DIFF'?'AI 2 回の判読が違う ('+(F[k].amb||[]).join(' / ')+')':'位置あいまい'+((F[k].amb||[]).length?' ('+F[k].amb.join(' / ')+')':'')):'';   // v0.14: AI_DIFF = スキャン AI 判読
     /* v0.5: 続き記号 — つないだ欄に印 (画面が 「つないだ文 · どこから」 を見せる) · 段落が見つからない → 読取確認 */
     const ovTag=k=>{ const n=ovNote(k), it=items[items.length-1]; if(it&&(n.acl||n.si)) it.join=n; };
     const ovRead=(group,k,lb,expv,actv)=>{ const m=ovMissing(k); if(!m.length) return false; add(group,k,lb,'READ_CHECK',expv,actv,'続き（'+m.join(' · ')+'）が見つからない','読取確認要:続き記号:'+lb); ovTag(k); return true; };
+    /* v0.15 (G9) 乙仲様式: 本船の欄の後ろの 呼出符号 (英字 + 数字 4〜7 字 · S/I の本船にない) は外して比べる · 原本数 「THREE(3)…」 → 3 (原文は read.fields に残る) */
+    let callSign='', origNote='', marksCntr=0, vesselNoName=''; if(OTH){ const vs=F.vessel&&F.vessel.conf==='SURE'?String(F.vessel.text||'').trim():'', m=vs.match(/^(.*\S)\s+((?=[A-Z0-9]*\d)(?=[A-Z0-9]*[A-Z])[A-Z0-9]{4,7})$/);
+      if(m&&String(ex.vessel||'').toUpperCase().split(/\s+/).indexOf(m[2])<0){ callSign=m[2]; F.vessel=Object.assign({},F.vessel,{text:m[1]}); }
+      /* 航海番号の前の 「V.」「VOY.」 は外す (V.2632W = 2632W) · 本船名がなく 呼出符号だけ (ACL情報登録 の画面控え 「D8CM」) / 空 → 航海番号だけ比べる (vesselNoName) */
+      if(F.voy&&F.voy.conf==='SURE') F.voy=Object.assign({},F.voy,{text:String(F.voy.text||'').replace(/^\s*(?:VOY(?:AGE)?\.?\s*(?:NO\.?)?|V\.?)\s*(?=\d)/i,'')});
+      const vn=F.vessel&&F.vessel.conf==='SURE'?String(F.vessel.text||'').trim():null;
+      if(vn!=null&&(vn===''||/^(?=[A-Z0-9]*\d)(?=[A-Z0-9]*[A-Z])[A-Z0-9]{4,7}$/.test(vn)&&String(ex.vessel||'').toUpperCase().split(/\s+/).indexOf(vn)<0)&&F.voy&&F.voy.conf==='SURE'&&String(F.voy.text||'').trim()){ vesselNoName=vn||'(空欄)'; }
+      const ot=F.originals&&F.originals.conf==='SURE'?String(F.originals.text||'').trim():'', om=!/^\d*$/.test(ot)&&(ot.match(/^[A-Z]+\s*\(\s*(\d)\s*\)/i)||ot.match(/^(ONE|TWO|THREE)\b/i));
+      if(om){ origNote=ot; F.originals=Object.assign({},F.originals,{text:/^\d$/.test(om[1])?om[1]:String(['ONE','TWO','THREE'].indexOf(om[1].toUpperCase())+1)}); }
+      /* 「Container No./Seal No. Marks & Numbers」 が 1 つの欄の様式 — Marks の中の コンテナ行 (表と同じ番号) は外して比べる */
+      const rk=new Set((acl.rows||[]).map(r=>idK(r.container))), mk=F.marks&&F.marks.conf==='SURE'?String(F.marks.text||'').split('\n'):[], keep=mk.filter(l=>{ const m=l.trim().match(/^([A-Z]{4}\s?\d{7})(?:\s*[\/ ]\s*\S+)?$/); return !(m&&rk.has(idK(m[1]))); });
+      if(keep.length<mk.length){ marksCntr=mk.length-keep.length; F.marks=Object.assign({},F.marks,{text:keep.join('\n').replace(/\n+$/,'')}); } }
     // 1. ブッキング番号
     if(!readOk('booking')) add('ブッキング','booking','Booking No.','READ_CHECK',ex.booking,F.booking&&F.booking.text,readNote('booking'),'読取確認要:Booking No.');
     else { const v=dash(F.booking.text).trim().replace(/\s*-+$/,''); if(!v) add('ブッキング','booking','Booking No.','INFO',ex.booking,'','ACL に記載なし');   // v0.9 P2: 後ろの 「-」 は読み込んだ区切り
@@ -1011,7 +1048,12 @@ const ACL = (()=>{
       const bm=Date.parse((cp.booking||{}).modifiedon||''), fm=Date.parse(opts.fileModified||''), late=r.status!=='MATCH'&&r.status!=='NOTATION'&&!isNaN(bm)&&!isNaN(fm)&&bm>fm;
       add('本船・港','vessel','Ocean Vessel + Voy.No.',r.status==='MATCH'?'MATCH':r.status==='NOTATION'?'NOTATION':'DIFF',ex.vessel,act,r.status==='NOTATION'?r.note:late?'ACL のあとにブッキング変更 (本船変更の可能性) · ブッキング更新 '+String(cp.booking.modifiedon).slice(0,16)+' > ACL '+String(opts.fileModified).slice(0,16):'',
         r.status==='MATCH'?'':r.status==='NOTATION'?(r.kind?r.kind+':本船・航海':'表記差:本船・航海'):late?'相違:本船変更':'本船・航海 相違');
-      if(late&&r.status!=='MATCH'&&r.status!=='NOTATION'){ const it=items[items.length-1]; it.action='本船変更依頼'; it.detail='本船変更依頼 — '+it.detail; } }   // v0.9 (D5): 判定は 相違 のまま · 文言だけ
+      if(late&&r.status!=='MATCH'&&r.status!=='NOTATION'){ const it=items[items.length-1]; it.action='本船変更依頼'; it.detail='本船変更依頼 — '+it.detail; }
+      if(callSign){ const it=items[items.length-1]; it.detail=(it.detail?it.detail+' · ':'')+'呼出符号 '+callSign+' は外して比較 (乙仲様式)'; }
+      if(vesselNoName){ const it=items[items.length-1], ev=String(ex.vessel||'').trim().split(/\s+/).pop()||'', av=norm(dash(F.voy.text)), okV=!!ev&&av.toUpperCase()===ev.toUpperCase();
+        if(it.kind&&kinds[it.kind]){ kinds[it.kind]--; if(!kinds[it.kind]) delete kinds[it.kind]; }
+        it.status=okV?'NOTATION':'DIFF'; delete it.action; it.kind=okV?'表記:本船名なし (乙仲様式)':'本船・航海 相違'; kind(it.kind);
+        it.detail='本船名の記載なし ('+vesselNoName+') — 航海番号だけ比較 (乙仲様式)'+(okV?'':' · 航海番号が違う'); } }   // v0.9 (D5): 判定は 相違 のまま · 文言だけ
     // v0.4: 港の比較も 表記の整理 (Step 4) を通す — 記号の前後の空白 · 大文字小文字 → 表記 / 記号の置き換え (TOKYO, ↔ TOKYO.) → 相違:記号
     const portKind=(r,lb,base)=>r.status==='MATCH'?'':r.status==='NOTATION'?(r.kind?r.kind+':'+lb:'表記差:'+lb):r.sub?'相違:'+r.sub+':'+lb:base;
     [['receipt','Place of Receipt'],['pol','Port of Loading']].forEach(([k,lb])=>{
@@ -1059,6 +1101,7 @@ const ACL = (()=>{
       const tc=cell('形態',s.type,s.cpType); if(s.typeSt==='BLANK'){ tc.info='COMPASS 未入力'; }
       items[items.length-1].set={container:s.container, read:rd.length>0, cells:[{k:'番号', acl:s.container, cp:s.container, ok:true}, cell('シール',s.acl.seal,s.cp.seal), cell('Bales',s.acl.bales,s.cp.bales), cell('重量',s.acl.cargo,s.cp.nw), cell('風袋',s.acl.tare,s.cp.tw), tc]};
       if(!ocrSeal){ df.forEach(d=>kind('セット相違:'+d.item)); if(df.length) kind('セット相違 (セット数)'); } });
+    if(OTH) naSets(items, kinds, acl);   // v0.15 (G9)
     sc.aclOnly.forEach(n=>{ const ar=acl.rows.find(r=>r.container===n); if(ar&&ar.aiDiff) return add('コンテナ','aclOnly:'+n,'ACL のみ '+n,'READ_CHECK','',n,'AI 2 回の判読が違う: '+aiDiffNote(ar.aiDiff),'読取確認要:コンテナ行');   // v0.14: スキャン AI — 1 回だけ読めた行は 相違 にしない
       add('コンテナ','aclOnly:'+n,'ACL のみ '+n,'ADD','',n,'COMPASS に無いコンテナ','ACL のみのコンテナ'); });
     sc.cpOnly.forEach(n=>add('コンテナ','cpOnly:'+n,'COMPASS のみ '+n,'DROP',n,'','ACL に無いコンテナ','COMPASS のみのコンテナ'));
@@ -1126,19 +1169,59 @@ const ACL = (()=>{
     /* v0.9 Step 1-7 → v0.10: L/C 照合 (L/C 取引 · 保管所 古紙/LC/_READ の判読) — 違えば 相違 (D5 · どちらが悪いかはここでは決めない) */
     const meta=opts.meta||cp.meta||{};
     if(String(meta.pay||'').toUpperCase()==='LC') lcItems(cp.lc||opts.lc||null, ex, F, items.find(i=>i.key==='pod'), items.find(i=>i.key==='delivery'), meta).forEach(d=>{ items.push(d); if(d.kind) kind(d.kind); });
+    /* v0.15 (G9): 乙仲様式 — 欄が様式にない (NA) から出た 読取確認 · 相違 → 対象外 (INFO · 判定に入れない) · 欄が 1 つでもあれば 今までどおり */
+    const naList=OTH?naApply(items, kinds, F, acl):null;
+    if(marksCntr){ const it=items.find(i=>i.key==='marks'); if(it) it.detail=(it.detail?it.detail+' · ':'')+'Marks の欄のコンテナ行 '+marksCntr+' 行 (コンテナ表と同じ番号) は外して比較 (乙仲様式)'; }
+    if(origNote) items.filter(i=>i.key==='lc:originals'||i.key==='disp:originals').forEach(i=>{ i.detail=(i.detail?i.detail+' · ':'')+'原文 「'+origNote+'」 の (数字) で比較 (乙仲様式)'; });
     /* v0.11: チェックポイント (opts.checkpoints = cpPrepare の結果) — CP 番号 · 基本の停止 · 港の別名 · 追加の実行 (渡さなければ v0.10 と同じ) */
     const CPR=opts.checkpoints?cpApply(items, kinds, opts.checkpoints, {lc:cp.lc||opts.lc||null, ex, si:ex.si, booking:cp.booking||{}, meta, F}):null;
     /* v0.9 P2: ラベルを 1 つも読めない ACL (NACCS の型が違う等) → 相違 ではなく 読取確認要 (コンテナ · 合計だけで 相違 を出さない) */
     if(readFail(F0)){ items.forEach(i=>{ if(i.status==='DIFF'||i.status==='DROP'||i.status==='ADD'){ if(i.kind&&kinds[i.kind]){ kinds[i.kind]--; if(!kinds[i.kind]) delete kinds[i.kind]; } i.status='READ_CHECK'; i.detail='ACL のラベルを 1 つも読めない — '+(i.detail||''); i.kind='読取確認要:ラベルなし'; kind(i.kind); } }); }
     /* v0.14: スキャン AI 判読 — 参考の行 (判定は変えない) + 結果に ai */
-    if(acl.ai){ const nd=acl.ai.diffFields.length+acl.ai.diffRows.length; items.unshift({group:'読取',key:'ai:scan',label:SCAN_AI.label,status:'INFO',expected:'',actual:'AI '+acl.ai.reads+' 回',detail:'スキャン ACL を AI で 2 回読み、同じ値の欄だけ照合'+(nd?' · 2 回で違う '+nd+' か所 = 読取確認要':''),kind:''}); }
+    if(acl.ai&&!OTH){ const nd=acl.ai.diffFields.length+acl.ai.diffRows.length; items.unshift({group:'読取',key:'ai:scan',label:SCAN_AI.label,status:'INFO',expected:'',actual:'AI '+acl.ai.reads+' 回',detail:'スキャン ACL を AI で 2 回読み、同じ値の欄だけ照合'+(nd?' · 2 回で違う '+nd+' か所 = 読取確認要':''),kind:''}); }
+    if(OTH){ const nd=acl.ai.diffFields.length+acl.ai.diffRows.length; items.unshift({group:'読取',key:'ai:other',label:SCAN_AI.otherLabel,status:'INFO',expected:'',actual:'AI '+acl.ai.reads+' 回 · 様式 '+(acl.ai.form||'(名前なし)'),detail:'乙仲の独自様式の ACL を AI で 2 回読み、同じ値の欄だけ照合 · 様式にない欄 '+naList.length+' = 対象外'+(nd?' · 2 回で違う '+nd+' か所 = 読取確認要':''),kind:''}); }
     const out={verdict:verdictOf(items), items, kinds, sets:sc, xx, final, siTentative:tent, expected:{sino:ex.sino, booking:ex.booking}};
     if(CPR) out.cp=CPR;
     if(acl.ai) out.ai=acl.ai;
+    if(OTH) out.na=naList;
     return out;
   }
   /* v0.9 P2 */
   const readFail = F => { const v=Object.values(F||{}); return v.length>0&&v.every(f=>!f||f.conf==='MISSING'); };
+  /* v0.15 (G9) 乙仲様式 — 照合の行 (key) ↔ その行が使う ACL の欄。欄が全部 NA (様式にない) の行だけ 対象外 にする (規則はこの表 1 か所) */
+  const NA_MAP = {booking:['booking'], masterBl:['masterBl'], vessel:['vessel','voy'], receipt:['receipt'], pol:['pol'], pod:['pod'], delivery:['delivery'],
+    shipper:['shipper'], consignee:['consignee'], notify:['notify'], alsoNotify:['alsoNotify'], description:['description'], marks:['marks'],
+    'disp:wayBill':['wayBill'], 'disp:received':['received'], 'disp:originals':['originals'], 'disp:freight':['freight'], 'disp:agentSign':['agentSign'], 'disp:shipperMail':['shipperMail'],
+    'lc:originals':['originals'], 'lc:consignee_acl':['consignee'], 'total:containers':['totalContainers','numberOf'], 'total:bales':['totalPkgs'], 'total:weight':['totalWeight'], 'instr:cntr':['description']};
+  const NA_NOTE = 'この様式に欄がない — 対象外 (相違にしない)';
+  const NA_DEP = {'disp:originals':'wayBill', 'disp:wayBill':'originals'};
+  function naApply(items, kinds, F, acl){
+    const out=[], isNA=k=>F[k]&&F[k].conf==='NA', noTable=!!(acl.ai&&acl.ai.noTable)&&!(acl.rows||[]).length;
+    const naC=(acl.ai&&acl.ai.naCols)||[];
+    items.forEach(i=>{ const fs=NA_MAP[i.key], na=fs?fs.every(isNA):noTable&&/^cpOnly:/.test(i.key)||(i.key==='acl:bales'&&naC.indexOf('bales')>=0)||(i.key==='acl:weight'&&naC.indexOf('cargo')>=0);
+      /* Way Bill · 原本数 の組合せ (規則なしのとき) — 相手の欄が様式にない → 組合せは判定しない (参考) */
+      const dep=NA_DEP[i.key]; if(!na&&dep&&isNA(dep)&&i.status==='READ_CHECK'&&/Way Bill=\?|原本=\?/.test(i.detail)){
+        if(i.kind&&kinds[i.kind]){ kinds[i.kind]--; if(!kinds[i.kind]) delete kinds[i.kind]; }
+        i.status='INFO'; i.kind=''; i.detail='組合せの相手の欄 ('+LABELS[dep]+') がこの様式にない — 組合せは判定しない · '+i.detail; return; }
+      if(!na) return;
+      if(i.kind&&kinds[i.kind]){ kinds[i.kind]--; if(!kinds[i.kind]) delete kinds[i.kind]; }
+      i.status='INFO'; i.na=true; i.kind=''; i.detail=(/^acl:/.test(i.key)?'この様式のコンテナ表に その列がない — 対象外 (相違にしない)':noTable&&!fs?'この様式にコンテナ表がない — 対象外 (相違にしない)':NA_NOTE)+(i.detail?' · '+i.detail:''); out.push(i.label); });
+    return out;
+  }
+  /* v0.15 (G9) 乙仲様式 — セットの中で 様式にない列 (naCols) の違いを外す → 残りの違いで 判定 (読取 > 相違 > 一致) · 差の種類も直す */
+  const NA_CELL = {'シール':['seal'], 'Bales':['bales'], '重量':['cargo'], '風袋':['tare'], '形態':['type','size']};
+  function naSets(items, kinds, acl){
+    const naC=(acl.ai&&acl.ai.naCols)||[], dec=k=>{ if(k&&kinds[k]){ kinds[k]--; if(!kinds[k]) delete kinds[k]; } };
+    if(!naC.length) return;
+    items.filter(i=>/^set:/.test(i.key)&&i.set).forEach(i=>{ const cells=i.set.cells, naCell=c=>NA_CELL[c.k]&&NA_CELL[c.k].every(f=>naC.indexOf(f)>=0);
+      const hit=cells.filter(c=>!c.ok&&naCell(c)); if(!hit.length) return;
+      const hadDiff=cells.some(c=>!c.ok&&!c.read); hit.forEach(c=>{ if(!c.read) dec('セット相違:'+c.k); c.ok=true; c.read=false; c.na=true; c.note='この様式に列がない — 対象外'; });
+      const rest=cells.filter(c=>!c.ok), aiRead=!!(acl.rows.find(r=>idK(r.container)===idK(i.set.container))||{}).aiDiff, read=aiRead||rest.some(c=>c.read), diff=rest.some(c=>!c.read);
+      if(hadDiff&&!diff) dec('セット相違 (セット数)');
+      const st=read?'READ_CHECK':diff?'DIFF':'MATCH'; if(i.status==='READ_CHECK'&&st!=='READ_CHECK') dec(i.kind);
+      if(st!=='READ_CHECK'){ i.kind=''; i.set.read=false; } i.status=st; i.naCols=hit.map(c=>c.k);
+      i.detail=(st==='MATCH'?'':i.detail&&st===('DIFF')?'相違: '+rest.filter(c=>!c.read).map(c=>c.k).join(' · '):i.detail)+(st==='MATCH'?'':' · ')+'この様式に列がない ('+i.naCols.join(' · ')+') — 対象外'; });
+  }
   /* ISO 6346 チェックデジット — コンテナの欄で ブッキング番号 (4 文字 + 7 桁) をコンテナと読まないため */
   function cntrOk(c){ const k=String(c||'').toUpperCase().replace(/\s+/g,''); if(!ISO.test(k)) return false;
     const V={}; 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').forEach((ch,i)=>{ V[ch]=[10,12,13,14,15,16,17,18,19,20,21,23,24,25,26,27,28,29,30,31,32,34,35,36,37,38][i]; });
@@ -1719,7 +1802,10 @@ const ACL = (()=>{
     L.push('','## 差の種類 (件数 = その差がある Invoice 数 · 回数 = 項目数)','','| 種類 | 件数 | 回数 |','|---|---|---|');
     kindTable(R).forEach(x=>L.push('| '+x.kind+' | '+x.invoices+' | '+x.count+' |'));
     L.push('','## Invoice 別','','| Invoice | ACL 版 | 様式 | 判定 | 差の種類 | XX 残存 |','|---|---|---|---|---|---|');
-    R.forEach(r=>L.push('| '+r.invoice+' | '+(r.aclVersion||'')+' | '+r.format+' | '+r.verdict+' | '+Object.keys(r.kinds||{}).join(' · ').replace(/\|/g,'/')+(r.why?' '+r.why:'')+' | '+(r.xx||[]).join(' · ')+' |'));
+    R.forEach(r=>L.push('| '+r.invoice+' | '+(r.aclVersion||'')+' | '+r.format+(r.ai&&r.ai.other?' · '+r.ai.label+' '+String(r.ai.form||'').replace(/\|/g,'/'):'')+' | '+r.verdict+' | '+Object.keys(r.kinds||{}).join(' · ').replace(/\|/g,'/')+(r.why?' '+r.why:'')+' | '+(r.xx||[]).join(' · ')+' |'));
+    /* v0.15 (G9): 乙仲様式 — 様式ごとの判定 · 対象外の欄 */
+    const OT=R.filter(r=>r.ai&&r.ai.other); if(OT.length){ const by={}; OT.forEach(r=>{ const f=r.ai.form||'(名前なし)'; by[f]=by[f]||{n:0,v:{},na:0}; by[f].n++; by[f].v[r.verdict]=(by[f].v[r.verdict]||0)+1; by[f].na+=(r.ai.naFields||[]).length; });
+      L.push('','## '+SCAN_AI.otherLabel+' (様式ごと)','','| 様式 | 件数 | 判定 | 様式にない欄 (対象外) |','|---|---|---|---|'); Object.keys(by).sort().forEach(f=>L.push('| '+f.replace(/\|/g,'/')+' | '+by[f].n+' | '+Object.keys(by[f].v).map(v=>v+' '+by[f].v[v]).join(' · ')+' | '+by[f].na+' |')); }
     if(run.staff) L.push(staffSummaryMd(run));   // v0.3
     L.push('','---','✦ Powered by LEENAI Automation System','');
     return L.join('\n');
@@ -1912,6 +1998,7 @@ const ACL = (()=>{
   /* v0.12: 港の別名 — 2 つの文が 同じ港の組 (有効な別名だけ) なら その組の名前 · でなければ null (ACL の lc:pod と B/L Draft の POD で同じ) */
   function cpAliasSame(alias, a, b){ const A=cpAliasGroups(a, alias), B=cpAliasGroups(b, alias); return A.find(x=>B.indexOf(x)>=0)||null; }
   return {SP_OUT, SRC_DIRS, ISO, D03, LABELS, VERDICTS, invoiceOf,
+    /* v0.15 */ SCAN_OTHER_HEAD, SCAN_OTHER_TAIL, NA_MAP, NA_NOTE, naApply, NA_CELL, naSets,
     /* v0.14 */ HEAD_KEYS, naccsTotals, scanJson, scanLayoutOk, SCAN_NOT_NACCS, scanCost, SCAN_AI, SCAN_SYSTEM, SCAN_ROW_KEYS, scanPrompt, scanMerge, scanSame, aiDiffNote,
     /* v0.12 */ cpEndPunct, cpStageRows, cpAliasSame, cpAliasNames,
     /* v0.11 */ CP_RESULT, CP_STATES, CP_KINDS, CP_STAGES, CP_SCOPES, CP_OPS, cpOp, cpWs, cpValue, cpCatalog, cpConsOrder, cpConsFromCheck, cpAdmins, cpState, cpKey, cpLastChangers, cpPrepare, cpKeyHit, cpScopeHit, cpRunRow, cpAliasGroups, cpApply,
@@ -2045,7 +2132,7 @@ async function ensurePdfJs(){
 }
 async function readPdf(file){
   const r=await graphFetch(drv()+'/items/'+file.id+'/content'); if(!r.ok) throw new Error('PDF 取得 '+r.status);
-  const buf=await r.arrayBuffer(), raw=buf.slice(0); await ensurePdfJs();   // v0.14: raw = スキャン ACL を AI に送るための元の PDF (スキャンのときだけ残す)
+  const buf=await r.arrayBuffer(), raw=buf.slice(0); await ensurePdfJs();   // v0.14: raw = スキャン ACL を AI に送るための元の PDF (スキャンのときだけ残す) · v0.15: 乙仲様式 (OTHER) も
   /* v0.3.1: 読み終えたら (失敗しても) 必ず閉じる — 開きっぱなしが 350 件分たまり Chrome タブが落ちた */
   let task=null, pdf=null;
   try{
@@ -2068,7 +2155,7 @@ async function runList(){
     g.folders=folders.length; g.folderErr=folders.filter(f=>f.error).length;
     $('abListSt').textContent='フォルダ '+folders.length+' · 対象 Invoice '+g.targets.length+' — PDF を読んで様式を判定中…';
     let k=0;
-    await mapLimit(g.targets,4,async t=>{ try{ const pages=await readPdf(t.file); S.pdf[t.invoice]=pages; const f=ACL.classifyFormat(pages); t.format=f.format; t.why=f.why; t.pages=pages.length; if(f.format==='SCAN') (S.scan=S.scan||{})[t.invoice]={raw:pages.raw}; delete pages.raw; }
+    await mapLimit(g.targets,4,async t=>{ try{ const pages=await readPdf(t.file); S.pdf[t.invoice]=pages; const f=ACL.classifyFormat(pages); t.format=f.format; t.why=f.why; t.pages=pages.length; if(f.format==='SCAN'||f.format==='OTHER') (S.scan=S.scan||{})[t.invoice]={raw:pages.raw}; delete pages.raw; }
       catch(e){ t.format='ERROR'; t.why='PDF を読めず: '+e.message; logLine(t.invoice+' PDF 読取失敗: '+e.message,'danger'); }
       if(++k%10===0) $('abListSt').textContent='様式判定 '+k+'/'+g.targets.length+'…'; });
     S.list=Object.assign(g,{found:found.length, at:new Date().toISOString(), ms:Date.now()-t0});
@@ -2091,8 +2178,8 @@ function chosen(){ const f=filterList(), all=(S.list&&S.list.targets)||[]; retur
 function updateEst(){
   if(!S.list){ $('abRunSt').textContent=''; return; }
   const ts=chosen(), n=ts.filter(t=>t.format==='NACCS').length;
-  const ns=ts.filter(t=>t.format==='SCAN').length;
-  $('abRunSt').textContent='照合 '+n+' 件 (NACCS) · 対象外 '+(ts.length-n)+' 件 · 予想 約 '+Math.max(1,Math.ceil(n*2/60))+' 分 (COMPASS 読み込み · 1 件 約 2 秒 · 同時 3)'+(ns?' · うち スキャン '+ns+' 件 = '+ACL.SCAN_AI.label+' (保存済みは使う · 新しく読むのは チェックしたとき)':'');
+  const ns=ts.filter(t=>t.format==='SCAN').length, no=ts.filter(t=>t.format==='OTHER').length;   // v0.15: 乙仲様式 (文字あり) は別に数える
+  $('abRunSt').textContent='照合 '+n+' 件 (NACCS) · 対象外 '+(ts.length-n)+' 件 · 予想 約 '+Math.max(1,Math.ceil(n*2/60))+' 分 (COMPASS 読み込み · 1 件 約 2 秒 · 同時 3)'+(ns?' · うち スキャン '+ns+' 件 = '+ACL.SCAN_AI.label+' (保存済みは使う · 新しく読むのは チェックしたとき)':'')+(no?' · 乙仲様式 '+no+' 件 = '+ACL.SCAN_AI.otherLabel+' (同じ)':'');
 }
 
 /* ── v0.14 スキャン ACL — AI 判読 (2 回) · 保存場所 ACL_bench/_scan_ai/{sha256}.json (同じファイルは 2 度読まない) ── */
@@ -2101,7 +2188,8 @@ const AI_KEY = 'leenai_apikey_v1';   // D-01 · A1 と同じ保存場所 (同じ
 function aiKey(){ try{ return localStorage.getItem(AI_KEY)||''; }catch(e){ return ''; } }
 async function sha256Hex(buf){ const h=await crypto.subtle.digest('SHA-256', buf); return Array.from(new Uint8Array(h)).map(b=>b.toString(16).padStart(2,'0')).join(''); }
 function b64(buf){ const u=new Uint8Array(buf); let s=''; for(let i=0;i<u.length;i+=0x8000) s+=String.fromCharCode.apply(null, u.subarray(i,i+0x8000)); return btoa(s); }
-async function scanCacheGet(sha){ const r=await graphFetch(drv()+'/root:/'+spEnc(SCAN_AI_DIR+'/'+sha+'.json')+':/content'); if(r.status===404) return null; if(!r.ok) throw new Error('AI 判読の保存を読めない '+r.status); const j=await r.json(); return j&&j.schema==='acl_scan_ai/1'&&(j.reads||[]).length===2?j:null; }
+const scanAiName = (sha, other) => sha+(other?'.other':'')+'.json';   // v0.15: 乙仲様式 = {sha256}.other.json (形式の印だけ足す)
+async function scanCacheGet(sha, other){ const r=await graphFetch(drv()+'/root:/'+spEnc(SCAN_AI_DIR+'/'+scanAiName(sha,other))+':/content'); if(r.status===404) return null; if(!r.ok) throw new Error('AI 判読の保存を読めない '+r.status); const j=await r.json(); return j&&j.schema==='acl_scan_ai/1'&&(j.reads||[]).length===2&&(!other||j.format==='OTHER')?j:null; }
 async function aiCall(body, label){   // a1_bench callClaude と同じ (ストリーミング · 529/429/5xx 再試行)
   const key=aiKey(); if(!key) throw new Error('AI キーがない (D-01 · A1 の画面で保存)');
   let last='';
@@ -2122,9 +2210,9 @@ async function aiCall(body, label){   // a1_bench callClaude と同じ (スト�
   throw new Error(label+': 再試行の上限 '+last);
 }
 /* tools/acl_scan_ai.mjs scanRead と同じ (プロンプト · 2 回 · JSON 再指示 · 費用) */
-async function scanReadBrowser(raw, label){
+async function scanReadBrowser(raw, label, other){
   const SA=ACL.SCAN_AI, body={model:SA.model, max_tokens:SA.maxTokens, system:ACL.SCAN_SYSTEM, thinking:{type:'adaptive'}, output_config:{effort:SA.effort},
-    messages:[{role:'user', content:[{type:'document', source:{type:'base64', media_type:'application/pdf', data:b64(raw)}}, {type:'text', text:ACL.scanPrompt(), cache_control:{type:'ephemeral'}}]}]};
+    messages:[{role:'user', content:[{type:'document', source:{type:'base64', media_type:'application/pdf', data:b64(raw)}}, {type:'text', text:ACL.scanPrompt(other?{other:true}:undefined), cache_control:{type:'ephemeral'}}]}]};
   const reads=[], usage=[]; let cost=0;
   for(let i=0;i<SA.reads;i++){
     let r=await aiCall(body, label+' #'+(i+1)); usage.push(r.usage||{}); cost+=ACL.scanCost(r.usage);
@@ -2134,19 +2222,26 @@ async function scanReadBrowser(raw, label){
     if(!j) throw new Error(label+' #'+(i+1)+': JSON を読めない');
     reads.push(j);
   }
-  return {schema:'acl_scan_ai/1', sha256:null, model:SA.model, effort:SA.effort, prompt_ver:SA.ver, reads, usage, cost_usd:+cost.toFixed(4), at:new Date().toISOString(), by:'acl_bench '+abVersion()};
+  return Object.assign({schema:'acl_scan_ai/1', sha256:null, model:SA.model, effort:SA.effort, prompt_ver:other?SA.otherVer:SA.ver, reads, usage, cost_usd:+cost.toFixed(4), at:new Date().toISOString(), by:'acl_bench '+abVersion()}, other?{format:'OTHER'}:{});
 }
+async function scanRecFor(t, sc, other){
+  let rec=await scanCacheGet(sc.sha, other);
+  if(rec){ S.scanHit++; return rec; }
+  if(!$('abScanAi').checked) return null;
+  rec=await scanReadBrowser(sc.raw, t.invoice, other); rec.sha256=sc.sha; rec.file=t.file.path+'/'+t.file.name;
+  await spPut(SCAN_AI_DIR+'/'+scanAiName(sc.sha,other), JSON.stringify(rec), 'application/json'); S.scanNew++; S.scanCost+=rec.cost_usd||0; logLine(t.invoice+' '+(other?ACL.SCAN_AI.otherLabel:ACL.SCAN_AI.label)+' 約 US$'+(rec.cost_usd||0).toFixed(2),'ok');
+  return rec;
+}
+/* v0.15 (G9): 乙仲様式 = 文字ありの OTHER · スキャンで AI が 2 回とも NACCS と答えなかったもの → 乙仲様式のプロンプトでもう一度 (2 回) 読み 照合 */
 async function scanAclFor(t){
   const sc=S.scan[t.invoice]; if(!sc||!sc.raw) return null;
   if(!sc.sha) sc.sha=await sha256Hex(sc.raw);
-  let rec=await scanCacheGet(sc.sha);
-  if(rec) S.scanHit++;
-  else { if(!$('abScanAi').checked) return null;
-    rec=await scanReadBrowser(sc.raw, t.invoice); rec.sha256=sc.sha; rec.file=t.file.path+'/'+t.file.name;
-    await spPut(SCAN_AI_DIR+'/'+sc.sha+'.json', JSON.stringify(rec), 'application/json'); S.scanNew++; S.scanCost+=rec.cost_usd||0; logLine(t.invoice+' '+ACL.SCAN_AI.label+' 約 US$'+(rec.cost_usd||0).toFixed(2),'ok'); }
-  const m=ACL.scanMerge(rec.reads[0], rec.reads[1], {model:rec.model, sha256:sc.sha, cost_usd:rec.cost_usd, at:rec.at});
-  if(!ACL.scanLayoutOk(m)) throw Object.assign(new Error(ACL.SCAN_NOT_NACCS), {notNaccs:true, ai:m.ai});
-  return m;
+  if(t.format!=='OTHER'){ const rec=await scanRecFor(t, sc, false); if(!rec) return null;
+    const m=ACL.scanMerge(rec.reads[0], rec.reads[1], {model:rec.model, sha256:sc.sha, cost_usd:rec.cost_usd, at:rec.at});
+    if(ACL.scanLayoutOk(m)) return m; }
+  const ro=await scanRecFor(t, sc, true); if(!ro) return null;
+  S.scanOther++;
+  return ACL.scanMerge(ro.reads[0], ro.reads[1], {model:ro.model, sha256:sc.sha, cost_usd:ro.cost_usd, at:ro.at, other:true});
 }
 
 /* ── ② 照合 ── */
@@ -2156,13 +2251,13 @@ async function runCompare(){
   const d=new Date(), t0=Date.now();
   S.run={run_id:ACL.runId(d), version:abVersion(), user:(LEENAI.user&&LEENAI.user.email)||'', started:d.toISOString(), finished:null, listed:S.list.targets.length, filter:filterList(), results:[]};
   await loadDispRules(); S.run.rules={loaded:S.rules.loaded, acl_rules:S.rules.rules.length, warnings:S.rules.warnings};
-  const out=[]; let k=0; S.scanCost=0; S.scanHit=0; S.scanNew=0;
+  const out=[]; let k=0; S.scanCost=0; S.scanHit=0; S.scanNew=0; S.scanOther=0;
   await mapLimit(ts,3,async t=>{
     if(S.stop) return;
     const r={invoice:t.invoice, file:t.file.path+'/'+t.file.name, fileModified:t.file.lastModifiedDateTime||'', aclVersion:t.aclVersion||'', others:(t.others||[]).map(o=>o.path+'/'+o.name), format:t.format, verdict:'', items:[], kinds:{}, xx:[]};   // v0.4: 照合した版 · ほかの版
     try{
       /* v0.14: スキャン → 保存済みの AI 判読 (sha256) か、チェックがあれば AI で 2 回読む · どちらもなければ 今までどおり 読取対象外 */
-      let sc=null, scNote='', scAi=null; if(t.format==='SCAN'){ try{ sc=await scanAclFor(t); if(!sc) scNote=' — AI 判読なし (② の 「スキャン ACL を AI で読む」)'; }catch(e){ if(e.notNaccs){ scNote=' — '+e.message; scAi=e.ai; } else { scNote=' — AI 判読 エラー: '+e.message; logLine(t.invoice+' AI 判読 エラー: '+e.message,'danger'); } } }
+      let sc=null, scNote='', scAi=null; if(t.format==='SCAN'||t.format==='OTHER'){ try{ sc=await scanAclFor(t); if(!sc) scNote=' — AI 判読なし (② の 「スキャン · 乙仲様式 ACL を AI で読む」)'; }catch(e){ if(e.notNaccs){ scNote=' — '+e.message; scAi=e.ai; } else { scNote=' — AI 判読 エラー: '+e.message; logLine(t.invoice+' AI 判読 エラー: '+e.message,'danger'); } } }
       if(t.format!=='NACCS'&&!sc){ r.verdict='読取対象外'; r.why=(t.why||'')+scNote; r.kinds={['読取対象外:'+(t.format||'?')]:1}; if(scAi) r.ai=scAi; }
       else {
         const cp=await fetchCompass(t.invoice);
@@ -2177,8 +2272,8 @@ async function runCompare(){
   });
   out.sort((a,b)=>a.invoice.localeCompare(b.invoice));
   S.run.results=out; S.run.finished=new Date().toISOString(); S.run.ms=Date.now()-t0; S.run.stopped=S.stop; S.results=out;
-  $('abRunSt').textContent=(S.stop?'止めました — ':'完了 — ')+out.length+' 件 · '+((Date.now()-t0)/1000).toFixed(0)+' 秒 (保存は ④)'+(S.scanHit+S.scanNew?' · '+ACL.SCAN_AI.label+' '+(S.scanHit+S.scanNew)+' 件 (保存済み '+S.scanHit+' · 新しく '+S.scanNew+' · 約 US$'+S.scanCost.toFixed(2)+')':'');
-  S.run.scan_ai={label:ACL.SCAN_AI.label, used:S.scanHit+S.scanNew, cached:S.scanHit, read:S.scanNew, cost_usd:+S.scanCost.toFixed(4), dir:SCAN_AI_DIR};
+  $('abRunSt').textContent=(S.stop?'止めました — ':'完了 — ')+out.length+' 件 · '+((Date.now()-t0)/1000).toFixed(0)+' 秒 (保存は ④)'+(S.scanHit+S.scanNew?' · '+(S.scanOther?'AI 判読 (スキャン · 乙仲様式)':ACL.SCAN_AI.label)+' '+(S.scanHit+S.scanNew)+' 件 (保存済み '+S.scanHit+' · 新しく '+S.scanNew+' · 約 US$'+S.scanCost.toFixed(2)+')':'');
+  S.run.scan_ai={label:ACL.SCAN_AI.label, used:S.scanHit+S.scanNew, other:S.scanOther, cached:S.scanHit, read:S.scanNew, cost_usd:+S.scanCost.toFixed(4), dir:SCAN_AI_DIR};
   renderResults(); logLine('照合 '+out.length+' 件'+(S.stop?' (途中で停止)':''),'ok'); S.staff=null; $('abStaffOut').innerHTML=''; $('abStaffSt').textContent='';
   S.running=false; $('abRun').disabled=false; $('abStop').disabled=true; $('abSave').disabled=!out.length; $('abList').disabled=false; $('abStaff').disabled=!out.length;
 }
@@ -2192,7 +2287,7 @@ function renderResults(){
   const kt=ACL.kindTable(R);
   $('abKinds').innerHTML=kt.length?'<table class="ab-t" style="max-width:640px"><tr><th>差の種類</th><th>件数 (Invoice)</th><th>回数</th></tr>'+kt.map(x=>'<tr><td>'+escH(x.kind)+'</td><td>'+x.invoices+'</td><td>'+x.count+'</td></tr>').join('')+'</table>':'';
   $('abResults').innerHTML='<div class="ab-scroll"><table class="ab-t"><tr><th>Invoice</th><th>様式</th><th>判定</th><th>差の種類</th><th>XX 残存</th><th></th></tr>'+
-    R.map((r,i)=>'<tr><td>'+escH(r.invoice)+(r.ai?' <span class="ab-note">'+escH(r.ai.label)+'</span>':'')+(r.aclVersion&&r.aclVersion!=='初版'?' <span class="ab-note">ACL '+escH(r.aclVersion)+'</span>':'')+(r.staff?'<br><span class="ab-note">'+escH(r.staff.record)+(r.staff.aclAfterFix?' · '+escH(r.staff.aclAfterFix):'')+'</span>':'')+'</td><td>'+escH(r.format)+'</td><td class="'+(r.verdict==='完全一致'?'ab-ok':r.verdict==='相違あり'?'ab-ng':'ab-warn')+'">'+escH(r.verdict)+'</td><td>'+escH(Object.keys(r.kinds||{}).join(' · '))+(r.why?' <span class="ab-note">'+escH(r.why)+'</span>':'')+'</td><td>'+escH((r.xx||[]).join(' · '))+'</td><td>'+(r.items&&r.items.length?'<button class="ab-btn ghost" data-i="'+i+'">項目</button>':'')+'</td></tr>'+
+    R.map((r,i)=>'<tr><td>'+escH(r.invoice)+(r.ai?' <span class="ab-note">'+escH(r.ai.label+(r.ai.other&&r.ai.form?' · '+r.ai.form:''))+'</span>':'')+(r.aclVersion&&r.aclVersion!=='初版'?' <span class="ab-note">ACL '+escH(r.aclVersion)+'</span>':'')+(r.staff?'<br><span class="ab-note">'+escH(r.staff.record)+(r.staff.aclAfterFix?' · '+escH(r.staff.aclAfterFix):'')+'</span>':'')+'</td><td>'+escH(r.format)+'</td><td class="'+(r.verdict==='完全一致'?'ab-ok':r.verdict==='相違あり'?'ab-ng':'ab-warn')+'">'+escH(r.verdict)+'</td><td>'+escH(Object.keys(r.kinds||{}).join(' · '))+(r.why?' <span class="ab-note">'+escH(r.why)+'</span>':'')+'</td><td>'+escH((r.xx||[]).join(' · '))+'</td><td>'+(r.items&&r.items.length?'<button class="ab-btn ghost" data-i="'+i+'">項目</button>':'')+'</td></tr>'+
       '<tr class="ab-d" id="abD'+i+'" style="display:none"><td colspan="6"></td></tr>').join('')+'</table></div>';
   $('abResults').querySelectorAll('button[data-i]').forEach(b=>{ b.onclick=()=>toggleDetail(+b.dataset.i); });
 }
@@ -2291,7 +2386,7 @@ function startPage(){
 }
 
 LEENAI.init({
-  sys:'D-00', name:'ACL 照合試験', version:'0.14', date:'2026-11-23',
+  sys:'D-00', name:'ACL 照合試験', version:'0.15', date:'2026-11-24',
   desc:'ACL (NACCS PDF) を座標で読み、COMPASS の S/I (sino 1) · ブッキング · コンテナ (セット) · 表示欄 (S/I ルールマスター) と 100% 照合 · 担当者メールの実績と突き合わせ (読むだけ · AI なし)',
   graphScopes:['Sites.ReadWrite.All'],
   redirectUri:'https://mhlee205.github.io/CONTRACT_SEND/acl_bench.html',

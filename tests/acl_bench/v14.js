@@ -87,7 +87,7 @@ const META=(cp)=>({pay:'TT'});
   else ok(true,'4-1 (git 기록 없음 · 생략)');
 
   /* 5 tools/acl_scan_ai.mjs (가짜 AI) */
-  const T=await import(path.join(__dirname,'../../tools/acl_scan_ai.mjs'));
+  const T=await import(require('url').pathToFileURL(path.join(__dirname,'../../tools/acl_scan_ai.mjs')).href);
   const pdf=Buffer.from(await N.build({kind:'SCAN'})), calls=[];
   const fake=(texts)=>async(body,label)=>{ calls.push({label, doc:body.messages[0].content[0].type, model:body.model, cc:!!body.messages[0].content[1].cache_control}); const t=texts.shift(); return {text:t, usage:{input_tokens:1000, output_tokens:500}, stop:'end_turn', model:body.model}; };
   const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'scanai_'));
@@ -126,9 +126,10 @@ const META=(cp)=>({pay:'TT'});
   RS=JSON.parse(w.eval('JSON.stringify(S.results)')); s10=RS.find(r=>r.invoice==='NFK2601-10');
   ok(AIc.length===0&&s10.verdict==='完全一致'&&w.eval('S.run.scan_ai.cached')===1,'6-6 다시 照合 → 같은 파일은 저장본 (AI 0 번)',{ai:AIc.length});
   { const k=Object.keys(W.puts).find(p=>/_scan_ai\//.test(p)), rec=JSON.parse(W.puts[k]); rec.reads.forEach(x=>{ x.layout='OTHER'; }); W.puts[k]=JSON.stringify(rec);
-    AIc.length=0; $('abRun').click(); await H.until(()=>/完了|止めました/.test($('abRunSt').textContent)&&!w.eval('S.running'),60000);
+    /* v0.15 (G9) 로 바뀜: 2 회 다 「その他の様式」 → 乙仲様式 프롬프트로 다시 읽음 (tests/acl_bench/v15.js) · 체크를 끄면 AI 0 · 読取対象外 (AI 判読なし) */
+    $('abScanAi').checked=false; AIc.length=0; $('abRun').click(); await H.until(()=>/完了|止めました/.test($('abRunSt').textContent)&&!w.eval('S.running'),60000);
     const o=JSON.parse(w.eval('JSON.stringify(S.results)')).find(r=>r.invoice==='NFK2601-10');
-    ok(o.verdict==='読取対象外'&&/NACCS 様式でない/.test(o.why)&&o.ai&&AIc.length===0,'6-6b AI 가 2 회 다 「その他の様式」 → 照合하지 않고 読取対象外 (이유 표시 · AI 0)',{v:o.verdict, why:o.why}); }
+    ok(o.verdict==='読取対象外'&&/AI 判読なし/.test(o.why)&&AIc.length===0,'6-6b AI 가 2 회 다 「その他の様式」 + 체크 없음 → 読取対象外 (이유 표시 · AI 0) — v0.15: 체크하면 乙仲様式 판독 (v15.js)',{v:o.verdict, why:o.why}); $('abScanAi').checked=true; }
   ok(W.dv.every(x=>x.method==='GET'),'6-7 COMPASS 는 GET 만');
   const txt=[$('abScanAi').parentNode.textContent, $('abRunSt').textContent, s10.why||'', J(s10.items.filter(i=>i.key==='ai:scan')), $('abResults').textContent].join(' '), hg=/[\uAC00-\uD7A3]/;
   ok(!hg.test(txt)&&!hg.test(ACL.scanPrompt()+ACL.SCAN_SYSTEM+J(ACL.SCAN_AI)),'6-8 v0.14 로 늘어난 화면 문구 · 결과 줄 · 프롬프트 한글 0',txt.slice(0,300));

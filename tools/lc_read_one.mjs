@@ -7,11 +7,12 @@
      2 回判読の照合 = A1C.r2Check · モデル claude-opus-5-5 · thinking adaptive · effort high · max_tokens 32000 · 2 回 (A1 run A1_20261116-164541_full の設定)
    その後の整理は tools/lc_read_lib.mjs buildRecord (lc_read_build.mjs と同じ)
    lc_read 1.1: --put で前の判があり Amend 込みの判読なら mergeRecords (Amend が変えた欄だけ新しい判読 · 空欄は埋める · そのほか前の判) — 指示書 (2026-11-23)MAC-THOR_6 C1
-   API キー = Mac キーチェーン LEENAI_ANTHROPIC_API_KEY (ファイル · 画面に出さない) · Microsoft トークン = ~/thor_work/d00_acl_survey/ms.py のキャッシュ (出さない)
+   API キー = Mac キーチェーン LEENAI_ANTHROPIC_API_KEY → なければ 環境変数 (ファイル · 画面に出さない) · Microsoft トークン = ~/thor_work/d00_acl_survey/ms.py のキャッシュ (出さない)
    読むもの: 古紙/LC/2026/ の L/C · Amend PDF · 書くもの: --put のときだけ 古紙/LC/_READ/ の下 (それ以外は書かない)
    指示書: (2026-11-23)THOR_指示書_D00_LC보관소_ACL전환_v1_0 Step 2 */
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
@@ -63,7 +64,9 @@ export async function spMove(from, toDir, name){ guard(from); guard(toDir+'/x');
   const r=await fetch(G+'/items/'+it.id,{method:'PATCH',headers:{Authorization:'Bearer '+tok(),'Content-Type':'application/json'},body:JSON.stringify({parentReference:{id:pid},name})}); if(!r.ok) throw new Error('移動 '+r.status+' '+from); return r.json(); }
 
 /* ── Claude API (a1_bench callClaude / callJson と同じ流れ · ストリーミング · 529/429/5xx 再試行) ── */
-function apiKey(){ return execFileSync('security',['find-generic-password','-s','LEENAI_ANTHROPIC_API_KEY','-w'],{encoding:'utf8',stdio:['ignore','pipe','ignore']}).trim(); }
+/* API キー: Mac キーチェーン → なければ 環境変数 LEENAI_ANTHROPIC_API_KEY (Windows 会社 PC) · ファイル · 画面に出さない */
+export function apiKey(){ let k=''; if(process.platform==='darwin'){ try{ k=execFileSync('security',['find-generic-password','-s','LEENAI_ANTHROPIC_API_KEY','-w'],{encoding:'utf8',stdio:['ignore','pipe','ignore']}).trim(); }catch(e){} }
+  if(!k) k=String(process.env.LEENAI_ANTHROPIC_API_KEY||'').trim(); if(!k) throw new Error('API キーがない (Mac キーチェーン / 環境変数 LEENAI_ANTHROPIC_API_KEY)'); return k; }
 async function callClaude(body, label){
   let last=null;
   for(let a=0;a<4;a++){
@@ -156,4 +159,4 @@ async function main(){
   console.log(JSON.stringify({contract, version:fin.version, merged, lc_read:LC_READ_VER, checks:fin.checks.length, image:fin.image, amends:fin.source.amends.length, put:args.includes('--put'), calls:spent.length, cost_usd:+cost.toFixed(3),
     tokens:spent.reduce((s,c)=>({in:s.in+(c.usage.input_tokens||0), out:s.out+(c.usage.output_tokens||0), cw:s.cw+(c.usage.cache_creation_input_tokens||0), cr:s.cr+(c.usage.cache_read_input_tokens||0)}),{in:0,out:0,cw:0,cr:0})}));
 }
-if(process.argv[1]&&path.resolve(process.argv[1])===path.resolve(new URL(import.meta.url).pathname)) main().catch(e=>{ console.error('ERROR', e.message); process.exit(1); });
+if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)   /* Windows でも同じ (URL.pathname は /C:/ · 漢字が % になる) */) main().catch(e=>{ console.error('ERROR', e.message); process.exit(1); });

@@ -68,7 +68,7 @@ console.log('3 판독 확인요 · 없음 · 揚地 ANY · イメージ');
 
 console.log('4 보관소 만들기 규칙 (tools/lc_read_lib.mjs)');
 (async()=>{
-  const lib=await import(path.join(__dirname,'../../tools/lc_read_lib.mjs'));
+  const lib=await import(require('url').pathToFileURL(path.join(__dirname,'../../tools/lc_read_lib.mjs')).href);
   const A1=lib.loadA1(path.join(__dirname,'../../a1_bench.html')), A=lib.loadAcl(HTML);
   const V=(value,loc,quote)=>({value,loc,quote:quote===undefined?value:quote,note:null});
   const base={lc_no:V('TLC0006',':20','TLC0006'), issue_date:V('OCT 1, 2026',':31C','DATE OF ISSUE :31C OCT 1, 2026'), expiry:V('261231BENEFICIARY COUNTRY',':31D','261231BENEFICIARY COUNTRY'), latest_shipment:V('DEC 15, 2026',':44C','DEC 15, 2026'),

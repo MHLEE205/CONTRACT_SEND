@@ -56,7 +56,7 @@ const N=rec(2, {bl_consignee:{value:'TO THE ORDER OF SAMPLE BANK', loc:'AMEND 1 
 N.goods[0].quote='500 MT OCC (AS PER ORDER)';
 
 (async()=>{
-  const L=await import(path.join(REPO,'tools/lc_read_lib.mjs'));
+  const L=await import(require('url').pathToFileURL(path.join(REPO,'tools/lc_read_lib.mjs')).href);
   const A1=L.loadA1(), ACL=L.loadAcl(), ctx={A1, ACL, now:'2026-11-23T12:00:00Z'};
 
   /* 1 amendTargets */
@@ -122,7 +122,7 @@ N.goods[0].quote='500 MT OCC (AS PER ORDER)';
   /* 4 회귀 — HEAD e18253a 의 buildRecord 와 같은 결과 (Amend 없음) */
   let old=null; try{ old=cp.execFileSync('git',['show','e18253a:tools/lc_read_lib.mjs'],{cwd:REPO,encoding:'utf8',stdio:['ignore','pipe','ignore']}); }catch(e){}
   if(old){ const d=fs.mkdtempSync(path.join(os.tmpdir(),'lcold_')), f=path.join(d,'lib.mjs'); fs.writeFileSync(f, old.replace("const HERE = path.dirname(fileURLToPath(import.meta.url));","const HERE = "+J(path.join(REPO,'tools'))+";"));
-    const OL=await import(f); const a=J(OL.buildRecord(JSON.parse(J(B0r())), txt0, Object.assign({run:'t'},ctx))), b=J(L.buildRecord(JSON.parse(J(B0r())), txt0, Object.assign({run:'t'},ctx)));
+    const OL=await import(require('url').pathToFileURL(f).href); const a=J(OL.buildRecord(JSON.parse(J(B0r())), txt0, Object.assign({run:'t'},ctx))), b=J(L.buildRecord(JSON.parse(J(B0r())), txt0, Object.assign({run:'t'},ctx)));
     ok(a===b,'4-1 Amend 없는 판독 — e18253a buildRecord 와 바이트까지 같음 (assembleRecord 로 나눈 뒤)',{a:a.slice(0,300),b:b.slice(0,300)}); fs.rmSync(d,{recursive:true,force:true}); }
   else ok(true,'4-1 (git 기록 없음 · 생략)');
   function B0r(){ return Object.assign({},r2,{extract:[ex([{no:'47A-1',quote:'1. ALL DOCUMENTS IN ENGLISH'}]),ex([{no:'47A-1',quote:'1. ALL DOCUMENTS IN ENGLISH'}])]}); }
