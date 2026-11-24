@@ -7,7 +7,7 @@
      2 回判読の照合 = A1C.r2Check · モデル claude-opus-5-5 · thinking adaptive · effort high · max_tokens 32000 · 2 回 (A1 run A1_20261116-164541_full の設定)
    その後の整理は tools/lc_read_lib.mjs buildRecord (lc_read_build.mjs と同じ)
    lc_read 1.1: --put で前の判があり Amend 込みの判読なら mergeRecords (Amend が変えた欄だけ新しい判読 · 空欄は埋める · そのほか前の判) — 指示書 (2026-11-23)MAC-THOR_6 C1
-   API キー = Mac キーチェーン LEENAI_ANTHROPIC_API_KEY → なければ 環境変数 (ファイル · 画面に出さない) · Microsoft トークン = ~/thor_work/d00_acl_survey/ms.py のキャッシュ (出さない)
+   API キー = Mac キーチェーン LEENAI_ANTHROPIC_API_KEY → なければ 環境変数 (ファイル · 画面に出さない) · Microsoft トークン = tools/ms_token.mjs (Mac ms.py · Windows bl_supp/tok.py · 出さない)
    読むもの: 古紙/LC/2026/ の L/C · Amend PDF · 書くもの: --put のときだけ 古紙/LC/_READ/ の下 (それ以外は書かない)
    指示書: (2026-11-23)THOR_指示書_D00_LC보관소_ACL전환_v1_0 Step 2 */
 import fs from 'node:fs';
@@ -15,6 +15,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 import { execFileSync } from 'node:child_process';
+import { msToken } from './ms_token.mjs';   // v0.16 (E-6): Microsoft トークン = OS ごと (Mac ms.py · Windows bl_supp/tok.py) 1 か所
 import { createRequire } from 'node:module';
 import { REPO, loadA1, loadAcl, buildRecord, renderMd, indexRow, sameContent, splitLcText, mergeRecords, LC_READ_VER } from './lc_read_lib.mjs';
 
@@ -23,7 +24,6 @@ const PRICE = { 'claude-opus-5-5':{in:4, out:20, cacheWrite:5, cacheRead:0.4} };
 const LC_DIR='古紙/LC/2026', READ_DIR='古紙/LC/_READ';
 const DRIVE='b!ZK58_9YllU-vETQD3Xz0TbOInXbVCXJHnQ2280KJBArFLeM_18EgRbSeoO-TW__U', G='https://graph.microsoft.com/v1.0/drives/'+DRIVE;
 const PDFJS_DIR=process.env.PDFJS_DIR||path.join(REPO,'tests/acl_bench/node_modules/pdfjs-dist');
-const MS_DIR=process.env.MS_DIR||path.join(os.homedir(),'thor_work/d00_acl_survey'), PY=process.env.MS_PY||path.join(os.homedir(),'thor_work/venv/bin/python');
 
 /* ── a1_bench.html から そのまま 読む部品 ── */
 const A1HTML=fs.readFileSync(path.join(REPO,'a1_bench.html'),'utf8');
@@ -47,7 +47,7 @@ async function readLcFile(D01, name, buf){
 }
 
 /* ── Microsoft Graph (トークンはこのプロセスのメモリだけ) ── */
-let TK=null; function tok(){ if(TK&&Date.now()-TK.at<40*60e3) return TK.v; const v=execFileSync(PY,['-W','ignore','-c','import ms,sys;sys.stdout.write(ms._tok(ms.GRAPH))'],{cwd:MS_DIR,encoding:'utf8',stdio:['ignore','pipe','ignore']}).trim(); TK={v,at:Date.now()}; return v; }
+function tok(){ return msToken('write'); }   // v0.16 (E-6): 保管所へ書くので write (Mac は ms.GRAPH)
 const enc=p=>p.split('/').map(encodeURIComponent).join('/');
 async function g(url, opt, raw){ for(let i=0;i<6;i++){ const r=await fetch(url.startsWith('http')?url:G+url, Object.assign({},opt||{},{headers:Object.assign({Authorization:'Bearer '+tok()},(opt&&opt.headers)||{})}));
     if(r.status===404) return null; if(r.status===401){ TK=null; continue; } if(r.status===429||r.status>=500){ await new Promise(s=>setTimeout(s,Math.min(30000,(+r.headers.get('Retry-After')||2**i)*1000))); continue; }

@@ -115,6 +115,7 @@ tr.ab-d td{background:var(--surface)}
      Draft の名前 (sel.py) · B/L の頁 (cov.py) · 版の順 (REV 番号 → 更新時刻) · S/I との照合 (chk.py) · 判定 5 つ + R1 ~ R11 (clsA.py) ·
      別の件の Draft (⚠️ 1 の 4 件) · L/C 7 項目 (lcc.py — 値は L/C 保管所 lc_read/1) · 版の間 (rev.py) · 運賃の位置 (fmap.py) · 隠す計画と確認 (mask.swift · masktest.py)
    読み方だけ違う: PDF の行 = pdf.js の文字項目を 同じ基線 · 近い間隔で つないだもの (PDFKit selectionsByLine の代わり)
+   v0.4 (2026-11-24 指示書 THOR_11 E-5): Draft の文字に この契約と違う契約番号 (LRS-…) → 相違 「別の契約番号」 · その行の文字を結果に残す (res.otherCt) — それ以外の判定は v0.3 と同じ
    v0.3 (2026-11-23 指示書 D00 B/L 照合結果の保存 · 日本語化 · 形さん D3): 判定の値 = 英語のコード (class: SAME · NOTATION · REF · UNKNOWN · DIFF · SI_BLANK / L/C: SAME · DIFF · DIFF_ABBR · NA_… · NO_DATE · UNKNOWN …) ·
      欄の名前 = 英語のコード (Vessel/Voyage · Total Bales · Container … · Consignee bank …) · 画面の語は 表 (CLASS_JA · LC_RES · FIELD_JA · LC_JA) · 理由 · メモ = 日本語 (判定は v0.2 と同じ)
    v0.2 (2026-11-23 指示書 D00 B/L Draft 2 段階 · CP-A01 補完): 체크포인트 側と 1 つに — 字のまま比べる = ACL エンジンの same_text_ws (+ trim_end_punct) ·
@@ -122,7 +123,7 @@ tr.ab-d td{background:var(--surface)}
      エンジンは BL.useEngine(ACL) で渡す (bl_bench · 書類ツール とも コミット + sha256 固定で読んだもの) · 試験用の港の固定値は 試験コードだけ
 ============================================================ */
 const BL = (()=>{
-  const VERSION = '0.3';
+  const VERSION = '0.4';
   /* ══════════ 共通 — 文字の形 (전수 조사 chk.py 와 같음) ══════════ */
   const ZEN='０１２３４５６７８９ＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴＵＶＷＸＹＺ，．－（）／＃＆：', HAN='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ,.-()/#&:';
   const ZMAP={}; for(let i=0;i<ZEN.length;i++) ZMAP[ZEN[i]]=HAN[i];
@@ -802,6 +803,10 @@ const BL = (()=>{
 
   /* ══════════ 1 Invoice の結果 ══════════
      input = {iv, carrier, si (ACL 形 · なくてよい), lc (lc_read/1 · なくてよい), alias, files:[{id, name, mod, L}], acl:{has, items}} */
+  /* v0.4 (E-5): 契約番号の形 (書類ツール V17.CT_RE と同じ) · 行 → [{no, text, p}] (同じ番号は 1 つ) */
+  const OTHER_CT = {re:/(?<![A-Z0-9])LRS-\d{4}[A-Z]+\d+(?![A-Z0-9])/g, label:'別の契約番号'};
+  function otherCtLines(L, ct){ const C=String(ct||'').toUpperCase(), out=[], seen=new Set();
+    (L||[]).forEach(l=>{ (String(l.t||'').toUpperCase().match(OTHER_CT.re)||[]).forEach(n=>{ if(n!==C&&!seen.has(n)){ seen.add(n); out.push({no:n, text:l.t, p:l.p}); } }); }); return out; }
   function judgeInvoice(input){
     const iv=input.iv, E=editions(iv,input.files), res={iv, carrier:input.carrier||'', src:E.src, editions:E.editions.map(e=>({id:e.id, name:e.name, kind:e.kind, rev:e.rev, mod:e.mod, blpages:e.blpages})), excl:E.excl, scans:E.scans.map(e=>e.name), noBl:E.noBl.map(e=>e.name)};
     if(!E.editions.length){ res.verdict=E.scans.length?'スキャン':'Draft なし'; res.conclusion=E.scans.length?'スキャン — 目で確認 (文字のない Draft だけ)':'B/L Draft が見つからない'; return res; }
@@ -818,7 +823,10 @@ const BL = (()=>{
     /* v0.2: チェックポイント (CPX = エンジン cpPrepare の結果 · cpCtx = {lc (保管所 lc_read/1), si, ex, booking, meta}) — 渡さなければ v0.1 と同じ */
     if(input.cp) applyCp(res, input.cp, Object.assign({}, input.cpCtx||{}, {F:cpDraftFields(L)}));
     const cpOn=(res.CP||[]).filter(i=>!i.trial), cpd=cpOn.filter(i=>i.status==='DIFF'), cpu=cpOn.filter(i=>i.status==='READ_CHECK');
-    const sus=res.A.filter(r=>r.class==='DIFF'), unk=res.A.filter(r=>r.class==='UNKNOWN').concat(cpu);
+    /* v0.4 (E-5): Draft の文字に この契約と違う契約番号 (LRS-…) → 相違 「別の契約番号」 · 行の文字を残す (書類ツール · S/I · ACL と同じ印) */
+    const ctNo=String(input.contract||(si&&si.meta&&si.meta.contract)||(input.cpCtx&&input.cpCtx.meta&&input.cpCtx.meta.contract)||'').toUpperCase();
+    res.otherCt=ctNo?otherCtLines(L, ctNo):[];
+    const sus=res.A.filter(r=>r.class==='DIFF').concat(res.otherCt), unk=res.A.filter(r=>r.class==='UNKNOWN').concat(cpu);
     const lcd=res.B.filter(r=>/^DIFF/.test(r.result)).concat(cpd), lcu=res.B.filter(r=>/^UNKNOWN|^LC_READ_CHECK|^CHECK/.test(r.result));
     if(res.other.other){ res.verdict='別の件'; res.conclusion='別の件の Draft の可能性 — 比べていない ('+res.other.why.join(' · ')+')'; }
     else if(!si&&!lcv){ res.verdict='基準なし'; res.conclusion='S/I (COMPASS) も L/C も無い — 比べられない'; }
@@ -862,6 +870,8 @@ const BL = (()=>{
         K.forEach(i=>{ const c=kc(i); h+='<tr title="'+E(i.detail||'')+'"><td class="av-m av-'+c+'">'+MARKS[c]+'</td><td>'+E(i.label)+cpB(i.cp)+'</td><td class="av-'+c+'">'+E(kw(i))+'</td></tr>'; }); }
       h+='</table>'; }
     const dA=A.filter(r=>r.class==='DIFF'), dB=B.filter(r=>/^DIFF/.test(r.result)), dK=K.filter(i=>!i.trial&&i.status==='DIFF');
+    /* v0.4 (E-5) */
+    if((res.otherCt||[]).length) h+='<div class="av-concl av-ng">'+E(OTHER_CT.label+': '+res.otherCt.map(o=>o.no).join(' · '))+'</div>'+res.otherCt.map(o=>'<div class="av-sub">Draft '+E(o.p)+' 頁: 「'+E(o.text)+'」</div>').join('');
     if(dA.length||dB.length||dK.length){ h+='<div class="av-h av-ng">相違 '+(dA.length+dB.length+dK.length)+' か所 — 直してもらうところ</div>';
       dA.forEach(r=>{ h+='<div class="av-diff"><div class="av-dn">'+E(fieldJa(r.field))+cpB(r.cp)+'</div><div class="av-sub">'+E(r.why)+'</div></div>'; });
       dB.forEach(r=>{ h+='<div class="av-diff"><div class="av-dn">'+E(LC_JA[r.item]||r.item)+' — '+E(lcResJa(r.result))+cpB(r.cp)+'</div><table class="av-cols"><tr><th>Draft</th><th>L/C（正）</th></tr><tr><td>'+E(r.draft)+'</td><td>'+E(r.lc_quote)+'</td></tr></table><div class="av-sub">'+E(r.note)+'</div></div>'; });
@@ -951,7 +961,7 @@ const BL = (()=>{
   const BLX = {VERSION, C, Z, NUM, WORDS, seqRatio, draftName, linesOf, tokenBoxes, isBlPage, isScan, pagesOf, blPages, editions,
     mergeRows, labels, fieldOf, colWindows, finder, check, CLASS, CLASS_JA, CONTENT_SKIP, draftCtx, near, subtype, classify, classifyAll, otherDraft,
     useEngine, samePortGroup, pdate, lcView, lcCheck, aclNote, revDiff,
-    freightTargets, pageRoles, maskPlan, moneyAll, judgeInvoice, viewHtml, fieldJa, siFromCompare, toCsv, lcResJa, /* v0.3 */ LC_RES, LC_RES_JA, FIELD_JA, LC_JA, CLS_CSS,
+    freightTargets, pageRoles, maskPlan, moneyAll, judgeInvoice, viewHtml, fieldJa, /* v0.4 */ OTHER_CT, otherCtLines, siFromCompare, toCsv, lcResJa, /* v0.3 */ LC_RES, LC_RES_JA, FIELD_JA, LC_JA, CLS_CSS,
     /* v0.2 */ CP_A_KEYS, CP_B_KEYS, cpKeyA, cpKeyB, CP_F_KEYS, cpDraftFields, applyCp};
   return BLX;
 })();
@@ -1262,7 +1272,7 @@ async function makeBuyerLocal(cur){
 window.BLAPP = {runOne, buildBuyerPdf, readPages, loadAclCore, loadCp, cpVersions, ACL_ENGINE, S};
 
 LEENAI.init({
-  sys:'D-00', name:'B/L Draft 照合試験', version:'0.3', date:'2026-11-23',
+  sys:'D-00', name:'B/L Draft 照合試験', version:'0.4', date:'2026-11-23',
   desc:'B/L Draft (船社 PDF) を座標で読み、COMPASS (S/I · ブッキング · コンテナ) と L/C 保管所に照合 · バイヤー用 Draft (運賃だけ隠した画像 PDF) を作る (読むだけ · AI なし)',
   graphScopes:['Sites.ReadWrite.All'],
   redirectUri:'https://mhlee205.github.io/CONTRACT_SEND/bl_bench.html',

@@ -5,12 +5,13 @@
      → 1 回目は集めて --cache (既定 ~/thor_work/cp_trial_cache) に置く · 2 回目からはそれを使う (--refresh で集め直す)
    - その行を 「有効」 として実行 (状態 · 承認は見ない — 試し) → 当たった件数 · 結果別 · Invoice の一覧 (CSV) を --out (既定 = cache/trial_{ID}_{時刻}.csv)
    - --write のときだけ: マスターのその行の 試験結果 (trial) 欄に 1 行 · 変更記録 (history) に 1 行 (ETag で 他の人の保存とぶつかったら書かない)
-   - 書く先は マスター 1 か所 (--write) だけ · COMPASS · メールは書かない · トークン = ~/thor_work/d00_acl_survey/ms.py のキャッシュ (画面 · ファイルに出さない)
+   - 書く先は マスター 1 か所 (--write) だけ · COMPASS · メールは書かない · トークン = tools/ms_token.mjs (Mac ms.py · Windows bl_supp/tok.py · 画面 · ファイルに出さない)
    - 必要: tests/acl_bench/node_modules (pdfjs-dist) */
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { execFileSync } from 'node:child_process';
+import { msToken } from './ms_token.mjs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
@@ -22,9 +23,8 @@ const ACL=new Function('module',fs.readFileSync(path.join(REPO,'acl_bench.html')
 const CACHE=arg('cache')||path.join(os.homedir(),'thor_work','cp_trial_cache');
 const DRIVE='b!ZK58_9YllU-vETQD3Xz0TbOInXbVCXJHnQ2280KJBArFLeM_18EgRbSeoO-TW__U', G='https://graph.microsoft.com/v1.0/', DV='https://orgde512c6f.crm7.dynamics.com/api/data/v9.2/';
 const MASTER='古紙/-. AI 活用/MASTER/master_checkpoint.json', LC_DIR='古紙/LC/_READ';
-const PY=path.join(os.homedir(),'thor_work/venv/bin/python'), MS_DIR=path.join(os.homedir(),'thor_work/d00_acl_survey');
-const TK={}; function tok(k){ const t=TK[k]; if(t&&Date.now()-t.at<40*60e3) return t.v;
-  const v=execFileSync(PY,['-W','ignore','-c','import ms,sys;sys.stdout.write(ms._tok(ms.GRAPH if sys.argv[1]=="g" else ms.DV))',k],{cwd:MS_DIR,encoding:'utf8',stdio:['ignore','pipe','ignore']}).trim(); TK[k]={v,at:Date.now()}; return v; }
+/* v0.16 (E-6): Microsoft トークン = tools/ms_token.mjs (OS ごと 1 か所) · g = Graph (マスターに書くので write) · d = COMPASS */
+function tok(k){ return msToken(k==='g'?'write':'dv'); }
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function req(url, k, o){ o=o||{};
   for(let i=0;i<6;i++){ const r=await fetch(url,{method:o.method||'GET', headers:Object.assign({Authorization:'Bearer '+tok(k)},o.headers||{}), body:o.body});

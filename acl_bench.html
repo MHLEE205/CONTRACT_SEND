@@ -140,6 +140,9 @@ tr.ab-d td{background:var(--surface)}
      読み P2 (ラベル 0 → 読取確認要 · Booking 末尾 「-」 · コンテナ = 番号 + チェックデジット · 港の後ろの数字 · コンテナ行数 ↔ 本数) · Shipper's Mail 空欄 = 参考 (D1) · 本船変更 = 相違のまま 「本船変更依頼」 (D5) ·
      担当者メールの判断 (本文の自分の部分 · B/L 段階の件名は除く · [ACL訂正依頼] タグ · 3 か月 jsonl) · L/C JSON 照合 (L/C 番号 · 日付 · 揚地 · 積地 · 原本通数 · Notify) — 違えば 相違 (D2 · D5) · しないこと: S/I 確認を分ける (P3) · 連絡先を参考 (P6) · HS 末尾 0 · 1 〜 2 文字の許容
    v0.13 (2026-11-23 指示書 D00 B/L 照合結果の保存 · 日本語化): 画面に出る文の韓国語をなくした (Shipper's Mail 空欄の参考 · 報告の 「制作」 · 説明) — 判定 · 結果は v0.12 と同じ
+   v0.16 (2026-11-24 指示書 THOR_11 D00 エンジン v0.16 · 형님 D1 ~ D5): 形態の表に ハイキューブの書き方 6 つ (40HCD · 40DRHC · 40HCR · 4096SD · 40(96)DRY · 40HCDRY-ドライ = 45GP · 45R は別) ·
+     乙仲様式の 「(Combined Transport Only)」 Receipt / Delivery が空欄 = 参考 (値があって違えば 相違) · D/R 入力控え の印刷文字 「RECIEVED BY CARRIER」 = Received B/L 欄ではない (対象外) ·
+     乙仲ごとの過去の誤記 (otsunaka_mistakes.json · 人が確認したものだけ) を 結果画面に 「この乙仲の過去の誤記 n 件（参考）」 · 新しい 誤字の疑い は summary に候補として — NACCS の判定は v0.15 と同じ
    v0.15 (2026-11-24 指示書 THOR_10 G9): 乙仲の独自様式 (OTHER · 文字あり · スキャン) も AI で 2 回読み 同じ照合 — 様式にない欄 = 対象外 (相違にしない) · 様式名を記録 · 保存 _scan_ai/{sha256}.other.json — NACCS · スキャン NACCS の判定は v0.14 と同じ<br>
    v0.14 (2026-11-23 指示書 MAC-THOR_6 C4 · 형님 D2): スキャン ACL (文字なし) を AI で 2 回読み、2 回同じ欄だけ NACCS と同じ照合 (scanPrompt · scanMerge · naccsTotals) — NACCS の判定は v0.13 と同じ
    v0.12 (2026-11-23 指示書 D00 B/L Draft 2 段階 · CP-A01 補完 · 형님 D1): 比べ方 same_text_ws に 「:trim_end_punct」 (書類の欄の 末尾の , ; : 1 つを無視 · CP-A01 用) ·
@@ -452,7 +455,9 @@ const ACL = (()=>{
     const ai={label:SCAN_AI.label, ver:SCAN_AI.ver, model:(meta&&meta.model)||SCAN_AI.model, reads:2, pages:j1.pages||j2.pages||null, layout:[j1.layout||'', j2.layout||''], diffFields:diffF, diffRows:rows.filter(r=>r.aiDiff).map(r=>r.container), at:(meta&&meta.at)||null, sha256:(meta&&meta.sha256)||null, cost_usd:(meta&&meta.cost_usd)||null};
     if(O){ const fa=String(j1.form||'').trim(), fb=String(j2.form||'').trim();
       /* 様式名 = 2 回同じならその名前 · 違えば 1 回目 (参考 — 照合には使わない) · コンテナ表 = 2 回とも 「ない」 のときだけ ない */
-      Object.assign(ai,{label:SCAN_AI.otherLabel, ver:SCAN_AI.otherVer, other:true, form:fa&&fb&&!scanSame(fa,fb)?fa+' / '+fb:(fa||fb), naFields:naF, naCols:Object.keys(naCols), noTable:j1.containerTable===false&&j2.containerTable===false}); }
+      Object.assign(ai,{label:SCAN_AI.otherLabel, ver:SCAN_AI.otherVer, other:true, form:fa&&fb&&!scanSame(fa,fb)?fa+' / '+fb:(fa||fb), naFields:naF, naCols:Object.keys(naCols), noTable:j1.containerTable===false&&j2.containerTable===false});
+      /* v0.16 (E-2): 欄の印刷ラベル (1 回目 · なければ 2 回目) — 「(Combined Transport Only)」 などの判断に使う (照合の値には使わない) */
+      const lb={}; HEAD_KEYS.forEach(k=>{ const l=String((f1[k]&&f1[k].label)||(f2[k]&&f2[k].label)||'').trim(); if(l) lb[k]=l; }); ai.labels=lb; }
     return {fields, rows, totals:naccsTotals(fields, fullText), fullText, ai};
   }
   /* AI の返事 → JSON (```json の囲み · 前後の文 を除く) — 読めなければ null */
@@ -701,7 +706,7 @@ const ACL = (()=>{
      同じ意味の表記は下の表だけ (ISO 6346 のサイズ・タイプコードと よく使う呼び名)。表にない組み合わせは 相違 (推測しない — D6)。
      比べる前に 空白 · ' · - · . だけ外す (40'HC = 40HC)。2026-11-20 実データ: COMPASS は 45GP · 45R · 42GP · 空欄 */
   const CNTR_TYPES = [
-    ['45GP','45G0','45G1','40HC','40HQ'],          // 40 フィート ハイキューブ (一般)
+    ['45GP','45G0','45G1','40HC','40HQ','40HCD','40DRHC','40HCR','4096SD','40(96)DRY','40HCDRYドライ'],   // 40 フィート ハイキューブ (一般) · v0.16 (형님 D1 「45GP와 같음」): 乙仲様式の書き方 (typeKey の後の形 · 40HCDRY-ドライ → 40HCDRYドライ)
     ['42GP','42G0','42G1','40GP','40DV','40DC'],   // 40 フィート (一般)
     ['22GP','22G0','22G1','20GP','20DV','20DC'],   // 20 フィート (一般)
     ['45R','45R0','45R1','45RT','40RH','40HR'],    // 40 フィート ハイキューブ (冷凍)
@@ -1171,6 +1176,8 @@ const ACL = (()=>{
     if(String(meta.pay||'').toUpperCase()==='LC') lcItems(cp.lc||opts.lc||null, ex, F, items.find(i=>i.key==='pod'), items.find(i=>i.key==='delivery'), meta).forEach(d=>{ items.push(d); if(d.kind) kind(d.kind); });
     /* v0.15 (G9): 乙仲様式 — 欄が様式にない (NA) から出た 読取確認 · 相違 → 対象外 (INFO · 判定に入れない) · 欄が 1 つでもあれば 今までどおり */
     const naList=OTH?naApply(items, kinds, F, acl):null;
+    /* v0.16 (E-2 · E-3): 乙仲様式だけ — 複合輸送の空欄 = 参考 · 印刷文字 = 対象外 */
+    const ctList=OTH?ctApply(items, kinds, F, acl):null, prList=OTH?printedApply(items, kinds, F):null;
     if(marksCntr){ const it=items.find(i=>i.key==='marks'); if(it) it.detail=(it.detail?it.detail+' · ':'')+'Marks の欄のコンテナ行 '+marksCntr+' 行 (コンテナ表と同じ番号) は外して比較 (乙仲様式)'; }
     if(origNote) items.filter(i=>i.key==='lc:originals'||i.key==='disp:originals').forEach(i=>{ i.detail=(i.detail?i.detail+' · ':'')+'原文 「'+origNote+'」 の (数字) で比較 (乙仲様式)'; });
     /* v0.11: チェックポイント (opts.checkpoints = cpPrepare の結果) — CP 番号 · 基本の停止 · 港の別名 · 追加の実行 (渡さなければ v0.10 と同じ) */
@@ -1183,7 +1190,7 @@ const ACL = (()=>{
     const out={verdict:verdictOf(items), items, kinds, sets:sc, xx, final, siTentative:tent, expected:{sino:ex.sino, booking:ex.booking}};
     if(CPR) out.cp=CPR;
     if(acl.ai) out.ai=acl.ai;
-    if(OTH) out.na=naList;
+    if(OTH){ out.na=naList; if(ctList.length) out.ctRef=ctList; if(prList.length) out.printed=prList; }
     return out;
   }
   /* v0.9 P2 */
@@ -1194,6 +1201,28 @@ const ACL = (()=>{
     'disp:wayBill':['wayBill'], 'disp:received':['received'], 'disp:originals':['originals'], 'disp:freight':['freight'], 'disp:agentSign':['agentSign'], 'disp:shipperMail':['shipperMail'],
     'lc:originals':['originals'], 'lc:consignee_acl':['consignee'], 'total:containers':['totalContainers','numberOf'], 'total:bales':['totalPkgs'], 'total:weight':['totalWeight'], 'instr:cntr':['description']};
   const NA_NOTE = 'この様式に欄がない — 対象外 (相違にしない)';
+  /* v0.16 (E-2 형님 D2 「(가)」): 乙仲様式で 欄の印刷ラベルに 「Combined Transport」 が付く Place of Receipt / Delivery — ACL が空欄 (S/I に値) = 参考 (INFO) · 値があって違う = 今までどおり 相違 */
+  const CT_ONLY = {keys:['receipt','delivery'], label:/COMBINED\s*TRANSPORT/i, note:'複合輸送 (Combined Transport Only) の欄が空欄 — 参考 (相違にしない)',
+    /* 様式名で決まるもの — CNC の Draft B/L は 欄名の後ろの 「*」 が 複合輸送のときだけの欄の印 (同じ扱い) */
+    forms:[{form:/CNC\s*DRAFT\s*BILL\s*OF\s*LADING/i, label:/\*\s*$/}]};
+  function ctApply(items, kinds, F, acl){ const L=(acl.ai&&acl.ai.labels)||{}, out=[];
+    const form=String((acl.ai&&acl.ai.form)||''), isCt=k=>CT_ONLY.label.test(L[k]||'')||CT_ONLY.forms.some(f=>f.form.test(form)&&f.label.test(L[k]||''));
+    items.forEach(i=>{ if(CT_ONLY.keys.indexOf(i.key)<0||i.status!=='DIFF'||!isCt(i.key)) return; const f=F[i.key]; if(f&&String(f.text||'').trim()) return; if(!String(i.expected||'').trim()) return;
+      if(i.kind&&kinds[i.kind]){ kinds[i.kind]--; if(!kinds[i.kind]) delete kinds[i.kind]; } i.status='INFO'; i.kind=''; i.ref=true; i.detail=CT_ONLY.note+' · 様式の欄 「'+L[i.key]+'」'+(i.detail?' · '+i.detail:''); out.push(i.label); });
+    return out; }
+  /* v0.16 (E-3 형님 D3 「(가)」): 様式に印刷された文字 (D/R 入力控え の 「RECIEVED BY CARRIER」 · RECEIVED も) は Received B/L 欄ではない → 対象外 */
+  const PRINTED = [{key:'disp:received', field:'received', re:/^\s*RECE?I?E?VED\s+BY\s+CARRIER\s*$/i, note:'様式の印刷文字 (RECIEVED BY CARRIER) — Received B/L の欄ではない · 対象外 (相違にしない)'}];
+  function printedApply(items, kinds, F){ const out=[];
+    PRINTED.forEach(p=>{ const f=F[p.field]; if(!f||!p.re.test(String(f.text||''))) return; const i=items.find(x=>x.key===p.key); if(!i||i.status==='INFO') return;
+      if(i.kind&&kinds[i.kind]){ kinds[i.kind]--; if(!kinds[i.kind]) delete kinds[i.kind]; } i.status='INFO'; i.na=true; i.kind=''; i.detail=p.note+(i.detail?' · '+i.detail:''); out.push(i.label); });
+    return out; }
+  /* v0.16 (E-4 형님 D4 「(가)」): 乙仲ごとの過去の誤記 — SharePoint D-00/ACL_bench/otsunaka_mistakes.json (人が確認したものだけ · 自動で足さない) · 結果画面に 「この乙仲の過去の誤記 n 件（参考）」 */
+  const OTSU_MISTAKES = {path:'otsunaka_mistakes.json', schema:'otsunaka_mistakes/1', label:'この乙仲の過去の誤記 {n} 件（参考）'};
+  const otsuKey = s => String(s==null?'':s).normalize('NFKC').toUpperCase().replace(/[\s.,()（）株式会社]/g,'');
+  /* list = ファイルの items · who = [乙仲の名前 (meta.forwarderCompany) · 乙仲の番号 (meta.forwarder = master_customs の id) · 様式名] → その乙仲の記録 (今の Invoice も含む) */
+  function pastMistakes(list, who){ const K=(who||[]).map(otsuKey).filter(Boolean); if(!K.length) return [];
+    return (list||[]).filter(m=>{ const a=otsuKey(m.otsunaka), b=otsuKey(m.form), c=otsuKey(m.otsunaka_id); return K.some(k=>k&&(k===a||k===b||k===c)); }); }
+  const pastLabel = n => OTSU_MISTAKES.label.replace('{n}', n);
   const NA_DEP = {'disp:originals':'wayBill', 'disp:wayBill':'originals'};
   function naApply(items, kinds, F, acl){
     const out=[], isNA=k=>F[k]&&F[k].conf==='NA', noTable=!!(acl.ai&&acl.ai.noTable)&&!(acl.rows||[]).length;
@@ -1771,6 +1800,8 @@ const ACL = (()=>{
       h+='</table>'; }
     if(V.diffs.length) h+='<div class="av-h av-ng">相違 '+V.diffs.length+' か所 — 直してもらうところ</div>'+V.diffs.map(r=>'<div class="av-diff"'+tip(r.item)+'><div class="av-dn">'+E(r.name)+cpB(r.item)+(r.item.cp&&r.item.group==='チェック'&&r.item.detail?' <span class="av-sub">'+E(r.item.detail)+'</span>':'')+'</div>'+pair(r.item)+'</div>').join('');
     if(V.reads.length) h+='<div class="av-h av-read">読めないところ '+V.reads.length+' か所 — ACL を開いて目で確認</div>'+V.reads.map(r=>'<div class="av-diff"'+tip(r.item)+'><div class="av-dn">'+E(r.name)+cpB(r.item)+'</div>'+(/続き/.test(r.item.detail||'')?'<div class="av-sub">'+E(r.item.detail)+'</div>':'')+(r.item.actual?'<div class="av-sub">ACL: '+E(r.item.actual)+'</div>':'')+'</div>').join('');
+    /* v0.16 (E-4): この乙仲の過去の誤記 (opt.past = pastMistakes の結果) — 参考 */
+    if(opt.past&&opt.past.length) h+='<details class="av-more av-past"><summary>'+E(pastLabel(opt.past.length))+'</summary><ul class="av-fu">'+opt.past.map(m=>'<li>'+E(m.invoice)+' · '+E(m.field)+' · '+E(m.kind)+' <span class="av-sub">ACL 「'+E(m.acl)+'」 → 正 「'+E(m.right)+'」 ('+E(m.date)+')</span></li>').join('')+'</ul></details>';
     if(V.notes.length) h+='<details class="av-more"><summary>表記差 '+V.notes.length+' か所（空白 · 大文字小文字 · 行の折り返し など）— 中身を見る</summary>'+V.notes.map(r=>'<div class="av-diff"'+tip(r.item)+'><div class="av-dn">'+E(r.name)+cpB(r.item)+(r.item.alias?' <span class="av-sub">'+E(r.item.detail.split(' · ')[0])+'</span>':'')+'</div>'+pair(r.item)+'</div>').join('')+'</details>';
     return h;
   }
@@ -1789,6 +1820,8 @@ const ACL = (()=>{
     const k={}; (results||[]).forEach(r=>Object.keys(r.kinds||{}).forEach(x=>{ k[x]=k[x]||{inv:0,n:0}; k[x].inv++; k[x].n+=r.kinds[x]; }));
     return Object.keys(k).sort((a,b)=>k[b].inv-k[a].inv||a.localeCompare(b)).map(x=>({kind:x, invoices:k[x].inv, count:k[x].n}));
   }
+  /* v0.16 (E-4): 結果 → 誤字の疑い の候補 [{invoice, otsunaka, form, field, acl, right}] */
+  function typoCands(results){ const out=[]; (results||[]).forEach(r=>{ const m=r.meta||{}; (r.items||[]).filter(i=>/誤字の疑い/.test(i.kind||'')).forEach(i=>out.push({invoice:r.invoice, otsunaka:m.forwarderCompany||m.forwarder||'', form:r.ai&&r.ai.form||'', field:i.label, acl:i.actual, right:i.expected})); }); return out; }
   function summaryMd(run){
     const R=run.results||[], c={}; VERDICTS.forEach(v=>{ c[v]=R.filter(r=>r.verdict===v).length; });
     const L=['# ACL 照合試験 — '+run.run_id,'','- 道具: acl_bench v'+run.version+' (THOR 制作) · 実行者: '+(run.user||'?')+' · '+run.started+(run.finished?' ~ '+run.finished:''),
@@ -1808,6 +1841,9 @@ const ACL = (()=>{
       L.push('','## '+SCAN_AI.otherLabel+' (様式ごと)','','| 様式 | 件数 | 判定 | 様式にない欄 (対象外) |','|---|---|---|---|'); Object.keys(by).sort().forEach(f=>L.push('| '+f.replace(/\|/g,'/')+' | '+by[f].n+' | '+Object.keys(by[f].v).map(v=>v+' '+by[f].v[v]).join(' · ')+' | '+by[f].na+' |')); }
     if(run.staff) L.push(staffSummaryMd(run));   // v0.3
     L.push('','---','✦ Powered by LEENAI Automation System','');
+    /* v0.16 (E-4): 誤字の疑い = 乙仲の誤記の候補 (人が確認してから otsunaka_mistakes.json へ · 自動で足さない) */
+    const TC=typoCands(R); if(TC.length){ L.push('','## 乙仲の誤記の候補 (誤字の疑い · 確認してから '+OTSU_MISTAKES.path+' へ)','','| Invoice | 乙仲 | 様式 | 欄 | ACL | S/I |','|---|---|---|---|---|---|');
+      TC.forEach(c=>L.push('| '+[c.invoice,c.otsunaka,c.form,c.field,c.acl,c.right].map(v=>String(v||'').replace(/\|/g,'/').replace(/\n/g,' ').slice(0,80)).join(' | ')+' |')); }
     return L.join('\n');
   }
   /* ══════════ v0.11 チェックポイント (master_checkpoint · master_port_alias) — 指示書 (2026-11-23) D00 체크포인트 마스터 v1 · DOC-D-00 §2-13 ══════════
@@ -1999,6 +2035,7 @@ const ACL = (()=>{
   function cpAliasSame(alias, a, b){ const A=cpAliasGroups(a, alias), B=cpAliasGroups(b, alias); return A.find(x=>B.indexOf(x)>=0)||null; }
   return {SP_OUT, SRC_DIRS, ISO, D03, LABELS, VERDICTS, invoiceOf,
     /* v0.15 */ SCAN_OTHER_HEAD, SCAN_OTHER_TAIL, NA_MAP, NA_NOTE, naApply, NA_CELL, naSets,
+    /* v0.16 */ CT_ONLY, ctApply, PRINTED, printedApply, OTSU_MISTAKES, otsuKey, pastMistakes, pastLabel, typoCands,
     /* v0.14 */ HEAD_KEYS, naccsTotals, scanJson, scanLayoutOk, SCAN_NOT_NACCS, scanCost, SCAN_AI, SCAN_SYSTEM, SCAN_ROW_KEYS, scanPrompt, scanMerge, scanSame, aiDiffNote,
     /* v0.12 */ cpEndPunct, cpStageRows, cpAliasSame, cpAliasNames,
     /* v0.11 */ CP_RESULT, CP_STATES, CP_KINDS, CP_STAGES, CP_SCOPES, CP_OPS, cpOp, cpWs, cpValue, cpCatalog, cpConsOrder, cpConsFromCheck, cpAdmins, cpState, cpKey, cpLastChangers, cpPrepare, cpKeyHit, cpScopeHit, cpRunRow, cpAliasGroups, cpApply,
@@ -2182,6 +2219,9 @@ function updateEst(){
   $('abRunSt').textContent='照合 '+n+' 件 (NACCS) · 対象外 '+(ts.length-n)+' 件 · 予想 約 '+Math.max(1,Math.ceil(n*2/60))+' 分 (COMPASS 読み込み · 1 件 約 2 秒 · 同時 3)'+(ns?' · うち スキャン '+ns+' 件 = '+ACL.SCAN_AI.label+' (保存済みは使う · 新しく読むのは チェックしたとき)':'')+(no?' · 乙仲様式 '+no+' 件 = '+ACL.SCAN_AI.otherLabel+' (同じ)':'');
 }
 
+/* ── v0.16 (E-4) 乙仲ごとの過去の誤記 — ACL_bench/otsunaka_mistakes.json (読むだけ · 人が確認した記録) ── */
+async function loadPast(){ if(S.past) return S.past; try{ const r=await graphFetch(drv()+'/root:/'+spEnc(ACL.SP_OUT+'/'+ACL.OTSU_MISTAKES.path)+':/content'); S.past=r.ok?(((await r.json())||{}).items||[]):[]; }catch(e){ S.past=[]; } return S.past; }
+const pastFor = r => { const m=(r&&r.meta)||{}; return ACL.pastMistakes(S.past||[], [m.forwarderCompany, m.forwarder, r&&r.ai&&r.ai.form]); };
 /* ── v0.14 スキャン ACL — AI 判読 (2 回) · 保存場所 ACL_bench/_scan_ai/{sha256}.json (同じファイルは 2 度読まない) ── */
 const SCAN_AI_DIR = ACL.SP_OUT+'/_scan_ai';
 const AI_KEY = 'leenai_apikey_v1';   // D-01 · A1 と同じ保存場所 (同じ origin のブラウザ保存領域のみ)
@@ -2250,7 +2290,7 @@ async function runCompare(){
   S.running=true; S.stop=false; $('abRun').disabled=true; $('abStop').disabled=false; $('abSave').disabled=true; $('abList').disabled=true;
   const d=new Date(), t0=Date.now();
   S.run={run_id:ACL.runId(d), version:abVersion(), user:(LEENAI.user&&LEENAI.user.email)||'', started:d.toISOString(), finished:null, listed:S.list.targets.length, filter:filterList(), results:[]};
-  await loadDispRules(); S.run.rules={loaded:S.rules.loaded, acl_rules:S.rules.rules.length, warnings:S.rules.warnings};
+  await loadDispRules(); await loadPast(); S.run.rules={loaded:S.rules.loaded, acl_rules:S.rules.rules.length, warnings:S.rules.warnings};
   const out=[]; let k=0; S.scanCost=0; S.scanHit=0; S.scanNew=0; S.scanOther=0;
   await mapLimit(ts,3,async t=>{
     if(S.stop) return;
@@ -2298,7 +2338,7 @@ function toggleDetail(i){
   tr.firstChild.innerHTML='<div class="ab-note">ACL: '+escH(r.file||'')+(r.aclVersion?' ('+escH(r.aclVersion)+')':'')+((r.others||[]).length?' · 他の版: '+escH(r.others.join(' ・ ')):'')+
     (m.forwarder||m.forwarderCompany?' · 乙仲 '+escH([m.forwarder,m.forwarderCompany,m.forwarderPort].filter(Boolean).join(' · ')):'')+'</div>'+
     /* v0.5 (Step 4): 書類ツールの ACL タブと同じ見せ方 (結論 → 確認した項目の全部 → 相違だけ開く · 中の名前は マウスを乗せると) */
-    '<div class="av">'+ACL.viewHtml(r,{admin:true})+'</div>'+
+    '<div class="av">'+ACL.viewHtml(r,{admin:true, past:pastFor(r)})+'</div>'+   // v0.16 (E-4)
     '<details class="ab-note"><summary>(試験用) 項目の生データ</summary><table class="ab-t"><tr><th>区分</th><th>項目</th><th>判定</th><th>COMPASS (期待)</th><th>ACL</th><th>差</th></tr>'+r.items.map(x=>'<tr><td>'+escH(x.group)+'</td><td>'+escH(x.label)+'</td><td class="'+(x.status==='MATCH'?'ab-ok':x.status==='INFO'?'':x.status==='NOTATION'||x.status==='PRACTICE'||x.status==='READ_CHECK'?'ab-warn':'ab-ng')+'">'+escH(ST_LABEL[x.status]||x.status)+'</td><td class="v">'+escH(x.expected)+'</td><td class="v">'+escH(x.actual)+'</td><td class="v">'+opsHtml(x)+'</td></tr>').join('')+'</table></details>';
   tr.style.display='';
 }
@@ -2386,7 +2426,7 @@ function startPage(){
 }
 
 LEENAI.init({
-  sys:'D-00', name:'ACL 照合試験', version:'0.15', date:'2026-11-24',
+  sys:'D-00', name:'ACL 照合試験', version:'0.16', date:'2026-11-24',
   desc:'ACL (NACCS PDF) を座標で読み、COMPASS の S/I (sino 1) · ブッキング · コンテナ (セット) · 表示欄 (S/I ルールマスター) と 100% 照合 · 担当者メールの実績と突き合わせ (読むだけ · AI なし)',
   graphScopes:['Sites.ReadWrite.All'],
   redirectUri:'https://mhlee205.github.io/CONTRACT_SEND/acl_bench.html',
