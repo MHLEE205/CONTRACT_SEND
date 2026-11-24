@@ -30,8 +30,9 @@ let old=null; try{ old=cpr.execFileSync('git',['show','a56fabc:acl_bench.html'],
 const O15=old?core(old):null;
 
 console.log('E-1 형태');
-eq(['40HCD','40drhc',"40'HCR",'4096SD','40(96)DRY','40HCDRY-ドライ','40 HCD'].map(t=>ACL.sameType(t,'45GP')),[true,true,true,true,true,true,true],'하이큐브 6 표기 = 45GP (대소문자 · 공백 · \' · - 무시)');
-eq([ACL.sameType('40HCD','45R'),ACL.sameType('40HCR','45R'),ACL.sameType('45R','45GP'),ACL.sameType('45G1','45GP'),ACL.sameType('40HC','45GP'),ACL.sameType('42GP','45GP')],[false,false,false,true,true,false],'45R 은 대응 안 함 (형님 D1) · 원래 표 그대로');
+eq(['40HCD','40drhc','4096SD','40(96)DRY','40HCDRY-ドライ','40 HCD'].map(t=>ACL.sameType(t,'45GP')),[true,true,true,true,true,true],'하이큐브 5 표기 = 45GP (대소문자 · 공백 · - 무시) · v0.17: 40HCR 은 45R 줄로 (S1)');
+eq([ACL.sameType("40'HCR",'45R'),ACL.sameType('40hcr','45R'),ACL.sameType('40HCR','45GP')],[true,true,false],'v0.17 (형님 S1): 40HCR = 45R (45GP 아님)');
+eq([ACL.sameType('40HCD','45R'),ACL.sameType('40HCR','42GP'),ACL.sameType('45R','45GP'),ACL.sameType('45G1','45GP'),ACL.sameType('40HC','45GP'),ACL.sameType('42GP','45GP')],[false,false,false,true,true,false],'45R 은 대응 안 함 (형님 D1) · 원래 표 그대로');
 { const cp=FX.compass(61), j=aiJson(cp, x=>{ x.rows.forEach(r=>{ r.size='40'; r.type='HCD'; }); return x; }, true), c=cmp(j,cp,true);
   ok(c.sets.sets.every(s=>s.ok&&s.typeSt==='MATCH')&&c.verdict==='完全一致','乙仲様式 「40 HCD」 ↔ COMPASS 45GP → 세트 일치',{v:c.verdict, s:c.sets.sets.map(s=>s.typeSt)});
   if(O15){ const c15=O15.compareOne(O15.scanMerge(j,j,{other:true}), cp, {meta:META()}); ok(c15.verdict==='相違あり','(비교) v0.15 = 相違 (형태)',c15.verdict); } }

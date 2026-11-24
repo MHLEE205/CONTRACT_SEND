@@ -12,7 +12,7 @@
 
 | 파일 | 내용 |
 |---|---|
-| `acl_bench.html` | **ACL 대조 엔진** (`<script id="acl-core">` · 순수 로직) + 시험 화면 (acl-app) — 현재 **v0.16** |
+| `acl_bench.html` | **ACL 대조 엔진** (`<script id="acl-core">` · 순수 로직) + 시험 화면 (acl-app) — 현재 **v0.17** |
 | `bl_bench.html` | **B/L Draft 대조 엔진** (`<script id="bl-core">` · ACL 엔진을 `BL.useEngine` 로 받음) + 시험 화면 — 현재 **v0.4** |
 | `a1_bench.html` | S/I 추천 (A1 R2) 엔진 · 시험 화면 |
 | `compass_write_test.html` | COMPASS 쓰기 시험 |
@@ -43,7 +43,7 @@ cd ../bl_bench && npm install && node run_all.js                     # ALL PASS
 3. **직원 화면 = 일본어 · 한글 0** (`tests/bl_bench/hangul.js` 가 bl_bench · acl_bench 를 봄). 판정 값은 코드 (영문) · 화면 글자는 표.
 4. **판정을 바꾸는 수정은 전후 비교 필수** — 2026 ACL 전체 (NACCS · 스캔 NACCS · 乙仲様式) · B/L Draft 를 옛 커밋 ↔ 새 판으로 돌려 **판정 변화 목록**을 보고서에. 허용 변화 (지시서) 로 설명되지 않는 변화 0. AI 는 다시 부르지 않고 `ACL_bench/_scan_ai/{sha256}.json` · `{sha256}.other.json` 저장본을 쓴다.
 5. **쓰기** — 엔진 · 시험 화면은 COMPASS · MASTER 를 쓰지 않는다 (예외는 지시서에 적힌 것만 · 예: `cp_trial --write`). SharePoint 쓰기 = `古紙/-. AI 活用/D-00/ACL_bench/` 실행 폴더 · `_scan_ai/` (새 파일만 · 덮어쓰기 0).
-6. **乙仲별 과거 오기** `ACL_bench/otsunaka_mistakes.json` (schema `otsunaka_mistakes/1`) = **사람이 확인한 것만** · 엔진은 읽기만 (`pastMistakes`) · 새 「誤字の疑い」 는 summary.md 의 후보 표로만 (자동 추가 0).
+6. **乙仲별 과거 오기** `ACL_bench/otsunaka_mistakes.json` (schema `otsunaka_mistakes/1` · 乙仲 = 짧은 이름 `otsunaka` · 정식 이름 `otsunaka_full` · 번호 `otsunaka_id` · 바꾸기 전 `ACL_bench/_backup/` 에 사본) = **사람이 확인한 것만** · 엔진은 읽기만 (`pastMistakes`) · 새 「誤字の疑い」 는 summary.md 의 후보 표로만 (자동 추가 0).
 7. **실제 값은 레포에 넣지 않는다** — 시험은 가짜 번호 (`TEST…` · `2699` · `SAMPLE` · `example.test`) · GUID 는 `00000000-0000-4000-8000-…` (`tests/acl_bench/run_all.js` 가 확인). 실자료 확인 스크립트 · 결과는 레포 밖 (PC 작업 폴더 → SharePoint 실행 폴더 `scripts/`).
 8. **보안 grep** — push 전 `ghp_ · github_pat_ · sk-ant · client_secret · AKIA` 0.
 

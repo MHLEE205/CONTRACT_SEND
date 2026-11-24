@@ -140,6 +140,7 @@ tr.ab-d td{background:var(--surface)}
      読み P2 (ラベル 0 → 読取確認要 · Booking 末尾 「-」 · コンテナ = 番号 + チェックデジット · 港の後ろの数字 · コンテナ行数 ↔ 本数) · Shipper's Mail 空欄 = 参考 (D1) · 本船変更 = 相違のまま 「本船変更依頼」 (D5) ·
      担当者メールの判断 (本文の自分の部分 · B/L 段階の件名は除く · [ACL訂正依頼] タグ · 3 か月 jsonl) · L/C JSON 照合 (L/C 番号 · 日付 · 揚地 · 積地 · 原本通数 · Notify) — 違えば 相違 (D2 · D5) · しないこと: S/I 確認を分ける (P3) · 連絡先を参考 (P6) · HS 末尾 0 · 1 〜 2 文字の許容
    v0.13 (2026-11-23 指示書 D00 B/L 照合結果の保存 · 日本語化): 画面に出る文の韓国語をなくした (Shipper's Mail 空欄の参考 · 報告の 「制作」 · 説明) — 判定 · 結果は v0.12 と同じ
+   v0.17 (2026-11-24 指示書 THOR_12 S1): 形態の表 — 40HCR は 45R (冷凍ハイキューブ) と同じ (v0.16 の 45GP から移す) · ほかは v0.16 と同じ
    v0.16 (2026-11-24 指示書 THOR_11 D00 エンジン v0.16 · 형님 D1 ~ D5): 形態の表に ハイキューブの書き方 6 つ (40HCD · 40DRHC · 40HCR · 4096SD · 40(96)DRY · 40HCDRY-ドライ = 45GP · 45R は別) ·
      乙仲様式の 「(Combined Transport Only)」 Receipt / Delivery が空欄 = 参考 (値があって違えば 相違) · D/R 入力控え の印刷文字 「RECIEVED BY CARRIER」 = Received B/L 欄ではない (対象外) ·
      乙仲ごとの過去の誤記 (otsunaka_mistakes.json · 人が確認したものだけ) を 結果画面に 「この乙仲の過去の誤記 n 件（参考）」 · 新しい 誤字の疑い は summary に候補として — NACCS の判定は v0.15 と同じ
@@ -706,10 +707,10 @@ const ACL = (()=>{
      同じ意味の表記は下の表だけ (ISO 6346 のサイズ・タイプコードと よく使う呼び名)。表にない組み合わせは 相違 (推測しない — D6)。
      比べる前に 空白 · ' · - · . だけ外す (40'HC = 40HC)。2026-11-20 実データ: COMPASS は 45GP · 45R · 42GP · 空欄 */
   const CNTR_TYPES = [
-    ['45GP','45G0','45G1','40HC','40HQ','40HCD','40DRHC','40HCR','4096SD','40(96)DRY','40HCDRYドライ'],   // 40 フィート ハイキューブ (一般) · v0.16 (형님 D1 「45GP와 같음」): 乙仲様式の書き方 (typeKey の後の形 · 40HCDRY-ドライ → 40HCDRYドライ)
+    ['45GP','45G0','45G1','40HC','40HQ','40HCD','40DRHC','4096SD','40(96)DRY','40HCDRYドライ'],   // 40 フィート ハイキューブ (一般) · v0.16 (형님 D1 「45GP와 같음」): 乙仲様式の書き方 (typeKey の後の形 · 40HCDRY-ドライ → 40HCDRYドライ)
     ['42GP','42G0','42G1','40GP','40DV','40DC'],   // 40 フィート (一般)
     ['22GP','22G0','22G1','20GP','20DV','20DC'],   // 20 フィート (一般)
-    ['45R','45R0','45R1','45RT','40RH','40HR'],    // 40 フィート ハイキューブ (冷凍)
+    ['45R','45R0','45R1','45RT','40RH','40HR','40HCR'],    // 40 フィート ハイキューブ (冷凍) · v0.17 (형님 S1 「40HCR 은 45R 과 같은 의미」)
     ['42R','42R0','42R1','42RT'],                  // 40 フィート (冷凍)
     ['22R','22R0','22R1','22RT']                   // 20 フィート (冷凍)
   ];
@@ -1221,7 +1222,7 @@ const ACL = (()=>{
   const otsuKey = s => String(s==null?'':s).normalize('NFKC').toUpperCase().replace(/[\s.,()（）株式会社]/g,'');
   /* list = ファイルの items · who = [乙仲の名前 (meta.forwarderCompany) · 乙仲の番号 (meta.forwarder = master_customs の id) · 様式名] → その乙仲の記録 (今の Invoice も含む) */
   function pastMistakes(list, who){ const K=(who||[]).map(otsuKey).filter(Boolean); if(!K.length) return [];
-    return (list||[]).filter(m=>{ const a=otsuKey(m.otsunaka), b=otsuKey(m.form), c=otsuKey(m.otsunaka_id); return K.some(k=>k&&(k===a||k===b||k===c)); }); }
+    return (list||[]).filter(m=>{ const a=otsuKey(m.otsunaka), b=otsuKey(m.form), c=otsuKey(m.otsunaka_id), d=otsuKey(m.otsunaka_full); return K.some(k=>k&&(k===a||k===b||k===c||k===d)); }); }   // v0.17: 正式名 (otsunaka_full) でも
   const pastLabel = n => OTSU_MISTAKES.label.replace('{n}', n);
   const NA_DEP = {'disp:originals':'wayBill', 'disp:wayBill':'originals'};
   function naApply(items, kinds, F, acl){
@@ -2426,7 +2427,7 @@ function startPage(){
 }
 
 LEENAI.init({
-  sys:'D-00', name:'ACL 照合試験', version:'0.16', date:'2026-11-24',
+  sys:'D-00', name:'ACL 照合試験', version:'0.17', date:'2026-11-24',
   desc:'ACL (NACCS PDF) を座標で読み、COMPASS の S/I (sino 1) · ブッキング · コンテナ (セット) · 表示欄 (S/I ルールマスター) と 100% 照合 · 担当者メールの実績と突き合わせ (読むだけ · AI なし)',
   graphScopes:['Sites.ReadWrite.All'],
   redirectUri:'https://mhlee205.github.io/CONTRACT_SEND/acl_bench.html',
