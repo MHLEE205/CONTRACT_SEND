@@ -2161,9 +2161,10 @@ const ACL = (()=>{
   /* v0.19 (E-K6): 42C の表記差の鍵 (BILL OF LADING · B/L · B L = BL · DAYS = DAY · 英数字と % だけ) と 意味 (日数 · 一覧払 · 起算日 · %) */
   const cx42Bl = t => cx42(t).replace(/\bBILLS? OF LADING\b/g,'BL').replace(/\bB\s*\/\s*L\b|\bB\s+L\b/g,'BL');
   /* v0.20: L/C 42C ↔ S/I の 語の違い → 「足した: … · 抜けた: … · 書き換え: A → B」 (語の LCS) */
-  function cx42Diff(a, b){ const tk=t=>cxU(t).replace(/BILLS? OF LADING/g,m=>m.replace(/ /g,'\u00a0')).split(' ').filter(Boolean), A=tk(a), B=tk(b), n=A.length, m=B.length, T=[]; for(let i=0;i<=n;i++) T.push(new Array(m+1).fill(0));
+  function cx42Diff(a, b){ const tk=t=>cxU(t).replace(/BILLS? OF L[A-Z]{3,5}NG/g,m=>m.replace(/ /g,'\u00a0')).split(' ').filter(Boolean), A=tk(a), B=tk(b), n=A.length, m=B.length, T=[]; for(let i=0;i<=n;i++) T.push(new Array(m+1).fill(0));
     for(let i=n-1;i>=0;i--) for(let j=m-1;j>=0;j--) T[i][j]=A[i]===B[j]?T[i+1][j+1]+1:Math.max(T[i+1][j],T[i][j+1]);
-    const ops=[]; let i=0, j=0, del=[], ins=[]; const flush=()=>{ if(del.length&&ins.length) ops.push('書き換え: '+del.join(' ')+' → '+ins.join(' ')); else if(del.length) ops.push('抜けた: '+del.join(' ')); else if(ins.length) ops.push('足した: '+ins.join(' ')); del=[]; ins=[]; };
+    const ops=[]; let i=0, j=0, del=[], ins=[]; const flush=()=>{ if(del.length&&ins.length){ ops.push('書き換え: '+del[0]+' → '+ins[0]); if(del.length>1) ops.push('抜けた: '+del.slice(1).join(' ')); if(ins.length>1) ops.push('足した: '+ins.slice(1).join(' ')); }   // 書き換え = 最初の 1 語どうし · 残りは 抜けた / 足した
+      else if(del.length) ops.push('抜けた: '+del.join(' ')); else if(ins.length) ops.push('足した: '+ins.join(' ')); del=[]; ins=[]; };
     while(i<n||j<m){ if(i<n&&j<m&&A[i]===B[j]){ flush(); i++; j++; } else if(j<m&&(i>=n||T[i][j+1]>=T[i+1][j])){ ins.push(B[j]); j++; } else { del.push(A[i]); i++; } } flush();
     return ops.join(' · ').replace(/\u00a0/g,' ')||'語の並び'; }   // BILL OF LADING = 1 語として並べる
   const cx42Key = t => cx42Bl(t).replace(/\bDAYS\b/g,'DAY').replace(/[^A-Z0-9%]/g,'');

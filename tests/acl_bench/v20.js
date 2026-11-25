@@ -11,6 +11,8 @@ eq(['AT 90 DAYS AFTER B/L DATE','DRAFTS AT 90 DAYS AFTER B/L DATE'].map(l=>D(l,'
 eq(D('AT 90 DAYS AFTER B/L DATE','at 90  days after b/l date').st,'NOTATION','② 공백 · 대소문자만 = 表記差');
 const r=D('90 DAYS AFTER BILL OF LADING DATE','90 DAYS AFTER B/L DATE FOR 100PCT OF INVOICE VALUE');
 ok(r.st==='DIFF'&&/書き換え: BILL OF LADING → B\/L/.test(r.d)&&/足した: FOR 100PCT OF INVOICE VALUE/.test(r.d),'③ (형님 P1 실례 모양) BILL OF LADING → B/L · 덧붙임 = 相違 · 이유',r.d);
+{ const d=D('90 DAYS AFTER BILL OF LADING DATE','90 DAYS AFTER B/L FOR 100PCT OF INVOICE VALUE').d, t=D('AT 90 DAYS AFTER BILL OF LADING DATE','AT 90 DAYS AFTER BILL OF LODING DATE').d;
+  ok(/書き換え: BILL OF LADING → B\/L · 抜けた: DATE · 足した: FOR 100PCT OF INVOICE VALUE/.test(d)&&/書き換え: BILL OF LADING → BILL OF LODING$/.test(t),'③-2 이유 = 書き換え (첫 낱말) · 抜けた · 足した 로 나눔 · 오타 (LODING) 도 한 덩어리',[d,t]); }
 eq(['AT 90 DAYS AFTER BL DATE','AT 90 DAY AFTER B/L DATE','AT 90 DAYS AFTER B/L DATE.'].map(s=>D('AT 90 DAYS AFTER B/L DATE',s).st),['DIFF','DIFF','DIFF'],'④ BL · DAY 단수 · 마침표 = 相違 (v0.19 의 表記差 되돌림)');
 ok(/抜けた: FOR 100 PCT/.test(D('AT 90 DAYS AFTER B/L DATE FOR 100 PCT','AT 90 DAYS AFTER B/L DATE').d),'⑤ 빠짐 = 「抜けた」');
 /* ①-4 메일 칸 */
