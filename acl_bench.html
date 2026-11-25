@@ -140,7 +140,7 @@ tr.ab-d td{background:var(--surface)}
      読み P2 (ラベル 0 → 読取確認要 · Booking 末尾 「-」 · コンテナ = 番号 + チェックデジット · 港の後ろの数字 · コンテナ行数 ↔ 本数) · Shipper's Mail 空欄 = 参考 (D1) · 本船変更 = 相違のまま 「本船変更依頼」 (D5) ·
      担当者メールの判断 (本文の自分の部分 · B/L 段階の件名は除く · [ACL訂正依頼] タグ · 3 か月 jsonl) · L/C JSON 照合 (L/C 番号 · 日付 · 揚地 · 積地 · 原本通数 · Notify) — 違えば 相違 (D2 · D5) · しないこと: S/I 確認を分ける (P3) · 連絡先を参考 (P6) · HS 末尾 0 · 1 〜 2 文字の許容
    v0.13 (2026-11-23 指示書 D00 B/L 照合結果の保存 · 日本語化): 画面に出る文の韓国語をなくした (Shipper's Mail 空欄の参考 · 報告の 「制作」 · 説明) — 判定 · 結果は v0.12 と同じ
-   v0.19 (2026-11-25 指示書 THOR_17 E-V3 · E-V6 · E-K6 · 형님 V3 · V6 · K6): 当事者 (Shipper · Consignee · Notify) の 電話 · FAX = 数字だけ · 郵便番号が片方だけ · 改行 · 句読点 = 表記差 (partyNotation · 規則 1 か所 · bl-core も使う) ·
+   v0.19 (2026-11-25 指示書 THOR_17 E-V3 · E-V6 · E-K6 · 형님 V3 · V6 · K6): 当事者 (Shipper · Consignee · Notify) の 電話 · FAX = 数字だけ · 郵便番号が片方だけ · 改行 · 句読点 = 表記差 (partyNotation · 規則 1 か所 · bl-core · 最終確認の項目 itemIn も使う) ·
      CP-A04 (S/I 42C) の BL ↔ B/L · 空白 · 句読点 · DAYS = 表記差 (日数 · 一覧 · 起算日 が違えば 相違) · AI 「読めず」 (2 回違う) 欄の 3 回目 (その欄だけ 切り抜いて · scanRetryPrompt · scanRetryMerge · 欄の名前 SCAN_FIELD_JA)
    v0.18 (2026-11-25 指示書 THOR_15 ①-6 · 形さん F2): 新しいチェックポイント (試験) のコード判定 CP_CODE — S/I 5 (新しい段階 S/I · siCheck) · ACL 7 (+ FAX は比べ方の行) · B/L Draft 3 · 試験 = trial (判定に入れない) · マスターなし = v0.17 と同じ
    v0.17 (2026-11-24 指示書 THOR_12 S1): 形態の表 — 40HCR は 45R (冷凍ハイキューブ) と同じ (v0.16 の 45GP から移す) · ほかは v0.16 と同じ
@@ -977,7 +977,10 @@ const ACL = (()=>{
   function itemIn(it, text, dates){
     if(it.type==='num') return hasNum(it.key, text);
     if(it.type==='date') return (dates||findDates(text)).some(d=>d.iso===it.key);
-    return tKey(it.src==='marks'?canonMarks(text):text).indexOf(it.key)>=0;
+    if(tKey(it.src==='marks'?canonMarks(text):text).indexOf(it.key)>=0) return true;
+    /* v0.19 (E-V6 · 形さん V6): 電話 · FAX のある項目 = 番号は数字だけ (「TEL:(+81)-3-…」 = 「TEL : +81-3-…」) · 郵便番号が ACL にだけ = 可 — 規則 = partyLineKey (1 か所) */
+    if(it.src!=='marks'&&/\b(TEL|FAX|PHONE)\b/i.test(it.text||'')){ const a=partyLineKey(it.text,false); return a.replace(/#/g,'').length>=3&&partyLineKey(text,true).indexOf(a)>=0; }
+    return false;
   }
   /* 被覆 — ACL の文のどの文字が S/I の項目で説明できるか → 説明できない文字が 3 つ以上ある行 = ACL にだけある内容 */
   const TOTAL_WORDS = /\b(?:\d[\d,.]*|KGS?|MTS?|M\/T|BALES?|BLS|CBM|M3|CONTAINERS?|CNTRS?|ONLY|TOTAL|SAY|NET|GROSS|WEIGHT|PACKAGES?|PKGS?|X|ONE|TWO|THREE|FOUR|FIVE|SIX|SEVEN|EIGHT|NINE|TEN|ELEVEN|TWELVE|THIRTEEN|FOURTEEN|FIFTEEN|SIXTEEN|SEVENTEEN|EIGHTEEN|NINETEEN|TWENTY|THIRTY|FORTY|FIFTY|HUNDRED|THOUSAND|AND|OF|IN)\b/g;

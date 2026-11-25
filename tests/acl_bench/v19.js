@@ -30,6 +30,9 @@ eq(PN('SAMPLE TEL: 0000-1111','SAMPLE FAX: 0000-1111'),null,'V6 ⑥ TEL ↔ FAX 
   if(hasTel){ const n=mk(g=>{ g.notify.text=tl.replace(/(TEL|PHONE|FAX)(\W*)\+?(\d)/i,'$1$2(+$3'); }); ok(['MATCH','NOTATION'].indexOf(it(n,'notify').status)>=0,'V6 ⑧ Notify 전화 괄호 = 一致/表記差',[it(n,'notify').status,it(n,'notify').detail]); }
   else ok(true,'V6 ⑧ (가짜 Notify 에 전화 없음 — 건너뜀)');
   eq(base.verdict, mk(()=>{}).verdict,'V6 ⑨ 바꾸지 않으면 같은 결과'); }
+/* 最終確認 (itemIn) も 同じ規則 — S/I 「TEL:(+81)-3-…」 = ACL 「TEL : +81-3-…」 */
+{ const it={type:'text', src:'shipper', text:'TEL:(+81)-3-0000-1111 FAX:(+81)-3-0000-1112', key:ACL.tKey('TEL:(+81)-3-0000-1111 FAX:(+81)-3-0000-1112')};
+  eq([ACL.itemIn(it,'SAMPLE CO.\nTEL : +81-3-0000-1111\nFAX : +81-3-0000-1112'), ACL.itemIn(it,'SAMPLE CO.\nTEL : +81-3-0000-1111\nFAX : +81-3-0000-1119')],[true,false],'V6 ⑩ 最終確認의 항목 찾기 = 전화 · FAX 숫자만 (번호 다르면 없음)'); }
 /* ── K6 (CP-A04 si:deadline) ── */
 const D=(l,s)=>ACL.CP_CODE['si:deadline']({lc:{payment:{tenor_text:l}}, si:{crcf9_payment_deadline:s}}).st;
 eq([D('AT 90 DAYS AFTER BL DATE','90 DAYS AFTER B/L DATE'), D('AT 90 DAYS AFTER BILL OF LADING DATE','90 DAY AFTER B/L DATE'), D('AT 90 DAYS AFTER B/L DATE FOR 100 PCT','AT 90 DAYS AFTER B/L DATE FOR 100 PCT')],['NOTATION','NOTATION','MATCH'],'K6 ① BL = B/L · BILL OF LADING · DAYS 단복수 = 表記差 · 같으면 一致');
