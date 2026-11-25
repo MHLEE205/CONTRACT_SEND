@@ -140,6 +140,8 @@ tr.ab-d td{background:var(--surface)}
      読み P2 (ラベル 0 → 読取確認要 · Booking 末尾 「-」 · コンテナ = 番号 + チェックデジット · 港の後ろの数字 · コンテナ行数 ↔ 本数) · Shipper's Mail 空欄 = 参考 (D1) · 本船変更 = 相違のまま 「本船変更依頼」 (D5) ·
      担当者メールの判断 (本文の自分の部分 · B/L 段階の件名は除く · [ACL訂正依頼] タグ · 3 か月 jsonl) · L/C JSON 照合 (L/C 番号 · 日付 · 揚地 · 積地 · 原本通数 · Notify) — 違えば 相違 (D2 · D5) · しないこと: S/I 確認を分ける (P3) · 連絡先を参考 (P6) · HS 末尾 0 · 1 〜 2 文字の許容
    v0.13 (2026-11-23 指示書 D00 B/L 照合結果の保存 · 日本語化): 画面に出る文の韓国語をなくした (Shipper's Mail 空欄の参考 · 報告の 「制作」 · 説明) — 判定 · 結果は v0.12 と同じ
+   v0.19 (2026-11-25 指示書 THOR_17 E-V3 · E-V6 · E-K6 · 형님 V3 · V6 · K6): 当事者 (Shipper · Consignee · Notify) の 電話 · FAX = 数字だけ · 郵便番号が片方だけ · 改行 · 句読点 = 表記差 (partyNotation · 規則 1 か所 · bl-core も使う) ·
+     CP-A04 (S/I 42C) の BL ↔ B/L · 空白 · 句読点 · DAYS = 表記差 (日数 · 一覧 · 起算日 が違えば 相違) · AI 「読めず」 (2 回違う) 欄の 3 回目 (その欄だけ 切り抜いて · scanRetryPrompt · scanRetryMerge · 欄の名前 SCAN_FIELD_JA)
    v0.18 (2026-11-25 指示書 THOR_15 ①-6 · 形さん F2): 新しいチェックポイント (試験) のコード判定 CP_CODE — S/I 5 (新しい段階 S/I · siCheck) · ACL 7 (+ FAX は比べ方の行) · B/L Draft 3 · 試験 = trial (判定に入れない) · マスターなし = v0.17 と同じ
    v0.17 (2026-11-24 指示書 THOR_12 S1): 形態の表 — 40HCR は 45R (冷凍ハイキューブ) と同じ (v0.16 の 45GP から移す) · ほかは v0.16 と同じ
    v0.16 (2026-11-24 指示書 THOR_11 D00 エンジン v0.16 · 형님 D1 ~ D5): 形態の表に ハイキューブの書き方 6 つ (40HCD · 40DRHC · 40HCR · 4096SD · 40(96)DRY · 40HCDRY-ドライ = 45GP · 45R は別) ·
@@ -169,7 +171,7 @@ const ACL = (()=>{
   const SRC_DIRS = ['古紙/-. 古紙書類/▲ 書類作成中/', '古紙/_OLD_DOC/'];   // F1
   const ISO = /^[A-Z]{4}\d{7}$/;
   /* D-03 v4.11 renderSI が S/I 欄が空のときに印字する既定値 (D-03 と同じ文字 — D-03 が変われば合わせる) */
-  const D03 = {shipperName:'LEENEAR CORPORATION', shipperAddr:'VORT SUIDOBASHI 3 5FL, 2-8-11 KANDASARUGAKUCHO, CHIYODA, TOKYO, JAPAN, 101-0064',
+  const D03 = {shipperName:'LEENEAR CORPORATION', shipperAddr:'VORT SAMPLETOWN 3 5FL, 2-8-11 KANDASARUGAKUCHO, CHIYODA, TOKYO, JAPAN, 101-0064',
     shipperTel:'TEL : +81-3-3528-9850', shipperFax:'FAX : +81-3-3528-9851', noMark:'NO MARK', freight:'FREIGHT PREPAID AS ARRANGED'};
 
   const norm = s => String(s==null?'':s).replace(/\s+/g,' ').trim();
@@ -460,7 +462,8 @@ const ACL = (()=>{
       Object.assign(ai,{label:SCAN_AI.otherLabel, ver:SCAN_AI.otherVer, other:true, form:fa&&fb&&!scanSame(fa,fb)?fa+' / '+fb:(fa||fb), naFields:naF, naCols:Object.keys(naCols), noTable:j1.containerTable===false&&j2.containerTable===false});
       /* v0.16 (E-2): 欄の印刷ラベル (1 回目 · なければ 2 回目) — 「(Combined Transport Only)」 などの判断に使う (照合の値には使わない) */
       const lb={}; HEAD_KEYS.forEach(k=>{ const l=String((f1[k]&&f1[k].label)||(f2[k]&&f2[k].label)||'').trim(); if(l) lb[k]=l; }); ai.labels=lb; }
-    return {fields, rows, totals:naccsTotals(fields, fullText), fullText, ai};
+    const out={fields, rows, totals:naccsTotals(fields, fullText), fullText, ai};
+    return meta&&meta.r3?scanApplyR3(out, meta.r3):out;   // v0.19 (E-V3): 3 回目の保存本があれば 「読めず」 の欄に当てる
   }
   /* AI の返事 → JSON (```json の囲み · 前後の文 を除く) — 読めなければ null */
   function scanJson(text){ const t=String(text||'').replace(/^\s*```(?:json)?\s*/i,'').replace(/\s*```\s*$/,''); const i=t.indexOf('{'), j=t.lastIndexOf('}'); if(i<0||j<i) return null; try{ return JSON.parse(t.slice(i,j+1)); }catch(e){ return null; } }
@@ -473,6 +476,50 @@ const ACL = (()=>{
   const scanLayoutOk = m => !!(m&&m.ai&&m.ai.layout&&m.ai.layout.length===2&&m.ai.layout.every(x=>String(x||'').toUpperCase()==='NACCS'));
   const SCAN_NOT_NACCS = 'AI 判読: NACCS 様式でない (その他の様式) — 照合しない';
   const aiDiffNote = d => Object.keys(d||{}).map(k=>(SCAN_ROW_JA[k]||k)+' '+[].concat(d[k]).map(v=>v==null||v===''?'(空)':String(v)).join(' / ')).join(' · ');
+  /* ══════════ v0.19 (指示書 THOR_17 E-V3 · 형님 V3 「눈에 정확히 보이거든」) — AI 「読めず」 (2 回違う) 欄だけ 3 回目 ══════════
+     ① その欄の位置を AI に聞く (頁の画像 · 欄 1 つ · 枠 [x0,y0,x1,y1] = 0〜1) → ② その部分だけ 300 dpi で切り抜き → 3 回目 (チェック欄は 印があるか だけ)
+     ③ 切り抜きを 2 回読む → 前の 2 回のどちらかと同じ / (チェック欄) 切り抜きの 2 回が同じ = その値 (「3 回目で確定」) · ほか = 決まらない (切り抜き画像 + 値 を画面に)
+     ・保存 _scan_ai/{sha256}.r3.json (+ 切り抜き {sha256}.r3.{欄}.png) · 新しいファイルだけ (前の 2 回の保存本は変えない) · 読み直すのは AI_DIFF の欄だけ
+     ・欄の名前 (画面) = SCAN_FIELD_JA (人の言葉 · 訂正メールの欄名は NACCS のまま LABELS) */
+  const SCAN_R3 = {ver:'r3-2', model:'claude-opus-5-5', effort:'low', readEffort:'high', locateDpi:150, cropDpi:300, minWidth:900, pad:0.04, maxTokens:600, readMaxTokens:4000, schema:'acl_scan_r3/1'};   // 切り抜きは 幅 900 px 以上に 拡大 (最近傍 · FAX の小さい ■ を見やすく) · 読むときは effort high
+  const SCAN_CHECK = {wayBill:1, received:1, freight:1, agentSign:1};   // チェック欄 (印 = 「1」 · 空 = 「」)
+  /* 欄の意味 (位置探し · 3 回目の説明) — 紛らわしい欄だけ (実データ: 「Number of PKG」 を コンテナ数と取り違え) */
+  const SCAN_MEAN = {numberOf:'the number of CONTAINERS (a small count of containers — NOT the number of packages / bales)', totalContainers:'the total number of CONTAINERS (in words or figures)',
+    totalPkgs:'the total number and kind of PACKAGES (bales)', totalWeight:'the total cargo / gross WEIGHT', totalMeasure:'the total MEASUREMENT (volume)', issuePlace:'the place (and date) of B/L issue'};
+  const SCAN_FIELD_JA = {agentSign:'NEED AGENT NAME（チェック）', freight:'FREIGHT AS ARRANGED（チェック）', shipperMail:'B/L ドラフト送付先メール', wayBill:'WAY BILL（チェック）', received:'RECEIVED B/L（チェック）',
+    originals:'原本 B/L の枚数', issuePlace:'B/L 発行地', hsMain:'HS コード', totalContainers:'コンテナ本数', numberOf:'コンテナ本数 (数字)', totalPkgs:'梱包数 合計', totalWeight:'重量 合計', totalMeasure:'容積 合計'};
+  /* 2 回とも同じ ラベル の欄だけ (3 回目の位置探し — 1 回目だけのラベルは 違う欄のことがある: 実データ 「Number of PKG」 を Number of (コンテナ数) に) */
+  const scanLabelsSame = (j1, j2) => { const f1=(j1&&j1.fields)||{}, f2=(j2&&j2.fields)||{}, ls={}; HEAD_KEYS.forEach(k=>{ const a=String((f1[k]&&f1[k].label)||'').trim(), b=String((f2[k]&&f2[k].label)||'').trim(); if(a&&scanSame(a,b)) ls[k]=a; }); return ls; };
+  const fieldJa = k => SCAN_FIELD_JA[k]||LABELS[k]||k;
+  function scanLocatePrompt(k, label, page){
+    return ['This image is page '+(page||1)+' of a scanned shipping-instruction form (ACL / B/L instruction).',
+      'Find the ONE box whose meaning is "'+LABELS[k]+'"'+(SCAN_MEAN[k]?' = '+SCAN_MEAN[k]:'')+(label&&label!==LABELS[k]?' (printed on this form as "'+label+'")':'')+(SCAN_CHECK[k]?' — it is a small checkbox or a small box that holds "1" or a mark':'')+'.',
+      'Return ONLY JSON: {"found":true|false,"box":[x0,y0,x1,y1]} — fractions 0..1 of the image width / height, covering the box content AND its printed caption.'].join('\n'); }
+  function scanRetryPrompt(k, label){
+    const name=LABELS[k]+(SCAN_MEAN[k]?' ('+SCAN_MEAN[k]+')':'')+(label&&label!==LABELS[k]?' / "'+label+'"':'');
+    const cap=String(label||LABELS[k]).toUpperCase();
+    return SCAN_CHECK[k]?['This image is an enlarged crop of a faxed/scanned form. It may show several checkboxes.','Look ONLY at the checkbox that belongs to the caption "'+cap+'" (the small square printed right after / next to that caption).','Is that box marked (filled ■, a tick, a cross, a dot or "1" inside) or empty (only a thin outline □, white inside)? Compare it with the other boxes in the crop.','Return ONLY JSON: {"checked":true|false}'].join('\n')
+      :['This image is a crop of ONE box of a scanned form: '+name+'.','Copy the box content character for character (original case, keep line breaks as "\\n"). Do not include the printed caption. Unreadable character = "?". Empty box = "".','Return ONLY JSON: {"text":"..."}'].join('\n'); }
+  /* AI の返事 → 3 回目の値 (チェック欄 = 「1」 / 「」) · 位置 */
+  const scanRetryValue = (k, j) => !j?null:SCAN_CHECK[k]?(j.checked===true?'1':j.checked===false?'':null):(j.text==null?null:String(j.text));
+  const scanBox = j => { const b=j&&Array.isArray(j.box)?j.box.map(Number):null; if(!j||j.found===false||!b||b.length!==4||b.some(x=>!isFinite(x))) return null;
+    const p=SCAN_R3.pad, x0=Math.max(0,Math.min(b[0],b[2])-p), y0=Math.max(0,Math.min(b[1],b[3])-p), x1=Math.min(1,Math.max(b[0],b[2])+p), y1=Math.min(1,Math.max(b[1],b[3])+p); return x1>x0&&y1>y0?[x0,y0,x1,y1]:null; };
+  /* 2 回の判読 (scanMerge の結果) + 3 回目の保存本 r3 = {fields:{k:{value, crop, page, box}}} → 確定した欄は SURE (r3:'確定') · 決まらない欄は AI_DIFF のまま r3 の値 · 切り抜きを付ける */
+  function scanApplyR3(m, r3){
+    if(!m||!m.fields||!r3||!r3.fields) return m; const dec=[], open=[];
+    Object.keys(r3.fields).forEach(k=>{ const f=m.fields[k], x=r3.fields[k]; if(!f||f.conf!=='AI_DIFF'||!x) return; const amb=(f.amb||[]).map(v=>v==='(なし)'||v==='(欄なし)'?null:v);
+      /* 同じ = 空白 · 大文字小文字だけの違い · 2 回目までの 「?」 (読めない字) は 1 字の何でも (字数が同じとき · 3 回目に 「?」 がないとき — 値は 3 回目) */
+      const wild=(a,v)=>{ const p=String(a).replace(/\s+/g,'').toUpperCase(), q=String(v).replace(/\s+/g,'').toUpperCase(); return /\?/.test(p)&&!/\?/.test(q)&&p.length===q.length&&[...p].every((c,i)=>c==='?'||c===q[i]); };
+      /* 切り抜きは 2 回読む (value · value2) — ① どちらかが 前の 2 回のどちらかと同じ ② (チェック欄だけ) 切り抜きの 2 回が同じ ③ 前の判読の 「?」 を埋めた形 → 確定 · ほか = 決まらない */
+      const vs=[x.value].concat(x.value2===undefined?[]:[x.value2]).filter(z=>z!=null), eq=(a,z)=>a!=null&&(SCAN_CHECK[k]?(String(a).trim()?'1':'')===z:scanSame(a,z)); let v=null, how='';
+      for(const z of vs){ const h=amb.findIndex(a=>eq(a,z)); if(h>=0){ v=SCAN_CHECK[k]?z:amb[h]; how='前の判読と同じ'; break; } }
+      if(!how&&SCAN_CHECK[k]&&vs.length===2&&vs[0]===vs[1]){ v=vs[0]; how='切り抜き 2 回同じ'; }   // チェック欄だけ (文字の欄は 切り抜きに 隣の欄の字が入ることがある — 実データ)
+      if(!how&&!SCAN_CHECK[k]){ const z=vs.find(q=>amb.some(a=>a!=null&&wild(a,q))); if(z!=null){ v=z; how='前の判読の 「?」 を埋めた'; } }
+      if(how){ m.fields[k]={text:String(v).replace(/\r\n?/g,'\n'), conf:'SURE', page:f.page, ai:true, r3:'確定', r3how:how, amb:f.amb, r3v:v, crop:x.crop||''}; dec.push(k); }
+      else { f.r3={value:x.value, value2:x.value2, crop:x.crop||'', page:x.page||f.page}; open.push(k); } });
+    if(m.ai){ m.ai.r3={decided:dec, open, ver:SCAN_R3.ver, cost_usd:r3.cost_usd||null}; m.ai.diffFields=m.ai.diffFields.filter(k=>dec.indexOf(k)<0); }
+    if(dec.length){ m.fullText=HEAD_KEYS.map(k=>m.fields[k].text).filter(Boolean).join('\n'); m.totals=naccsTotals(m.fields, m.fullText); }
+    return m; }
 
   /* ── Step 3: COMPASS の期待値 — D-03 v4.11 renderSI と同じ組み立て ── */
   // D-03 substituteBlText1 (そのまま移植)
@@ -631,6 +678,34 @@ const ACL = (()=>{
   /* 港の比較 = compareText → 違っても portKey が同じなら 表記:港 */
   function comparePort(E, A){ const r=compareText(E, A); if(r.status==='MATCH'||r.status==='NOTATION') return r;
     const a=portKey(E), b=portKey(A); return a&&a===b?{status:'NOTATION', ops:[], kind:'表記:港', note:'港の形だけ違う (都市 - 県 / PORT · 国名 / PUSAN=BUSAN / 後ろの数字)'}:r; }
+  /* ══════════ v0.19 (指示書 THOR_17 E-V6 · 형님 V6 「相違 라고 하기가 좀 어려울 것 같기는 한데」) — 当事者の欄の 電話 · FAX · 郵便番号 · 規則はこの 1 か所 (bl-core も使う) ══════════
+     ・TEL · FAX (PHONE · FX · MOBILE …) の番号 = 数字だけ比べる (「+81-3-3528-9850」 = 「(+81)-3-3528-9850」) · 国番号 + 頭の 0 の省略 (「+81-3-…」 = 「03-…」) も同じ番号
+     ・郵便番号 (〒 · 123-4567 · ZIP 12345 · 5 〜 6 桁の数だけの語) が 片方にだけある = 表記差 (両方にあって 違えば 相違)
+     ・そのほか = p1Key (改行の位置 · 空白 · 句読点 , . : ; ' " - · FLOOR=FL) — 「SAMPLETOWN3 5FL.」 = 「SAMPLETOWN 3 5FL」
+     ・番号そのものが違う / 文字が違う → null (今の判定のまま) · 返り値 {ok:true, note} = 表記差 · {ok:false, note} = 電話 · FAX の番号が違う (相違) */
+  const PARTY = {
+    TEL:/\b(TEL(?:EPHONE)?|PHONE|PH|FAX|FACSIMILE|FX|MOBILE|MOB|CELL|HP)\b\.?\s*(?:NO\.?)?\s*(?:\/\s*(?:FAX|TEL)\b\.?\s*)?[:.]?\s*(\(?\+?\(?\d[\d\s()+\-.\/]{4,}\d)/g,
+    ZIP:/〒\s*\d{3}\s*-\s*\d{4}|\b(?:ZIP|POSTAL|POST)\s*(?:CODE)?\s*(?:NO\.?)?\s*[:.]?\s*\d{4,6}\b|\b\d{3}-\d{4}\b|\b\d{5,6}\b/g,
+    LAB:l=>/^(FAX|FACSIMILE|FX)$/.test(l)?'FAX':'TEL'};
+  function partySplit(s){ const tel=[]; let x=String(s==null?'':s).normalize('NFKC').toUpperCase();
+    x=x.replace(PARTY.TEL,(m,lab,n)=>{ tel.push({lab:PARTY.LAB(lab), d:n.replace(/\D/g,'')}); return ' '+PARTY.LAB(lab)+'¶'+String.fromCharCode(65+tel.length-1)+' '; });
+    const zip=[]; x=x.replace(PARTY.ZIP,m=>{ zip.push(m.replace(/\D/g,'')); return ' ¤'+(zip.length-1)+'¤ '; });
+    return {x, tel, zip}; }
+  /* B/L Draft の行探し用 (bl-core) — 電話 · FAX = 「#」 + 番号の後ろ 8 桁 · 郵便番号 = dropZip なら外す (Draft 側だけ外す → S/I にない郵便番号が Draft にあっても見つかる · 違う番号は見つからない) · 英数字だけ */
+  const partyLineKey = (s, dropZip) => { const p=partySplit(s); return p.x.replace(/¤(\d+)¤/g,(m,i)=>dropZip?' ':p.zip[+i]).replace(/¶([A-Z])/g,(m,c)=>'#'+p.tel[c.charCodeAt(0)-65].d.slice(-8)).replace(/[^A-Z0-9#]/g,''); };
+  const telSame = (a,b) => { if(a===b) return true; const s=a.length>=b.length?a:b, t=a.length>=b.length?b:a; if(!/^0/.test(t)) return false; const r=t.replace(/^0+/,''), cc=s.slice(0,s.length-r.length).replace(/0$/,''); return s.endsWith(r)&&/^\d{1,3}$/.test(cc); };
+  function partyNotation(E, A){
+    const e=partySplit(E), a=partySplit(A); if(!e.tel.length&&!a.tel.length&&!e.zip.length&&!a.zip.length) return null;
+    /* 郵便番号: 両方にある番号は残す (比べる) · 片方だけの番号は外す — 両方に 片方だけの番号がある (= 番号が違う) なら 外さない */
+    const onlyE=e.zip.filter(z=>a.zip.indexOf(z)<0), onlyA=a.zip.filter(z=>e.zip.indexOf(z)<0), dropZip=!(onlyE.length&&onlyA.length);
+    const body=(p,only)=>p.x.replace(/¤(\d+)¤/g,(m,i)=>dropZip&&only.indexOf(p.zip[+i])>=0?' ':p.zip[+i]);
+    const ke=p1Key(body(e,onlyE)).replace(/[¶][A-Z]/g,'¶'), ka=p1Key(body(a,onlyA)).replace(/[¶][A-Z]/g,'¶');
+    if(!ke||ke!==ka) return null;
+    if(e.tel.length!==a.tel.length) return null;
+    const bad=e.tel.map((t,i)=>telSame(t.d,a.tel[i].d)?null:t.lab+' '+t.d+' ↔ '+a.tel[i].d).filter(Boolean);
+    if(bad.length) return {ok:false, note:'電話 · FAX の番号が違う: '+bad.join(' / ')};
+    const why=[]; if(e.tel.length) why.push('電話 · FAX は数字だけ同じ'); if(dropZip&&(onlyE.length||onlyA.length)) why.push('郵便番号が片方だけ ('+(onlyE.length?'S/I':'書類')+')'); why.push('改行 · 空白 · 句読点');
+    return {ok:true, note:why.join(' · ')+' の違いだけ'}; }
   /* 文面: 改行 · 空白以外が同じ → 表記差 (完全一致は 行の切れ目 · 語 も同じ) — v0.3: 行の中の語の切れ目が違えば 相違。違えば 文字単位の差 (脱落 · 追加) */
   /* v0.4: others = 他の欄の S/I 文面 [{label,text}] (はみ出し移動の確認用 · 省略可) · 返り値 kind = 表記の種類 (NOTATION) · sub = 相違の下位 (記号 / 誤字の疑い) */
   function compareText(E, A, others, aclOthers){   // aclOthers = 他の欄の ACL 文面 [{label,text}] (はみ出しの出た側の確認用 · 省略可)
@@ -1024,7 +1099,7 @@ const ACL = (()=>{
     const kind=k=>{ kinds[k]=(kinds[k]||0)+1; };
     const add=(group,key,label,status,expv,actv,detail,k)=>{ items.push({group,key,label,status,expected:expv==null?'':String(expv),actual:actv==null?'':String(actv),detail:detail||'',kind:k||''}); if(k) kind(k); };
     const readOk=k=>F[k]&&F[k].conf==='SURE';
-    const readNote=k=>F[k]?(F[k].conf==='MISSING'?'ラベルなし':F[k].conf==='NA'?'欄なし':F[k].conf==='AI_DIFF'?'AI 2 回の判読が違う ('+(F[k].amb||[]).join(' / ')+')':'位置あいまい'+((F[k].amb||[]).length?' ('+F[k].amb.join(' / ')+')':'')):'';   // v0.14: AI_DIFF = スキャン AI 判読
+    const readNote=k=>F[k]?(F[k].conf==='MISSING'?'ラベルなし':F[k].conf==='NA'?'欄なし':F[k].conf==='AI_DIFF'?'AI 2 回の判読が違う ('+(F[k].amb||[]).map(v=>SCAN_CHECK[k]&&(v===''||v==='1')?(v?'☒':'☐'):v).join(' / ')+')'+(F[k].r3?' · 3 回目 '+[F[k].r3.value,F[k].r3.value2].filter(z=>z!==undefined).map(z=>z==null?'(読めず)':SCAN_CHECK[k]?(z?'☒':'☐'):(z||'(空)')).join(' / ')+' — 決まらない (切り抜きを目で確認)':''):'位置あいまい'+((F[k].amb||[]).length?' ('+F[k].amb.join(' / ')+')':'')):'';   // v0.14: AI_DIFF = スキャン AI 判読
     /* v0.5: 続き記号 — つないだ欄に印 (画面が 「つないだ文 · どこから」 を見せる) · 段落が見つからない → 読取確認 */
     const ovTag=k=>{ const n=ovNote(k), it=items[items.length-1]; if(it&&(n.acl||n.si)) it.join=n; };
     const ovRead=(group,k,lb,expv,actv)=>{ const m=ovMissing(k); if(!m.length) return false; add(group,k,lb,'READ_CHECK',expv,actv,'続き（'+m.join(' · ')+'）が見つからない','読取確認要:続き記号:'+lb); ovTag(k); return true; };
@@ -1120,8 +1195,10 @@ const ACL = (()=>{
       add('合計','total:'+k,lb,av===cv?'MATCH':'DIFF',cv,av,'',av===cv?'':'合計相違:'+lb); });
     /* v0.9 P2: コンテナの行の数 ↔ 記載の本数が違う = 行を読み落とした → 行の和の違いも 読取確認 (相違にしない) */
     const rowMiss=T.containers!=null&&T.containers!==acl.rows.length;
-    if(T.bales!=null&&T.bales!==aclSumB) add('合計','acl:bales','ACL 内 Bales (行の和 ↔ 合計)',rowMiss?'READ_CHECK':'DIFF',aclSumB,T.bales,rowMiss?'コンテナの行を読み落とした可能性':'',rowMiss?'読取確認要:コンテナ行':'ACL 内部不整合');
-    if(T.weight!=null&&T.weight!==aclSumW) add('合計','acl:weight','ACL 内 重量 (行の和 ↔ 合計)',rowMiss?'READ_CHECK':'DIFF',aclSumW,T.weight,rowMiss?'コンテナの行を読み落とした可能性':'',rowMiss?'読取確認要:コンテナ行':'ACL 内部不整合');
+    /* v0.19: AI 2 回で 行の値が違う (aiDiff) 列があれば 行の和は 読取確認 (相違にしない — 3 回目で合計が読めるようになった実データ) */
+    const aiW=acl.rows.some(r=>r.aiDiff&&'cargo' in r.aiDiff), aiB=acl.rows.some(r=>r.aiDiff&&'bales' in r.aiDiff);
+    if(T.bales!=null&&T.bales!==aclSumB) add('合計','acl:bales','ACL 内 Bales (行の和 ↔ 合計)',(rowMiss||aiB)?'READ_CHECK':'DIFF',aclSumB,T.bales,(rowMiss||aiB)?(rowMiss?'コンテナの行を読み落とした可能性':'AI 2 回で 行の Bales が違う'):'',(rowMiss||aiB)?'読取確認要:コンテナ行':'ACL 内部不整合');
+    if(T.weight!=null&&T.weight!==aclSumW) add('合計','acl:weight','ACL 内 重量 (行の和 ↔ 合計)',(rowMiss||aiW)?'READ_CHECK':'DIFF',aclSumW,T.weight,(rowMiss||aiW)?(rowMiss?'コンテナの行を読み落とした可能性':'AI 2 回で 行の重量が違う'):'',(rowMiss||aiW)?'読取確認要:コンテナ行':'ACL 内部不整合');
     if(rowMiss) add('合計','acl:count','ACL 内 本数 (行の数 ↔ 記載)','READ_CHECK',acl.rows.length,T.containers,'コンテナの行の数と記載の本数が違う — 行を読めていない','読取確認要:コンテナ行数');
     /* v0.6: S/I の内容項目 (最終確認 · Description の項目比較で使う) — 港 = 欄別比較で使った S/I の港 */
     const portOf=k=>{ const it=items.find(i=>i.key===k); return it&&it.status!=='INFO'?it.expected:''; };
@@ -1143,13 +1220,16 @@ const ACL = (()=>{
       /* v0.9 追加 (同 ②): S/I の行がこの欄にはないが ACL Description の 「*」 の続きの行にある (NA2609-05 の Notify TEL · FAX の形) → 続き (表記) */
       if(PARTY_KEYS.indexOf(k)>=0&&(r.status==='DROP')){ const drops=(r.ops||[]).filter(o=>o.t==='drop').map(o=>o.text), ovL=String((F0.description&&F0.description.text)||'').split('\n'), ov0=ovL.findIndex(l=>/^\s*\*/.test(l)), ov=ov0<0?'':p1Key(ovL.slice(ov0).join('\n'));   // 「*」 の行から後ろ (続きの段落は 何行も続く — 実データ NA2609-05)
         if(ov&&drops.length&&drops.every(t=>{ const q=p1Key(t); return q.length>=3&&ov.indexOf(q)>=0; })) r={status:'NOTATION', ops:[], kind:'表記:続き (Description の * 行)', note:'S/I の 「'+drops.join(' / ').slice(0,60)+'」 は ACL Description の * の続きの行にある'}; }
+      /* v0.19 (E-V6 · 형님 V6): 当事者の欄 — 電話 · FAX = 数字だけ · 郵便番号が片方だけ · 改行 · 句読点 → 表記差 (番号が違えば 相違のまま · 理由を足す) */
+      if(PARTY_KEYS.indexOf(k)>=0&&r.status!=='MATCH'&&r.status!=='NOTATION'&&r.status!=='INFO'){ const pn=partyNotation(ex[k], dash(F[k].text))||partyNotation(noFreight(ex[k]), noFreight(dash(F[k].text)));
+        if(pn&&pn.ok) r={status:'NOTATION', ops:[], kind:'表記:電話・郵便番号', note:pn.note}; else if(pn) r.partyNote=pn.note; }
       /* v0.6 (D1 · D3): Description は 内容項目で比べる — 項目が全部あり ACL にだけある行がなければ 表記差 (並び · 重複 · 同じ行) · なければ 相違 (足りない項目 · ACL にだけある行) */
       let dc=null; if(k==='description'&&r.status!=='MATCH'&&r.status!=='NOTATION'&&SI.length){ dc=descCheck(SI, dash(F[k].text));
         const cat=it=>it.type==='num'?it.kind:it.type==='date'?'日付':SRC[it.src][0];
         if(dc.ok) r={status:'NOTATION', ops:[], kind:'表記:並び・重複', note:'内容は同じ (並び · 重複 · 同じ行の違い) — S/I の項目 '+dc.n+' 個 すべて ACL の Description にある'};
         else r={status:'DIFF', descDiff:true, sub:r.sub||'', ops:dc.missing.map(it=>({t:'drop', text:it.text, ctx:'S/I '+SRC[it.src][0], line:0})).concat(dc.extra.map(l=>({t:'add', text:l, ctx:'ACL', line:0}))), droppedLines:[],
           kind:'相違:Description:'+(dc.missing.length?cat(dc.missing[0]):'ACLだけ')}; }
-      const det=(r.descDiff&&r.sub?'('+r.sub+') ':'')+(r.status==='NOTATION'||r.status==='INFO'?r.note:(r.ops||[]).map(o=>o.t==='ws'?'語の切れ目 '+o.text:(o.t==='drop'?'脱落「':'追加「')+o.text+'」 … '+o.ctx).join(' / ')+((r.droppedLines||[]).length?' / 脱落行: '+r.droppedLines.join(' ⏎ '):''));
+      const det=(r.descDiff&&r.sub?'('+r.sub+') ':'')+(r.status==='NOTATION'||r.status==='INFO'?r.note:(r.ops||[]).map(o=>o.t==='ws'?'語の切れ目 '+o.text:(o.t==='drop'?'脱落「':'追加「')+o.text+'」 … '+o.ctx).join(' / ')+((r.droppedLines||[]).length?' / 脱落行: '+r.droppedLines.join(' ⏎ '):'')+(r.partyNote?' / '+r.partyNote:''));
       const k2=r.status==='MATCH'?'':r.status==='INFO'?r.kind:r.descDiff||(dc&&r.status==='NOTATION')?r.kind:r.status==='NOTATION'?(r.kind?r.kind+':'+lb:'表記差:'+lb):r.wordBreak?'相違:語の切れ目:'+lb:r.sub?'相違:'+r.sub+':'+lb:r.status==='DROP'?'脱落:'+lb:r.status==='ADD'?'追加:'+lb:'相違:'+lb;
       add('S/I 文面',k,lb,r.status,ex[k],dash(F[k].text),det,k2);
       const it=items[items.length-1]; if(r.ops) it.ops=r.ops; if(r.wordBreak||(r.ops||[]).some(o=>o.t==='ws')) it.wordBreak=true;
@@ -1189,6 +1269,9 @@ const ACL = (()=>{
     /* v0.14: スキャン AI 判読 — 参考の行 (判定は変えない) + 結果に ai */
     if(acl.ai&&!OTH){ const nd=acl.ai.diffFields.length+acl.ai.diffRows.length; items.unshift({group:'読取',key:'ai:scan',label:SCAN_AI.label,status:'INFO',expected:'',actual:'AI '+acl.ai.reads+' 回',detail:'スキャン ACL を AI で 2 回読み、同じ値の欄だけ照合'+(nd?' · 2 回で違う '+nd+' か所 = 読取確認要':''),kind:''}); }
     if(OTH){ const nd=acl.ai.diffFields.length+acl.ai.diffRows.length; items.unshift({group:'読取',key:'ai:other',label:SCAN_AI.otherLabel,status:'INFO',expected:'',actual:'AI '+acl.ai.reads+' 回 · 様式 '+(acl.ai.form||'(名前なし)'),detail:'乙仲の独自様式の ACL を AI で 2 回読み、同じ値の欄だけ照合 · 様式にない欄 '+naList.length+' = 対象外'+(nd?' · 2 回で違う '+nd+' か所 = 読取確認要':''),kind:''}); }
+    /* v0.19 (E-V3): 3 回目で確定した欄 · 決まらない欄 — 行に印 (画面は 「3 回目で確定」 · 切り抜き画像 + 2 回の値) · 判定は変えない */
+    items.forEach(i=>{ const k=String(i.key||'').replace(/^disp:/,''), f=F[k]; if(!f||!f.ai) return; if(f.r3==='確定'){ i.r3={st:'確定', how:f.r3how||'', value:f.r3v, amb:f.amb, crop:f.crop||''}; i.detail=(i.detail?i.detail+' · ':'')+'AI 3 回目で確定 ('+(f.r3how||'')+')'; }
+      else if(f.r3&&f.conf==='AI_DIFF') i.r3={st:'未定', value:f.r3.value, value2:f.r3.value2, amb:f.amb, crop:f.r3.crop||''}; });
     const out={verdict:verdictOf(items), items, kinds, sets:sc, xx, final, siTentative:tent, expected:{sino:ex.sino, booking:ex.booking}};
     if(CPR) out.cp=CPR;
     if(acl.ai) out.ai=acl.ai;
@@ -1791,20 +1874,30 @@ const ACL = (()=>{
       return '<table class="av-cols"><tr><th>ACL</th><th>S/I・COMPASS（正）</th></tr>'+(rows.length?rows.map(r=>'<tr><td>'+(r.a.length?segH(r.a):'<span class="av-na">（なし）</span>')+'</td><td>'+(r.e.length?segH(r.e):'<span class="av-na">（なし）</span>')+'</td></tr>').join(''):'<tr><td>(空欄)</td><td>(空欄)</td></tr>')+'</table>'+dsc+joinNote(i); };
     /* v0.6 (Step 4): 一番上に 最終確認 (S/I の内容が ACL にあるか · コンテナのセット · 本登録) → その下に 項目ごとの確認 (v0.5 のまま) */
     const fin=finalHtml(res, opt, E);
+    /* v0.19 (書類ツール v0.22 · 形さん V3 · V4 · V5): opt.v22 のときだけ — 結論 → 相違 → 読めない → 過去の誤記 · 表記差 → (書類ツールのボタン <!--av-list-->) → 項目ごとの確認 (一番下 · たたむ) ·
+       欄の名前 = 人の言葉 (SCAN_FIELD_JA) · AI 3 回目 (確定 = 「3 回目で確定」 · 決まらない = 切り抜き画像 data-crop + 値) · 行に data-key (書類ツールが 書類のその頁へ) — opt.v22 なし = v0.18 と同じ */
+    const V22=!!opt.v22, nm=r=>{ const k=String(r.item.key||'').replace(/^disp:/,''); return V22&&r.item.group==='NACCS 表示欄'&&SCAN_FIELD_JA[k]?SCAN_FIELD_JA[k]:r.name; };
+    const dk=r=>V22?' data-key="'+E(r.item.key||'')+'"':'';
+    const r3v=(k,v)=>v==null?'(読めず)':SCAN_CHECK[k]?(v?'☒':'☐'):(v===''?'(空)':v);
+    const r3H=r=>{ const x=V22&&r.item.r3; if(!x) return ''; const k=String(r.item.key||'').replace(/^disp:/,''); if(x.st==='確定') return ' <span class="av-r3">3 回目で確定</span>';
+      return '<div class="av-r3box">'+(x.crop?'<img class="av-crop" alt="" data-crop="'+E(x.crop)+'">':'')+'<div class="av-sub">AI 1 回目 '+E(r3v(k,(x.amb||[])[0]))+' · 2 回目 '+E(r3v(k,(x.amb||[])[1]))+' · 3 回目 '+E(r3v(k,x.value))+(x.value2!==undefined?' / '+E(r3v(k,x.value2)):'')+' — 決まらない (切り抜きを目で確認)</div></div>'; };
     let h=res&&(res.siTentative||(res.final&&res.final.siTentative))&&!opt.noTent?'<div class="av-concl av-note">'+E(TENT_NOTE)+'</div>':'';   // v0.8 (D3) — 書類ツールは noTent で自分の 1 行を出す
     h+=fin?fin+'<div class="av-h">項目ごとの確認</div><div class="av-concl av-'+V.conclusion.cls+'">'+E(V.conclusion.text)+'</div>'
       :'<div class="av-concl av-'+V.conclusion.cls+'">'+E(V.conclusion.text)+(opt.hon?' <span class="av-hon">'+opt.hon+'</span>':'')+'</div>';
+    let list='';
     if(V.rows.length){
+      const h0=h; h='';
       h+='<div class="av-h">確認した項目 ('+V.rows.length+') <span class="av-sub">✓ 一致 '+V.conclusion.match+' · △ 表記差 '+V.conclusion.note+' · ✗ 相違 '+V.conclusion.diff+' · ー 読めず '+V.conclusion.read+' · ー 対象外 '+V.conclusion.na+'</span></div><table class="av-list">';
       let g=''; V.rows.forEach(r=>{ if(r.group!==g){ g=r.group; h+='<tr class="av-g"><td colspan="3">'+E(g)+'</td></tr>'; }
         const cells=r.item.set?' <span class="av-sub">'+r.item.set.cells.map(c=>E(c.k)+' '+(c.info?'ー':c.read?'ー':c.ok?'✓':'✗')).join(' · ')+'</span>':'';
-        h+='<tr'+tip(r.item)+'><td class="av-m av-'+r.cls+'">'+r.mark+'</td><td>'+E(r.name)+cells+cpB(r.item)+'</td><td class="av-'+r.cls+'">'+E(r.word)+'</td></tr>'; });
-      h+='</table>'; }
-    if(V.diffs.length) h+='<div class="av-h av-ng">相違 '+V.diffs.length+' か所 — 直してもらうところ</div>'+V.diffs.map(r=>'<div class="av-diff"'+tip(r.item)+'><div class="av-dn">'+E(r.name)+cpB(r.item)+(r.item.cp&&r.item.group==='チェック'&&r.item.detail?' <span class="av-sub">'+E(r.item.detail)+'</span>':'')+'</div>'+pair(r.item)+'</div>').join('');
-    if(V.reads.length) h+='<div class="av-h av-read">読めないところ '+V.reads.length+' か所 — ACL を開いて目で確認</div>'+V.reads.map(r=>'<div class="av-diff"'+tip(r.item)+'><div class="av-dn">'+E(r.name)+cpB(r.item)+'</div>'+(/続き/.test(r.item.detail||'')?'<div class="av-sub">'+E(r.item.detail)+'</div>':'')+(r.item.actual?'<div class="av-sub">ACL: '+E(r.item.actual)+'</div>':'')+'</div>').join('');
+        h+='<tr'+tip(r.item)+dk(r)+'><td class="av-m av-'+r.cls+'">'+r.mark+'</td><td>'+E(nm(r))+cells+cpB(r.item)+(V22&&r.item.r3&&r.item.r3.st==='確定'?r3H(r):'')+'</td><td class="av-'+r.cls+'">'+E(r.word)+'</td></tr>'; });
+      h+='</table>'; list=h; h=h0+(V22?'':list); }
+    if(V.diffs.length) h+='<div class="av-h av-ng">相違 '+V.diffs.length+' か所 — 直してもらうところ</div>'+V.diffs.map(r=>'<div class="av-diff"'+tip(r.item)+dk(r)+'><div class="av-dn">'+E(nm(r))+cpB(r.item)+(r.item.cp&&r.item.group==='チェック'&&r.item.detail?' <span class="av-sub">'+E(r.item.detail)+'</span>':'')+'</div>'+pair(r.item)+'</div>').join('');
+    if(V.reads.length) h+='<div class="av-h av-read">読めないところ '+V.reads.length+' か所 — ACL を開いて目で確認</div>'+V.reads.map(r=>'<div class="av-diff"'+tip(r.item)+dk(r)+'><div class="av-dn">'+E(nm(r))+cpB(r.item)+'</div>'+(/続き/.test(r.item.detail||'')?'<div class="av-sub">'+E(r.item.detail)+'</div>':'')+(r.item.actual?'<div class="av-sub">ACL: '+E(r.item.actual)+'</div>':'')+r3H(r)+'</div>').join('');
     /* v0.16 (E-4): この乙仲の過去の誤記 (opt.past = pastMistakes の結果) — 参考 */
     if(opt.past&&opt.past.length) h+='<details class="av-more av-past"><summary>'+E(pastLabel(opt.past.length))+'</summary><ul class="av-fu">'+opt.past.map(m=>'<li>'+E(m.invoice)+' · '+E(m.field)+' · '+E(m.kind)+' <span class="av-sub">ACL 「'+E(m.acl)+'」 → 正 「'+E(m.right)+'」 ('+E(m.date)+')</span></li>').join('')+'</ul></details>';
-    if(V.notes.length) h+='<details class="av-more"><summary>表記差 '+V.notes.length+' か所（空白 · 大文字小文字 · 行の折り返し など）— 中身を見る</summary>'+V.notes.map(r=>'<div class="av-diff"'+tip(r.item)+'><div class="av-dn">'+E(r.name)+cpB(r.item)+(r.item.alias?' <span class="av-sub">'+E(r.item.detail.split(' · ')[0])+'</span>':'')+'</div>'+pair(r.item)+'</div>').join('')+'</details>';
+    if(V.notes.length) h+='<details class="av-more"><summary>表記差 '+V.notes.length+' か所（空白 · 大文字小文字 · 行の折り返し など）— 中身を見る</summary>'+V.notes.map(r=>'<div class="av-diff"'+tip(r.item)+dk(r)+'><div class="av-dn">'+E(nm(r))+cpB(r.item)+(r.item.alias?' <span class="av-sub">'+E(r.item.detail.split(' · ')[0])+'</span>':'')+'</div>'+pair(r.item)+'</div>').join('')+'</details>';
+    if(V22&&list) h+='<!--av-list--><details class="av-more av-listbox"><summary>項目ごとのチェックリスト ('+V.rows.length+')</summary>'+list+'</details>';
     return h;
   }
 
@@ -2053,6 +2146,12 @@ const ACL = (()=>{
   const CX_INCOTERM = /\b(CIF|CFR|C&F|CNF|FOB|CIP|CPT|DAP|FCA|EXW|DDP)\b/;
   const cxInco = t => { const m=cxU(t).match(CX_INCOTERM); return m?({'C&F':'CFR', CNF:'CFR'})[m[1]]||m[1]:''; };
   const cx42 = t => cxU(t).replace(/^(DRAFTS? )?AT\s+/,'').replace(/\bDRAFTS? DRAWN ON.*$/,'').trim();   // 頭の 「(DRAFTS) AT」 は 両方から外して比べる
+  /* v0.19 (E-K6): 42C の表記差の鍵 (BILL OF LADING · B/L · B L = BL · DAYS = DAY · 英数字と % だけ) と 意味 (日数 · 一覧払 · 起算日 · %) */
+  const cx42Bl = t => cx42(t).replace(/\bBILLS? OF LADING\b/g,'BL').replace(/\bB\s*\/\s*L\b|\bB\s+L\b/g,'BL');
+  const cx42Key = t => cx42Bl(t).replace(/\bDAYS\b/g,'DAY').replace(/[^A-Z0-9%]/g,'');
+  const cx42Sem = t => { const u=cx42Bl(t), d=u.match(/\b0*(\d{1,3})\s*DAYS?\b/), p=u.match(/\b(\d{2,3})\s*(%|PCT|PERCENT|PER CENT)/);
+    const base=/AFTER SIGHT/.test(u)?'SIGHT':/\bBL\b|ON ?BOARD/.test(u)?'BL':/SHIPMENT/.test(u)?'SHIPMENT':/INVOICE/.test(u)?'INVOICE':/ARRIVAL/.test(u)?'ARRIVAL':'';
+    return {days:d?d[1]:'', sight:!d&&/\bSIGHT\b/.test(u), base:d?base:'', pct:p?p[1]:''}; };
   /* L/C の HS · 輸入許可 (Import Licence) の番号 */
   /* HS は 1 つ以上 (「4707.10.00 / 4707.20.00」 のように L/C に 複数) → 番号の配列 (頭 6 桁で 書類にあるか見る) · 表示は 「/」 でつなぐ */
   const cxHsList = c => { const raw=cpStr(c.lc&&c.lc.hs); let L=(raw.match(/\d{4}[\d.\-]{0,10}\d/g)||[]).map(x=>x.replace(/\D/g,'')).filter(x=>x.length>=4);
@@ -2068,7 +2167,12 @@ const ACL = (()=>{
     'si:price_term':c=>{ const l=c.lc&&c.lc.price_term, s=c.si&&c.si.cr49f_payment_terms, a=cxInco(l), b=cxInco(s); if(!a) return cxR('INFO',l,s,'L/C の価格条件を読めない'); if(!s) return cxR('INFO',a,'','S/I の payment_terms が空');
       return a===b?cxR('MATCH',a,b,''):cxR('DIFF',a,b||cpStr(s).slice(0,20),'S/I の価格条件の頭が L/C 45A と違う'); },
     'si:deadline':c=>{ const p=c.lc&&c.lc.payment, l=p&&(p.tenor_text||p.read_text), s=c.si&&c.si.crcf9_payment_deadline; if(!l) return cxR('INFO','',s,'L/C の 42C がない'); if(!s) return cxR('DIFF',cx42(l),'','S/I の payment_deadline が空');
-      if(cpWs(cx42(l))===cpWs(cx42(s))) return cxR('MATCH',cx42(l),s,''); return cxR('DIFF',cx42(l),s,'S/I の payment_deadline が L/C 42C の原文どおりでない (DRAFT AT の前置きは外して比べる)'); },
+      if(cpWs(cx42(l))===cpWs(cx42(s))) return cxR('MATCH',cx42(l),s,'');
+      /* v0.19 (E-K6 · 形さん K6): BL ↔ B/L · 空白 · 大文字小文字 · 句読点 · DAYS の単複 = 表記差 · 日数 · AT SIGHT ↔ n DAYS · 起算日 · % が違えば 相違 */
+      if(cx42Key(l)===cx42Key(s)) return cxR('NOTATION',cx42(l),s,'表記差 (BL = B/L · 空白 · 句読点 · DAYS の単複) — 日数 · 起算日は同じ');
+      const A=cx42Sem(l), B=cx42Sem(s), dif=['days','sight','base','pct'].filter(k=>A[k]!==B[k]);
+      if((A.days||A.sight)&&!dif.length) return cxR('NOTATION',cx42(l),s,'表記差 (言い方だけ違う) — 日数 '+(A.days||'AT SIGHT')+' · 起算 '+(A.base||'-')+' は同じ');
+      return cxR('DIFF',cx42(l),s,'S/I の payment_deadline が L/C 42C と違う'+(dif.length&&(A.days||A.sight)?' ('+dif.map(k=>({days:'日数',sight:'一覧払',base:'起算日',pct:'%'})[k]).join(' · ')+')':' (DRAFT AT の前置きは外して比べる)')); },
     'si:to_order':c=>{ const t=c.lc&&c.lc.bl&&c.lc.bl.consignee_text, o=cpConsOrder(t), s=cxU(c.si&&c.si.crcf9_consignee); if(!o) return cxR('NA','','','L/C の Consignee が 「TO ORDER OF 銀行」 の形でない');
       if(!s) return cxR('DIFF',o,'','S/I の Consignee が空'); return /^TO (THE )?ORDER\b/.test(s)?cxR('MATCH','TO (THE) ORDER OF …',s.slice(0,40),''):cxR('DIFF','TO (THE) ORDER OF …',s.slice(0,40),'S/I の Consignee が 「TO (THE) ORDER OF」 で始まらない'); },
     'si:vn_notify':c=>{ if(cxCountry(c)!=='VIETNAM') return cxR('NA','','','ベトナム以外'); const s=[c.si&&c.si.crcf9_notify_party, c.si&&c.si.crcf9_address].filter(Boolean).join('#').replace(/\*+/g,'').replace(/#+/g,'#');
@@ -2114,6 +2218,7 @@ const ACL = (()=>{
   /* S/I 段階 — 入力された S/I を L/C 保管所と照合 (追加の行 · stage S/I) · ctx = {lc, si, meta, lcText} → 項目 */
   function siCheck(CPX, ctx){ const c=ctx||{}; return cpStageRows(CPX,'S/I',c.meta||{},c.lc).map(r=>cpRunRow(r,c)); }
   return {SP_OUT, SRC_DIRS, ISO, D03, LABELS, VERDICTS, invoiceOf,
+    /* v0.19 */ scanLabelsSame, SCAN_MEAN, PARTY, partySplit, partyLineKey, telSame, partyNotation, cx42Key, cx42Sem, SCAN_R3, SCAN_CHECK, SCAN_FIELD_JA, fieldJa, scanLocatePrompt, scanRetryPrompt, scanRetryValue, scanBox, scanApplyR3,
     /* v0.18 */ CP_CODE, siCheck,
     /* v0.15 */ SCAN_OTHER_HEAD, SCAN_OTHER_TAIL, NA_MAP, NA_NOTE, naApply, NA_CELL, naSets,
     /* v0.16 */ CT_ONLY, ctApply, PRINTED, printedApply, OTSU_MISTAKES, otsuKey, pastMistakes, pastLabel, typoCands,
@@ -2353,16 +2458,42 @@ async function scanRecFor(t, sc, other){
   await spPut(SCAN_AI_DIR+'/'+scanAiName(sc.sha,other), JSON.stringify(rec), 'application/json'); S.scanNew++; S.scanCost+=rec.cost_usd||0; logLine(t.invoice+' '+(other?ACL.SCAN_AI.otherLabel:ACL.SCAN_AI.label)+' 約 US$'+(rec.cost_usd||0).toFixed(2),'ok');
   return rec;
 }
+/* v0.19 (E-V3 · 形さん V3): 「読めず」 (2 回違う) 欄だけ 3 回目 — tools/acl_scan_r3.mjs と同じ手順 (規則 · 聞き方 = acl-core SCAN_R3 · scanLocatePrompt · scanRetryPrompt · scanApplyR3)
+   保存 _scan_ai/{sha256}[.other].r3.json + 切り抜き {sha256}[.other].r3.{欄}.png (新しいファイルだけ) · 保存本があれば AI を呼ばない */
+const r3Name = (sha, other) => sha+(other?'.other':'')+'.r3.json';
+async function scanR3Get(sha, other){ const r=await graphFetch(drv()+'/root:/'+spEnc(SCAN_AI_DIR+'/'+r3Name(sha,other))+':/content'); if(r.status===404) return null; if(!r.ok) throw new Error('Graph '+r.status); return r.json(); }
+async function pagePng(raw, page, dpi, box, minW){
+  await ensurePdfJs(); const task=window.pdfjsLib.getDocument({data:new Uint8Array(raw.slice(0)), cMapUrl:AB_CMAPS, cMapPacked:true}); const pdf=await task.promise;
+  try{ const pg=await pdf.getPage(Math.min(Math.max(1,page||1),pdf.numPages)), vp=pg.getViewport({scale:dpi/72}), cv=document.createElement('canvas'); cv.width=Math.ceil(vp.width); cv.height=Math.ceil(vp.height);
+    const cx=cv.getContext('2d'); cx.fillStyle='#fff'; cx.fillRect(0,0,cv.width,cv.height); await pg.render({canvasContext:cx, viewport:vp}).promise;
+    const [x0,y0,x1,y1]=box||[0,0,1,1], sx=Math.floor(x0*cv.width), sy=Math.floor(y0*cv.height), w=Math.max(1,Math.ceil((x1-x0)*cv.width)), h=Math.max(1,Math.ceil((y1-y0)*cv.height)), z=minW&&w<minW?Math.ceil(minW/w):1;
+    const o=document.createElement('canvas'); o.width=w*z; o.height=h*z; const oc=o.getContext('2d'); oc.imageSmoothingEnabled=false; oc.drawImage(cv,sx,sy,w,h,0,0,w*z,h*z);
+    const im=oc.getImageData(0,0,o.width,o.height), d=im.data; for(let i=0;i<d.length;i+=4){ const g=Math.round(d[i]*0.299+d[i+1]*0.587+d[i+2]*0.114); d[i]=d[i+1]=d[i+2]=g; } oc.putImageData(im,0,0);
+    return await new Promise(res=>o.toBlob(b=>res(b),'image/png')); }
+  finally{ try{ await pdf.destroy(); }catch(e){} } }
+async function scanR3For(t, sc, other, reads){
+  let r3=await scanR3Get(sc.sha, other); if(r3) return r3; if(!$('abScanAi').checked) return null;
+  const S3=ACL.SCAN_R3, m=ACL.scanMerge(reads[0], reads[1], {other}), keys=Object.keys(m.fields).filter(k=>m.fields[k].conf==='AI_DIFF'), lb=ACL.scanLabelsSame(reads[0], reads[1]); if(!keys.length) return null;
+  const ask=async(blob, text, label, read)=>{ const r=await aiCall({model:S3.model, max_tokens:read?S3.readMaxTokens:S3.maxTokens, output_config:{effort:read?S3.readEffort:S3.effort}, messages:[{role:'user', content:[{type:'image', source:{type:'base64', media_type:'image/png', data:b64(await blob.arrayBuffer())}}, {type:'text', text}]}]}, label); r3.cost_usd+=ACL.scanCost(r.usage); return ACL.scanJson(r.text); };
+  r3={schema:S3.schema, ver:S3.ver, sha256:sc.sha, other:!!other, model:S3.model, effort:S3.effort, dpi:S3.cropDpi, fields:{}, cost_usd:0, at:new Date().toISOString(), by:'acl_bench '+abVersion(), file:t.file.path+'/'+t.file.name};
+  for(const k of keys){ const page=m.fields[k].page||1, box=ACL.scanBox(await ask(await pagePng(sc.raw, page, S3.locateDpi, null), ACL.scanLocatePrompt(k, lb[k], page), t.invoice+' r3 位置 '+k, false));
+    if(!box){ r3.fields[k]={page, box:null, value:null, why:'位置が分からない'}; continue; }
+    const png=await pagePng(sc.raw, page, S3.cropDpi, box, S3.minWidth), [a,b]=await Promise.all([1,2].map(i=>ask(png, ACL.scanRetryPrompt(k, lb[k]), t.invoice+' r3 判読 '+k+' #'+i, true)));
+    const name=sc.sha+(other?'.other':'')+'.r3.'+k+'.png'; await spPut(SCAN_AI_DIR+'/'+name, png, 'image/png', true);
+    r3.fields[k]={page, box:box.map(x=>+x.toFixed(4)), value:ACL.scanRetryValue(k, a), value2:ACL.scanRetryValue(k, b), crop:name}; }
+  r3.cost_usd=+r3.cost_usd.toFixed(4); await spPut(SCAN_AI_DIR+'/'+r3Name(sc.sha,other), JSON.stringify(r3), 'application/json', true); S.scanCost+=r3.cost_usd; logLine(t.invoice+' 読めず欄の 3 回目 '+keys.length+' 欄 約 US$'+r3.cost_usd.toFixed(2),'ok');
+  return r3; }
 /* v0.15 (G9): 乙仲様式 = 文字ありの OTHER · スキャンで AI が 2 回とも NACCS と答えなかったもの → 乙仲様式のプロンプトでもう一度 (2 回) 読み 照合 */
 async function scanAclFor(t){
   const sc=S.scan[t.invoice]; if(!sc||!sc.raw) return null;
   if(!sc.sha) sc.sha=await sha256Hex(sc.raw);
   if(t.format!=='OTHER'){ const rec=await scanRecFor(t, sc, false); if(!rec) return null;
     const m=ACL.scanMerge(rec.reads[0], rec.reads[1], {model:rec.model, sha256:sc.sha, cost_usd:rec.cost_usd, at:rec.at});
-    if(ACL.scanLayoutOk(m)) return m; }
+    if(ACL.scanLayoutOk(m)){ if(!m.ai.diffFields.length) return m; const r3=await scanR3For(t, sc, false, rec.reads); return r3?ACL.scanMerge(rec.reads[0], rec.reads[1], {model:rec.model, sha256:sc.sha, cost_usd:rec.cost_usd, at:rec.at, r3}):m; } }
   const ro=await scanRecFor(t, sc, true); if(!ro) return null;
   S.scanOther++;
-  return ACL.scanMerge(ro.reads[0], ro.reads[1], {model:ro.model, sha256:sc.sha, cost_usd:ro.cost_usd, at:ro.at, other:true});
+  const mo=ACL.scanMerge(ro.reads[0], ro.reads[1], {model:ro.model, sha256:sc.sha, cost_usd:ro.cost_usd, at:ro.at, other:true}); if(!mo.ai.diffFields.length) return mo;
+  const r3=await scanR3For(t, sc, true, ro.reads); return r3?ACL.scanMerge(ro.reads[0], ro.reads[1], {model:ro.model, sha256:sc.sha, cost_usd:ro.cost_usd, at:ro.at, other:true, r3}):mo;   // v0.19 (E-V3)
 }
 
 /* ── ② 照合 ── */
@@ -2507,7 +2638,7 @@ function startPage(){
 }
 
 LEENAI.init({
-  sys:'D-00', name:'ACL 照合試験', version:'0.18', date:'2026-11-25',
+  sys:'D-00', name:'ACL 照合試験', version:'0.19', date:'2026-11-25',
   desc:'ACL (NACCS PDF) を座標で読み、COMPASS の S/I (sino 1) · ブッキング · コンテナ (セット) · 表示欄 (S/I ルールマスター) と 100% 照合 · 担当者メールの実績と突き合わせ (読むだけ · AI なし)',
   graphScopes:['Sites.ReadWrite.All'],
   redirectUri:'https://mhlee205.github.io/CONTRACT_SEND/acl_bench.html',

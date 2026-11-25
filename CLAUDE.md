@@ -12,13 +12,13 @@
 
 | 파일 | 내용 |
 |---|---|
-| `acl_bench.html` | **ACL 대조 엔진** (`<script id="acl-core">` · 순수 로직) + 시험 화면 (acl-app) — 현재 **v0.18** (새 체크포인트 試験 코드 판정 `CP_CODE` · S/I 단계 `siCheck`) |
-| `bl_bench.html` | **B/L Draft 대조 엔진** (`<script id="bl-core">` · ACL 엔진을 `BL.useEngine` 로 받음) + 시험 화면 — 현재 **v0.5** |
-| `fd_bench.html` | **FD 확인 엔진** (`<script id="fd-core">` · 순수 로직 · `FD`) + 시험 화면 (fd-app · 읽기만 · AI 0) — 현재 **v0.1**. 부품 PDF 글자 ↔ L/C 보관소 (묶음 Invoice 13 · B/L 5 · P/L 7 · 보험 11 · C/O 4 · BENE/47A/기한 4) + TO BANK AI 쪽 판별 저장본 (`ACL_bench/_fd_ai/{sha256}.json` · 매수 · 원본/사본 · 서명만). 새 판정은 마스터 `master_checkpoint` 의 그 줄 (engine_key `fd:…`) 이 있을 때만 · 有効 만 판정 (지금은 전부 試験) |
+| `acl_bench.html` | **ACL 대조 엔진** (`<script id="acl-core">` · 순수 로직) + 시험 화면 (acl-app) — 현재 **v0.19** (당사자 전화 · FAX 숫자만 · 우편번호 = 表記差 `partyNotation` · CP-A04 표기차 · AI 「読めず」 칸 3 번째 판독 `scanApplyR3` · 화면 `viewHtml(…,{v22:true})` = 書類ツール v0.22 순서) |
+| `bl_bench.html` | **B/L Draft 대조 엔진** (`<script id="bl-core">` · ACL 엔진을 `BL.useEngine` 로 받음) + 시험 화면 — 현재 **v0.6** (전화 · 우편번호 줄 찾기 = ACL `partyLineKey`) |
+| `fd_bench.html` | **FD 확인 엔진** (`<script id="fd-core">` · 순수 로직 · `FD`) + 시험 화면 (fd-app · 읽기만 · AI 0) — 현재 **v0.2** (보험증권 앞면 AI 판독 `FD.INS_AI` · 저장본 `_fd_ai/{sha256}.ins.json` · 제출기한 = FD送付日). 부품 PDF 글자 ↔ L/C 보관소 (묶음 Invoice 13 · B/L 5 · P/L 7 · 보험 11 · C/O 4 · BENE/47A/기한 4) + TO BANK AI 쪽 판별 저장본 (`ACL_bench/_fd_ai/{sha256}.json` · 매수 · 원본/사본 · 서명만). 새 판정은 마스터 `master_checkpoint` 의 그 줄 (engine_key `fd:…`) 이 있을 때만 · 有効 만 판정 (지금은 전부 試験) |
 | `a1_bench.html` | S/I 추천 (A1 R2) 엔진 · 시험 화면 |
 | `compass_write_test.html` | COMPASS 쓰기 시험 |
 | `index.html` · `mail/` · `common-test/` | A-02 MAIL 포털 시험 페이지 · LEENAI_COMMON 동작 확인 (README) |
-| `tools/` | node 도구 (PC 에서 실행): `acl_scan_ai.mjs` (스캔 · 乙仲様式 ACL AI 판독 저장) · `lc_read_*.mjs` (L/C 보관소) · `cp_trial.mjs` (체크포인트 시험) · `bl_repro.mjs` (B/L 전수 재현) · **`ms_token.mjs` (Microsoft 토큰 · OS 별 한 곳)** |
+| `tools/` | node 도구 (PC 에서 실행): `acl_scan_ai.mjs` (스캔 · 乙仲様式 ACL AI 판독 저장) · **`acl_scan_r3.mjs` (v0.19 — 「読めず」 칸만 잘라 3 번째 판독 · `_scan_ai/{sha256}[.other].r3.json` + 잘라낸 그림 png)** · `lc_read_*.mjs` (L/C 보관소) · `cp_trial.mjs` (체크포인트 시험) · `bl_repro.mjs` (B/L 전수 재현) · **`ms_token.mjs` (Microsoft 토큰 · OS 별 한 곳)** |
 | `tests/acl_bench` · `tests/bl_bench` · `tests/fd_bench` · `tests/a1_bench` · `tests/compass_write_test` | node 시험 (가짜 데이터만 · 네트워크 0) |
 
 - **書類ツール (DOC_TOOL) 이 이 엔진을 쓴다** — DOC_TOOL 은 `acl_bench.html` · `bl_bench.html` 을 **커밋 + sha256 으로 고정**해서 raw 로 읽는다 (복사하지 않음). 엔진을 고치면 → push → 그 커밋 · sha256 을 DOC_TOOL `CLAUDE.md` §5 와 `index.html` (`ACL_ENGINE` · `BL_ENGINE`) 에 넣는다 (한 토르가 순서대로 · 버전을 다시 맞추는 일 0).
@@ -59,7 +59,7 @@ cd ../fd_bench && node run_all.js                                      # ALL PAS
 
 ## 5. AI 비용
 
-- AI 를 부르는 곳 = 스캔 · 乙仲様式 ACL 판독 (`scanReadBrowser` · `acl_scan_ai.mjs`) · L/C 판독 (`lc_read_one`) · A1 추천 · **TO BANK 쪽 판별 (`FD.AI` — 프롬프트 · 읽는 법은 fd-core · 부르는 곳은 書類ツール 브라우저 · 2 회 같을 때만 · 회색 150 dpi · 문구 판정 안 함)**.
+- AI 를 부르는 곳 = 스캔 · 乙仲様式 ACL 판독 (`scanReadBrowser` · `acl_scan_ai.mjs`) · **「読めず」 칸 3 번째 판독 (`scanR3For` · `acl_scan_r3.mjs` — 그 칸만 · 300 dpi 잘라 2 회 · 체크 칸은 ☒/☐ 만)** · **보험증권 앞면 (`FD.INS_AI` — 보험 쪽 1 ~ 2 쪽 · 2 회 같은 값만 · 부르는 곳 = 書類ツール 브라우저)** · L/C 판독 (`lc_read_one`) · A1 추천 · **TO BANK 쪽 판별 (`FD.AI` — 프롬프트 · 읽는 법은 fd-core · 부르는 곳은 書類ツール 브라우저 · 2 회 같을 때만 · 회색 150 dpi · 문구 판정 안 함)**.
 - **같은 파일은 다시 읽지 않는다** (sha256 저장본) · 실행 전 예상 비용 · 실행 후 실제 비용을 보고서에. 한 번 실행 상한은 지시서 (없으면 **US$10** — 넘을 것 같으면 멈추고 보고).
 - 회귀 · 전후 비교는 **AI 0** (저장본만).
 

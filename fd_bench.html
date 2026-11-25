@@ -56,8 +56,11 @@ const FD = (function(){
      ・判定の言葉 = ACL エンジンと同じ (MATCH 一致 · NOTATION 表記差/注意 · DIFF 相違 · READ_CHECK 読取確認 · INFO 参考 · NA 対象外)
      ・チェックポイント: 1 項目 = master_checkpoint の 1 行 (engine_key fd:…) · 行が 有効 のときだけ判定に入る · 試験 = trial:true (判定に入れない)
        マスターを渡さない → 全部 試験 扱い (判定 0) · マスターにない項目 → 実行しない
-     ・純粋関数 (通信 0) — 書類ツール (DOC_TOOL) がコミット + sha256 で固定して使う */
-  const VERSION = '0.1';
+     ・純粋関数 (通信 0) — 書類ツール (DOC_TOOL) がコミット + sha256 で固定して使う
+     v0.2 (2026-11-25 指示書 THOR_17 E-K3 · E-K4 · 形さん K3 · K4): 保険証券の表面を AI で読む (INS_AI — 保険の頁 1 〜 2 だけ · 2 回同じ値だけ) → 保険 10 行を コードで 一致 / 相違 (読めなければ 読取確認) ·
+       保険の頁 = TO BANK AI 判別の INS · 保険のファイル (_1POL) · なければ TO BANK の縮小画像で 保険の頁を探す (insLocate) · 保存 _fd_ai/{sha256}.ins.json ·
+       提出期限 = Invoice 別 の FD送付日 (PORTAL clearance_status.json shipping[IV].fd_date · ctx.fdSent) > 船積 + n 日 (有効期限まで) → 相違 · FD送付日 なし → 参考 (注意にしない) */
+  const VERSION = '0.2';
   const S = v => v==null?'':String(v);
   const U = t => S(t).normalize('NFKC').toUpperCase().replace(/\s+/g,' ').trim();
   const AN = t => U(t).replace(/[^A-Z0-9]/g,'');
@@ -307,11 +310,11 @@ const FD = (function(){
       const want=pct&&amt!=null?'≥ '+c.lb.cur+' '+(Math.ceil(amt*pct)/100).toLocaleString('en-US',{minimumFractionDigits:2}):(pct?pct+'%':''); return c.insRead('AMOUNT INSURED|INSURED AMOUNT|AMOUNT',want); }},
     {key:'fd:ins:cond', g:'保険', ref:'CHECK-35', ja:'保険条件 ICC(A) / ALL RISKS (除外特約は 注意)', fn:c=>{ const q=docQ(c.lb,'INS'), w=/CLAUSES? ?\(A\)|ALL RISKS/.test(q)?'ICC(A) / ALL RISKS':''; if(!c.insText) return c.insRead('',w);
       const T=c.insText; if(!/CLAUSES? ?\(A\)|ALL RISKS/.test(T)) return R('DIFF',w,'(なし)','保険条件 (A) の記載がない'); return /EXCLUDING|EXCLUSION OF/.test(T)?R('NOTATION',w,'除外特約あり','除外特約 (RULE-16 · 注意)'):R('MATCH',w,w,''); }},
-    {key:'fd:ins:claims', g:'保険', ref:'CHECK-36', ja:'CLAIMS PAYABLE (場所 · L/C の通貨)', fn:c=>{ const m=docQ(c.lb,'INS').match(/CLAIMS? (ARE )?PAYABLE (AT|IN) ([A-Z ,]{3,40}?)(,| IN THE| FOR| IN CURRENCY|\.)/); return c.insRead('PAYABLE', m?m[3].trim():''); }},
+    {key:'fd:ins:claims', g:'保険', ref:'CHECK-36', ja:'CLAIMS PAYABLE (場所 · L/C の通貨)', fn:c=>{ const m=docQ(c.lb,'INS').match(/CLAIMS? (ARE )?PAYABLE (AT|IN) ([A-Z ,]{3,40}?)(,| IN THE| FOR| IN CURRENCY|\.|$)/); return c.insRead('PAYABLE', m?m[3].trim():''); }},
     {key:'fd:ins:agent', g:'保険', ref:'CHECK-37', ja:'保険代理店 (指定国)', fn:c=>{ const q=docQ(c.lb,'INS'); if(!/AGENT|AGENCY/.test(q)) return R('NA','','','L/C に 代理店の指定がない'); return c.insRead('AGENT','代理店 ('+(c.country||'仕向国')+')'); }},
     {key:'fd:ins:count', g:'保険', ref:'CHECK-39', ja:'保険 原本枚数 (FULL SET) — TO BANK AI', ai:true, fn:c=>c.tbCount('INS')},
     {key:'fd:ins:originals', g:'保険', ref:'CHECK-40', ja:'証券の ORIGINALS 発行枚数の記載', fn:c=>{ const o=countsOf(docQ(c.lb,'INS')); return c.insRead('ORIGINAL',o.full?'FULL SET':o.orig?o.orig+' 通':''); }},
-    {key:'fd:ins:assured', g:'保険', ref:'CHECK-41', ja:'被保険者 (ASSURED)', fn:c=>{ const m=docQ(c.lb,'INS').match(/(?:ASSURED|INSURED)[^.]{0,20}?(?:IN THE NAME OF|TO THE ORDER OF|AS)\s+([A-Z .,&]{3,60})/); return c.insRead('ASSURED', m?m[1].trim():'LEENEAR CORPORATION (白地裏書)'); }},
+    {key:'fd:ins:assured', g:'保険', ref:'CHECK-41', ja:'被保険者 (ASSURED)', fn:c=>{ const m=docQ(c.lb,'INS').match(/(?:ASSURED|INSURED)[^.]{0,20}?(?:IN THE NAME OF|TO THE ORDER OF|AS)\s+([A-Z .,&]{3,60})/); return c.insRead('ASSURED', m?m[1].trim():(c.bene||'LEENEAR')+' (白地裏書)'); }},
     {key:'fd:ins:currency', g:'保険', ref:'CHECK-42', ja:'保険の通貨 = Invoice の通貨', fn:c=>c.insRead('USD|US\\$|EUR|JPY',c.lb.cur||'USD')},
     {key:'fd:ins:sailing', g:'保険', ref:'CHECK-42A', ja:'Sailing 日付 = B/L ON BOARD = Invoice', fn:c=>c.insRead('SAILING',c.iv&&c.iv.onboard||'')},
     {key:'fd:ins:voyage', g:'保険', ref:'CHECK-42B', ja:'VOYAGE AT AND FROM 積地 TO 揚地 (44E · 44F)', fn:c=>c.insRead('FROM',(c.lc&&c.lc.pol&&c.lc.pol.text||'')+' → '+(c.lc&&c.lc.pod&&c.lc.pod.text||''))},
@@ -343,9 +346,11 @@ const FD = (function(){
       if(!D.length) return R('READ_CHECK','','','書類の文字がない'); const bad=D.filter(k=>c.docs[k].pages.some(p=>p.lines.some(l=>CJK.test(l)))), nod=D.filter(k=>!dateKey(c.docs[k].text));
       if(bad.length) return R('DIFF','英語','日本語あり: '+bad.join(' · '),'日本語の文字'); if(need47&&nod.length) return R('DIFF','日付','日付なし: '+nod.join(' · '),'47A: 日付の記載'); return R('MATCH','英語'+(need47?' · 日付':''),D.join(' · '),''); }},
     {key:'fd:due:present', g:'提出期限', ref:'CHECK-57', ja:'提出期限 (船積後 n 日以内 · 有効期限まで)', fn:c=>{ const base=c.blDate||(c.iv&&c.iv.onboard)||''; if(!base) return R('READ_CHECK','','','船積日を読めない');
-      const n=c.lb.presDays!=null?c.lb.presDays:21, ex=c.lc&&c.lc.expiry_date; let due=addDays(base,n); if(ex&&ex<due) due=ex; const tb=c.toBank&&c.toBank.modified?S(c.toBank.modified).slice(0,10):'';
-      if(tb) return tb>due?R('NOTATION','≤ '+due,tb,'TO BANK のファイル日付が 提出期限より後 (船積 '+base+' + '+n+' 日 · ファイル日付 = 保存日で 呈示日と違うことがある — 目で確認)'):R('MATCH','≤ '+due,tb,'船積 '+base+' + '+n+' 日'+(c.lb.presDays==null?' (48 なし → 21 日)':''));
-      const left=c.today?days(c.today,due):null; return R(left!=null&&left<0?'DIFF':left!=null&&left<=3?'NOTATION':'INFO','≤ '+due,'(TO BANK なし)','提出期限 '+due+(left!=null?' (あと '+left+' 日)':'')); }}
+      const n=c.lb.presDays!=null?c.lb.presDays:21, ex=c.lc&&c.lc.expiry_date; let due=addDays(base,n); if(ex&&ex<due) due=ex; const how='船積 '+base+' + '+n+' 日'+(c.lb.presDays==null?' (48 なし → 21 日)':'')+(ex&&ex===due?' · 有効期限 '+ex:'');
+      /* v0.2 (K4): 銀行に出した日 = FD送付日 (Invoice 別 · PORTAL) — 期限より後 = 相違 · なし = 参考 (TO BANK のファイル日付は 保存日なので 使わない) */
+      const fs0=/^\d{4}-\d{2}-\d{2}$/.test(S(c.fdSent))?S(c.fdSent):'';
+      if(fs0) return fs0>due?R('DIFF','≤ '+due,fs0,'FD送付日が 提出期限より後 ('+how+')'):R('MATCH','≤ '+due,fs0,how);
+      const left=c.today?days(c.today,due):null; return R('INFO','≤ '+due,'(FD送付日 なし)','FD送付日が未入力 — 参考 · 提出期限 '+due+(left!=null?' (あと '+left+' 日)':'')+' · '+how); }}
   ];
   /* ── TO BANK AI (頁ごとの 書類の種類 · 原本/写し · 署名) → 書類ごとの数 ── */
   const AI_TYPES = ['IV','PL','BL','INS','CO','QQ','BENE','CERT','LABEL','PIR','COVER','OTHER'];
@@ -389,12 +394,13 @@ const FD = (function(){
     const il=seg.match(/IMPORT(?:ER)?'?S? LICEN[CS]E'?\s*(?:NO\.?|NUMBER)?\s*:?\s*([A-Z0-9][A-Z0-9.\-\/]{4,})/); if(il) out.push({k:'Import Licence', v:il[1].replace(/[.,]$/,'')});
     const hs=seg.match(/HS CODE\s*:?\s*(\d{4}[\d.]*)/); if(hs) out.push({k:'HS', v:hs[1]});
     return out; }
-  /* ── 実行 ── ctx = {iv, files, lc, lcText, meta:{country, pay, contract, blDate}, ai (TO BANK AI), toBank:{name, modified}, today, cp (cpPrepare の結果 · なし = 全部 試験), fixed:{engine_key: 値}} */
+  /* ── 実行 ── ctx = {iv, files, lc, lcText, meta:{country, pay, contract, blDate}, ai (TO BANK AI), toBank:{name, modified}, today, cp (cpPrepare の結果 · なし = 全部 試験), fixed:{engine_key: 値},
+       v0.2: fdSent (FD送付日 'YYYY-MM-DD' · Invoice 別) · insAi (保険証券 AI の保存本 fd_ins_ai/1)} */
   function check(ctx){
     const c0=ctx||{}, col=collect(c0.files, c0.iv), lb=lcBits(c0.lc, c0.lcText), docs=col.docs, iv=readIvPl(docs.IV), pl=readIvPl(docs.PL);
     const insText=docs.INS&&/AMOUNT INSURED|INSURED AMOUNT|SUM INSURED|CLAIMS? (ARE )?PAYABLE AT/.test(docs.INS.U)?docs.INS.U:'';
     const ivW=iv?(iv.totals.length>=3?iv.totals[1]:iv.totals.length===2?iv.totals[0]:null):null;
-    const c={iv, pl, docs, lb, lc:c0.lc||null, ivW, allPages:col.pages, country:U((c0.meta||{}).country), blDate:(c0.meta||{}).blDate||'', toBank:c0.toBank||null, today:c0.today||'', ai:c0.ai||null, tb:tbTally(c0.ai), req47:req47(c0.lc, lb, c0.meta), insText};
+    const c={iv, pl, docs, lb, lc:c0.lc||null, ivW, allPages:col.pages, country:U((c0.meta||{}).country), blDate:(c0.meta||{}).blDate||'', toBank:c0.toBank||null, today:c0.today||'', fdSent:c0.fdSent||'', insAI:insMerge(c0.insAi), ai:c0.ai||null, tb:tbTally(c0.ai), req47:req47(c0.lc, lb, c0.meta), insText};
     c.insRead=(lab,want)=>{ if(!c.lb.docs.some(d=>d.doc_type==='INS')) return R('NA','','','46A に 保険がない'); if(!docs.INS) return R('READ_CHECK',want,'(保険なし)','保険証券の文字のある PDF がない — TO BANK で目で確認');
       if(!insText) return R('READ_CHECK',want,'(表面は画像)','保険証券の表面 (金額 · 条件 · 船名) は画像で文字がない — TO BANK で目で確認');
       const re=lab?new RegExp('('+lab+')[^\\n]{0,80}'):null, m=re&&insText.match(re); return m?R('INFO',want,m[0].slice(0,80),'文字あり — 目で確認'):R('READ_CHECK',want,'','証券の文字に 見つからない'); };
@@ -405,6 +411,8 @@ const FD = (function(){
       if(rows){ row=rows.find(r=>r.engine_key===k.key&&r.stages.indexOf('FD')>=0); if(!row) return; if(row.state==='停止') return; state=row.state; why=row.why||''; }
       c.fixed=row&&/^text:/.test(row.left)?row.left.slice(5):(c0.fixed&&c0.fixed[k.key])||'';
       let r; try{ r=k.fn(c); }catch(e){ r=R('READ_CHECK','','','読めない ('+S(e&&e.message).slice(0,60)+')'); }
+      /* v0.2 (K3): 保険の表面が画像 (文字なし) → AI 判読 (2 回同じ値) があれば コードで判定 */
+      if(INS_JUDGE[k.key]&&!insText&&c.insAI&&r.st==='READ_CHECK'){ if(c.insAI.none) r=R('READ_CHECK',r.e,'(保険の頁なし)','AI: 読んだ頁 ('+c.insAI.pages.join(',')+') は 保険証券でない — TO BANK で目で確認'); else { try{ r=INS_JUDGE[k.key](c, r.e); }catch(e){} r.d=(r.d?r.d+' · ':'')+'保険 AI ('+(c.insAI.by||'')+' p.'+c.insAI.pages.join(',')+')'; } }
       /* 書類どうしの比べ (IV ↔ P/L · B/L · C/O) で 片方だけ 通関版 → 通関の後に直った (本船変更など) ことがある → 相違 にせず 読取確認 */
       if(r.st==='DIFF'&&k.cross){ const tiers=k.cross.map(t=>docs[t]&&docs[t].tier).filter(Boolean); if(tiers.indexOf(5)>=0&&tiers.some(t=>t!==5)) r=R('READ_CHECK',r.e,r.a,r.d+' — 片方は [通関版] (通関の後に直ったことがある) · FD の版で確認'); }
       const trial=state!=='有効', st=r.st, src=k.g==='TO BANK'||k.ai?'TO BANK (AI)':k.g==='保険'?(docs.INS?docs.INS.src:''):(({Invoice:docs.IV,'P/L':docs.PL,'B/L':docs.BL,'C/O':docs.CO})[k.g]||{}).src||'';
@@ -421,6 +429,85 @@ const FD = (function(){
     const trialDiff=items.filter(i=>i.trial&&i.would==='DIFF').length;
     return {version:VERSION, iv:c0.iv||'', items, counts:cnt, verdict, trialDiff, read:Object.keys(docs).map(k=>({type:k, file:docs[k].file, src:docs[k].src, pages:docs[k].pages.map(p=>p.page)})), files:col.files, req47:c.req47};
   }
+  /* ══════════ v0.2 (指示書 THOR_17 E-K3 · 形さん K3): 保険証券の表面 — AI で 2 回読み 同じ値だけ使う ══════════
+     ・読む頁 (insPick): ① 保険のファイル (_1POL · INSURANCE · 保険) の 1 〜 2 頁 ② TO BANK AI 判別 (fd_ai) の INS の頁 (1 頁目 + 続きの INS 1 頁) ③ なければ TO BANK の縮小画像で探す (locatePrompt · 1 回)
+     ・2 回の値が同じ欄だけ (空白 · 大文字小文字 · 句読点だけの違いは同じ · 金額は数で) — 違う欄 = 読取確認 (2 つの値) · 欄がない = 「」
+     ・判定 (INS_JUDGE) は コード — 保険の 10 行 (枚数 fd:ins:count は TO BANK AI のまま) · 文言の意味の判断 (AI) はしない */
+  const INS_FIELDS = ['currency','amount','conditions','exclusions','vessel','sailing','voyage_from','voyage_to','claims_payable_at','claims_currency','agent','assured','originals','remarks'];   // remarks = 品名 · 備考の欄の 文 (「CLAIMS PAYABLE IN …」 を そこに書く証券がある — 実データ)
+  const INS_AI = {model:'claude-opus-5-5', effort:'low', dpi:150, thumbDpi:40, gray:true, maxTokens:1500, maxPages:2, schema:'fd_ins_ai/1', price:{in:4, out:20},
+    cachePath:sha=>'古紙/-. AI 活用/D-00/ACL_bench/_fd_ai/'+String(sha||'').toLowerCase()+'.ins.json',
+    locatePrompt:n=>'These '+n+' small images are the pages (in order, each preceded by its page number) of ONE scanned export L/C document set. Which page is the FRONT of the marine cargo INSURANCE policy or insurance certificate (the page that shows the amount insured, the conditions and the vessel — NOT the back side with printed clauses)? If the front continues on the next page, give both.\nReturn ONLY JSON: {"pages":[page numbers]} (at most 2 · [] if there is no insurance policy).',
+    readPrompt:'These images are the front page(s) of a marine cargo insurance policy / certificate (scanned). Copy the printed values exactly as they appear (no translation, no correction). Use "" when the item is not on the page.\n'+
+      'Return ONLY JSON: {"is_insurance":true|false,"currency":"<currency of the amount insured, e.g. USD>","amount":"<amount insured as printed>","conditions":"<the conditions / clauses text, e.g. INSTITUTE CARGO CLAUSES (A) ...>","exclusions":"<any EXCLUDING / exclusion wording, or empty>","vessel":"<vessel name as printed>","sailing":"<sailing on or about ... as printed>","voyage_from":"<voyage from / at and from>","voyage_to":"<voyage to>","claims_payable_at":"<claims payable at ... (place)>","claims_currency":"<currency of claims payable>","agent":"<survey / claims settling agent name and city>","assured":"<assured / insured name>","originals":"<the wording that states how many originals were issued, e.g. ISSUED IN 2 ORIGINALS or No. of Pol. 2>","remarks":"<the typed text in the goods / remarks area (L/C number, percentage, claims payable, etc.) as printed>"}',
+    parse:t=>{ const m=S(t).match(/\{[\s\S]*\}/); if(!m) return null; try{ return JSON.parse(m[0]); }catch(e){ return null; } },
+    cost:u=>u?((u.input_tokens||0)*4+(u.cache_read_input_tokens||0)*0.4+(u.cache_creation_input_tokens||0)*5+(u.output_tokens||0)*20)/1e6:0,
+    usable:(cache, sha)=>!!cache&&cache.schema==='fd_ins_ai/1'&&String(cache.sha256||'').toLowerCase()===String(sha||'').toLowerCase()&&Array.isArray(cache.reads)&&cache.reads.length===2 };
+  /* 読む頁 — files = [{name}] (Invoice フォルダのファイル) · tbAi = fd_ai 保存本 · tbName = TO BANK のファイル名 → {by, file, pages} / {by:'LOCATE', file:TO BANK, pages:null} / null */
+  const INS_FILE = /_\d?POL\.pdf$|INSURANCE|保険/i;
+  function insPick(files, tbAi, tbName, opt){
+    const pol=(opt&&opt.noPol)?null:(files||[]).map(f=>S(f&&f.name!=null?f.name:f)).find(n=>INS_FILE.test(n.split('/').pop())&&/\.pdf$/i.test(n)&&!/TO ?BANK/i.test(n));
+    if(pol) return {by:'POL', file:pol, pages:[1,2]};   // 白紙の証券 (値のない様式) だった → 呼ぶ側が opt.noPol で TO BANK を探す (実データ 3 件)
+    const P=((tbAi&&tbAi.pages)||[]).filter(p=>p.r1&&p.r2&&p.r1.doc_type==='INS'&&p.r2.doc_type==='INS').map(p=>p.page).sort((a,b)=>a-b);
+    if(P.length&&tbName){ const out=[P[0]]; if(P[1]===P[0]+1) out.push(P[1]); return {by:'TB_AI', file:tbName, pages:out}; }
+    return tbName?{by:'LOCATE', file:tbName, pages:null}:null; }
+  const insKey = v => U(v).replace(/[\s.,:;'"\-]/g,'');
+  const insCur = v => U(v).replace(/US\$|U\.S\.\s?DOLLARS?|US DOLLARS?|\$/,'USD').replace(/[^A-Z]/g,'');
+  /* 通貨の記号 → ISO (USD · JPY · EUR …) · 「CURRENCY OF THE CREDIT / DRAFT / INVOICE」 の文言 = 'SAME' · 読めない = '' */
+  const insCurCode = v => { const t=U(v); if(/\bJPY\b|¥|￥|\bYEN\b/.test(t)) return 'JPY'; if(/\bUSD\b|US\$|U\.S\.|DOLLAR|\$/.test(t)) return 'USD'; if(/\bEUR\b|€|EURO/.test(t)) return 'EUR'; const m=t.match(/\b(GBP|CNY|SGD|THB|KRW|IDR|VND|MYR|AUD|HKD)\b/); if(m) return m[1];
+    return /CURRENCY OF (THE )?(CREDIT|DRAFTS?(\(S\))?|INVOICE|L\/?C)|(SAME|INVOICE|CREDIT|DRAFT) CURRENCY|CURRENCY AS (THAT OF )?THE (CREDIT|DRAFT)/.test(t)?'SAME':''; };
+  const insNum = v => { const t=S(v).replace(/[\s,]/g,'').match(/\d+(?:\.\d+)?/); return t?+t[0]:null; };
+  /* 2 回の判読 → {fields:{k:{v}|{diff:[a,b]}}, pages, by} (is_insurance が 2 回とも false → {none:true}) */
+  function insMerge(cache){
+    if(!cache||!Array.isArray(cache.reads)||cache.reads.length<2) return null; const [a,b]=cache.reads.map(j=>j||{});
+    if(a.is_insurance===false&&b.is_insurance===false) return {none:true, pages:cache.pages||[], file:cache.file||'', by:cache.by||''};
+    if([a,b].every(j=>['amount','vessel','assured','sailing'].every(k=>!S(j[k]).trim()))) return {none:true, blank:true, pages:cache.pages||[], file:cache.file||'', by:cache.by||''};   // 値のない 白紙の様式 (_1POL が様式だけ — 実データ)
+    const f={}; INS_FIELDS.forEach(k=>{ const x=S(a[k]).trim(), y=S(b[k]).trim(); const same=k==='amount'?insNum(x)===insNum(y):k==='originals'&&insNum(x)!=null?insNum(x)===insNum(y):k==='currency'||k==='claims_currency'?insCur(x)===insCur(y):insKey(x)===insKey(y); f[k]=same?{v:x||y}:{diff:[x,y]}; });
+    f.remarks.both=[S(a.remarks), S(b.remarks)];   // 備考の文は長い — 2 回とも その語があるか で使う (claims)
+    return {fields:f, pages:cache.pages||[], file:cache.file||'', by:cache.by||''}; }
+  const insWords = t => U(t).replace(/\b(PORT|OF|IN|AT|THE|ANY|AND|OR|CY|CFS|JAPAN|ALL|PORTS)\b/g,' ').split(/[^A-Z]+/).filter(w=>w.length>=3);
+  /* 判定 — want = 基準の値 (今までの fn が出した期待値) · 欄の値が 2 回違う = 読取確認 · 欄が空 = 相違 (記載なし) */
+  const insV = (c,k) => { const f=c.insAI.fields[k]; return !f?{rc:true, t:''}:f.diff?{rc:true, t:f.diff.join(' / ')}:{t:f.v}; };
+  const INS_RC = (want, k, x) => R('READ_CHECK', want, x.t, '保険証券 AI 2 回の判読が違う ('+k+': '+x.t+') — TO BANK で目で確認');
+  const INS_AGENT_CITY = /JAKARTA|HANOI|HO CHI MINH|HAIPHONG|BANGKOK|SEOUL|BUSAN|INCHEON|TAIPEI|KAOHSIUNG|TAICHUNG|CHENNAI|KOLKATA|MUMBAI|DHAKA|CHITTAGONG|KARACHI|COLOMBO|MANILA|SURABAYA|SEMARANG|KUALA LUMPUR|PENANG|PORT KLANG|SINGAPORE|SHANGHAI|HONG KONG/;
+  const INS_JUDGE = {
+    'fd:ins:amount':(c,want)=>{ const a=insV(c,'amount'), cu=insV(c,'currency'); if(a.rc) return INS_RC(want,'amount',a); const n=insNum(a.t); if(n==null) return R('DIFF',want,'(金額なし)','保険金額の記載がない');
+      const need=num(S(want).replace(/^[^\d]*/,'')), cur=insCurCode((cu.rc?'':cu.t)+' '+a.t), shown=(cur&&cur!=='SAME'&&insCurCode(a.t)!==cur?cur+' ':'')+a.t;
+      if(cur&&cur!=='SAME'&&c.lb.cur&&cur!==U(c.lb.cur)) return R('DIFF',want,shown,'保険の通貨が L/C と違う');
+      if(need==null) return R('INFO',want,shown,'基準 (Invoice × %) を読めない — 金額は AI 判読'); return n+1e-6>=need?R('MATCH',want,shown,''):R('DIFF',want,shown,'保険金額が 足りない'); },
+    'fd:ins:cond':(c,want)=>{ const t=insV(c,'conditions'), x=insV(c,'exclusions'); if(t.rc) return INS_RC(want,'conditions',t); const T=U(t.t);
+      if(!/CLAUSES? ?\(A\)|ALL RISKS|\(A\)/.test(T)) return R(want?'DIFF':'INFO',want,T.slice(0,60)||'(なし)','保険条件 (A) / ALL RISKS の記載がない'); const ex=x.rc?'':U(x.t);
+      return ex||/EXCLUDING|EXCLUSION OF/.test(T)?R('NOTATION',want,'除外特約あり: '+(ex||T).slice(0,50),'除外特約 (RULE-16 · 注意)'):R('MATCH',want,T.slice(0,60),''); },
+    'fd:ins:claims':(c,want)=>{ const t=insV(c,'claims_payable_at'), w=insWords(want);
+      /* 備考の欄の 「CLAIMS PAYABLE (AT|IN) …」 — 2 回とも その語が全部あれば それを使う (欄は 「DESTINATION」 だけのことがある) */
+      const rm=(c.insAI.fields.remarks&&c.insAI.fields.remarks.both)||[], seg=s=>{ const m=U(s).match(/CLAIMS? (ARE )?PAYABLE[^.]{0,80}/); return m?m[0]:''; }, segs=rm.map(seg);
+      if(w.length&&segs.length===2&&segs.every(s=>s&&w.every(x=>s.indexOf(x)>=0))) return R('MATCH',want,segs[0].slice(0,60),'証券の備考の欄に記載'+(t.t&&!t.rc?' (支払地の欄: '+t.t+')':''));
+      if(t.rc) return INS_RC(want,'claims_payable_at',t); if(!t.t) return R('DIFF',want,'(なし)','CLAIMS PAYABLE の記載がない'); if(!want) return R('INFO','',t.t,'L/C に 支払地の指定なし');
+      const miss=w.filter(x=>U(t.t).indexOf(x)<0); if(!miss.length) return R('MATCH',want,t.t,'');
+      /* 「DESTINATION」 (仕向地) — L/C の語が 証券の 仕向地 (VOYAGE TO) か 仕向国 にあれば 注意 (同じ所か 目で確認) */
+      if(/^(AT |IN )?(THE )?DESTINATION\b/.test(U(t.t))){ const to=insV(c,'voyage_to'), dst=U((to.rc?'':to.t)+' '+c.country); if(miss.every(x=>dst.indexOf(x)>=0||x===c.country)) return R('NOTATION',want,t.t,'支払地 = DESTINATION — L/C の 「'+want+'」 と同じ所か 目で確認'); }
+      return R('DIFF',want,t.t,'支払地が L/C と違う (ない語: '+miss.join(' · ')+')'); },
+    'fd:ins:agent':(c,want)=>{ const t=insV(c,'agent'); if(t.rc) return INS_RC(want,'agent',t); if(!t.t) return R('DIFF',want,'(なし)','代理店の記載がない');
+      return R('MATCH',want,t.t.slice(0,60),c.country&&U(t.t).indexOf(c.country)<0&&!INS_AGENT_CITY.test(U(t.t))?'代理店の国 — 目で確認':''); },
+    'fd:ins:originals':(c,want)=>{ const t=insV(c,'originals'); if(t.rc) return INS_RC(want,'originals',t); if(!t.t) return R('DIFF',want,'(なし)','ORIGINALS 発行枚数の記載がない');
+      /* L/C 「ONE ORIGINAL AND ONE DUPLICATE」 = 原本 2 通 (DUPLICATE も原本) */
+      const o=countsOf(t.t), n=o.orig!=null?o.orig:num(t.t), dup=/ORIGINALS? AND (ONE|1|\(1\)|ONE \(1\)) DUPLICATE/.test(docQ(c.lb,'INS')), w=num(want)!=null?num(want)+(dup?1:0):null; return w!=null&&n!=null&&n!==w?R('DIFF',want,t.t,'発行枚数が L/C と違う'):R('MATCH',want,t.t,''); },
+    'fd:ins:assured':(c,want)=>{ const t=insV(c,'assured'); if(t.rc) return INS_RC(want,'assured',t); if(!t.t) return R('DIFF',want,'(なし)','被保険者の記載がない'); const w=U(want).replace(/\(.*?\)/g,'').split(/[^A-Z]+/).filter(x=>x.length>=3).slice(0,2);
+      return w.every(x=>U(t.t).indexOf(x)>=0)?R('MATCH',want,t.t,''):R('DIFF',want,t.t,'被保険者が 基準と違う'); },
+    'fd:ins:currency':(c,want)=>{ const t=insV(c,'claims_currency'), a=insV(c,'currency'), v=(!t.rc&&t.t)?t.t:(!a.rc?a.t:''); if(!v) return (t.rc||a.rc)?INS_RC(want,'currency',t.rc?t:a):R('DIFF',want,'(なし)','通貨の記載がない');
+      /* 支払の通貨が 文言 (「CURRENCY OF THE CREDIT / DRAFT」) なら 金額の通貨で見る */
+      let V=insCurCode(v); if(V==='SAME'||!V){ const av=!a.rc?insCurCode(a.t+' '+(insV(c,'amount').t||'')):''; if(av&&av!=='SAME') return av===U(want)?R('MATCH',want,v,V==='SAME'?'支払の通貨 = 文言 (金額は '+av+')':''):R('DIFF',want,av,'保険の通貨が Invoice と違う'); return V==='SAME'?R('MATCH',want,v,'支払の通貨 = 文言 (L/C の通貨)'):R('READ_CHECK',want,v,'通貨を読めない'); }
+      return V===U(want)?R('MATCH',want,v,''):R('DIFF',want,v,'保険の通貨が Invoice と違う'); },
+    'fd:ins:sailing':(c,want)=>{ const t=insV(c,'sailing'); if(t.rc) return INS_RC(want,'sailing',t); if(!t.t) return R('DIFF',want,'(なし)','Sailing の記載がない'); if(/AS PER B\/?L|AS PER BILL/.test(U(t.t))) return R('NOTATION',want,t.t,'「AS PER B/L」 — B/L の日付で確認');
+      const d=dateKey(t.t); if(!d) return R('READ_CHECK',want,t.t,'Sailing の日付を読めない'); const ref=c.blDate||want; return !ref?R('INFO','',d,'B/L の日付なし'):d===ref?R('MATCH',ref,d,''):R('DIFF',ref,d,'Sailing の日付が B/L ON BOARD と違う'); },
+    'fd:ins:voyage':(c,want)=>{ const f=insV(c,'voyage_from'), t=insV(c,'voyage_to'); if(f.rc||t.rc) return INS_RC(want,'voyage',f.rc?f:t); const pol=c.lc&&c.lc.pol&&c.lc.pol.text||'', pod=c.lc&&c.lc.pod&&c.lc.pod.text||'';
+      if(!f.t&&!t.t) return R('DIFF',want,'(なし)','VOYAGE の記載がない');
+      /* 「**」 の続き (欄の下の 備考に 「**INDONESIA」) も見る — 2 回とも その語がある とき · 国の語はあるが 港の語だけ違う = 注意 (最終仕向地 (内陸) までの保険のことがある) */
+      const rm=(c.insAI.fields.remarks&&c.insAI.fields.remarks.both)||['',''], T=U(f.t+' '+t.t), has=x=>T.indexOf(x)>=0||(/\*/.test(T)&&rm.every(r=>U(r).indexOf(x)>=0));
+      const missF=insWords(pol).filter(x=>!has(x)), missT=insWords(pod).filter(x=>!has(x)), miss=missF.concat(missT), ctry=c.country&&T.indexOf(c.country)>=0;
+      if(!pol&&!pod) return R('INFO','',f.t+' → '+t.t,'L/C の 44E · 44F を読めない'); if(!miss.length) return R('MATCH',want,f.t+' → '+t.t,'');
+      return !missF.length&&ctry&&missT.every(x=>x!==c.country)?R('NOTATION',want,f.t+' → '+t.t,'揚地の港名が L/C と違う (国は同じ · 最終仕向地までの保険?) — 目で確認: '+missT.join(' · ')):R('DIFF',want,f.t+' → '+t.t,'L/C の港の語がない: '+miss.join(' · ')); },
+    'fd:ins:vessel':(c,want)=>{ const t=insV(c,'vessel'); if(t.rc) return INS_RC(want,'vessel',t); const v=S(want), vw=v.split(' '), name=vw.length>1&&/\d/.test(vw[vw.length-1])?vw.slice(0,-1).join(' '):v;
+      if(!v) return R('INFO','',t.t,'Invoice の船名なし'); return !t.t?R('DIFF',v,'(なし)','保険に 船名がない'):AN(t.t).indexOf(AN(name))>=0?R('MATCH',v,t.t,''):R('DIFF',v,t.t,'保険の船名が Invoice と違う'); } };
   /* ── AI (TO BANK 頁の判別) — 指示文 · 結果の読み方 (通信は app 側) ── */
   const AI = {model:'claude-opus-5-5', effort:'low', dpi:150, gray:true, maxTokens:400, price:{in:4, out:20},
     prompt:'This image is ONE scanned page of an export documentary-credit (L/C) document set that a Japanese exporter presents to its bank. Classify ONLY this page.\n'+
@@ -435,7 +522,7 @@ const FD = (function(){
     /* まだ読んでいない頁 (保存本にない頁 · r1 / r2 の片方がない頁) — 全部あれば [] = AI を呼ばない */
     pending:(cache, nPages)=>{ const done=new Set(((cache&&cache.pages)||[]).filter(p=>p&&p.r1&&p.r2).map(p=>p.page)); const out=[]; for(let i=1;i<=nPages;i++) if(!done.has(i)) out.push(i); return out; },
     usable:(cache, sha)=>!!cache&&cache.schema==='fd_ai/1'&&String(cache.sha256||'').toLowerCase()===String(sha||'').toLowerCase() };
-  return {VERSION, TYPES, NEW_TYPES, TITLE, classifyPage, pageLines, pageText, fileTier, TIER_JA, collect, readIvPl, lcBits, countsOf, dateKey, CHECKS, check, tbTally, req47, ST, ST_JA, GROUPS, AI, AI_TYPES, TB_FROM_LC};
+  return {INS_AI, INS_FIELDS, INS_JUDGE, insPick, insMerge, insCurCode, VERSION, TYPES, NEW_TYPES, TITLE, classifyPage, pageLines, pageText, fileTier, TIER_JA, collect, readIvPl, lcBits, countsOf, dateKey, CHECKS, check, tbTally, req47, ST, ST_JA, GROUPS, AI, AI_TYPES, TB_FROM_LC};
 })();
 if(typeof module!=='undefined') module.exports=FD;
 </script>
@@ -492,8 +579,13 @@ async function runOne(){
     const files=[]; for(const f of all){ const t=FD.fileTier(f.name, iv); if(!t.tier) continue; try{ files.push({name:f.name, modified:f.modified, pages:await readPages(await spBytes(f.id))}); }catch(e){ logLine(f.name+' を読めない','warn'); } }
     const tb=all.filter(f=>/TO ?BANK/i.test(f.name)&&/\.pdf$/i.test(f.name)).sort((a,b)=>String(b.modified).localeCompare(String(a.modified)))[0]; let ai=null;
     if(tb){ const h=await sha256hex(await spBytes(tb.id)); ai=await spJson(FD_AI_DIR+'/'+h+'.json'); logLine('TO BANK '+tb.name+(ai?' — AI 判別の保存結果あり':' — AI 判別の保存結果なし (書類ツールで自動実行)'),ai?'ok':'warn'); }
+    /* v0.2 (K3): 保険証券 AI の保存本 (書類ツール · 保険のファイル → 白紙なら TO BANK) · (K4): FD送付日 = PORTAL clearance_status.json (読むだけ) */
+    let insAi=null; for(const noPol of [false,true]){ const p=FD.insPick(all, ai, tb?tb.name:null, {noPol}); const pf=p&&all.find(f=>f.name===p.file); if(!pf) continue;
+      const c=await spJson(FD.INS_AI.cachePath(await sha256hex(await spBytes(pf.id)))); const mg=FD.insMerge(c); if(c&&!(mg&&mg.blank)){ insAi=c; break; } if(!c) break; }
+    logLine('保険証券 AI '+(insAi?'保存結果あり ('+insAi.by+' p.'+(insAi.pages||[]).join(',')+')':'保存結果なし (書類ツールで自動実行)'), insAi?'ok':'warn');
+    const cs=await spJson('古紙/-. AI 活用/PORTAL/clearance_status.json'), fdSent=(cs&&cs.shipping&&cs.shipping[iv]&&cs.shipping[iv].fd_date)||'';
     const cpm=await spJson(MASTER_DIR+'/master_checkpoint.json'), CPX=cpm?A.cpPrepare(cpm.items||[],[],{admins:new Set()}):null;
-    const res=FD.check({iv, files, lc, lcText, meta, ai, toBank:tb?{name:tb.name, modified:tb.modified}:null, today:new Date().toISOString().slice(0,10), cp:CPX});
+    const res=FD.check({iv, files, lc, lcText, meta, ai, toBank:tb?{name:tb.name, modified:tb.modified}:null, today:new Date().toISOString().slice(0,10), cp:CPX, insAi, fdSent});
     render(res); $('fbSt').textContent='終わり — 試験の相違 '+res.trialDiff;
   }catch(e){ $('fbSt').textContent='エラー: '+e.message; logLine(e.message,'danger'); }
   $('fbRun').disabled=false;
@@ -508,7 +600,7 @@ function render(res){
 function startPage(){ $('fbMain').style.display=''; $('fbRun').onclick=runOne; const dot=LEENAI.auth.status; logLine('接続: Dataverse '+dot.dataverse+' / Graph '+dot.graph); }
 window.FBAPP = {runOne, render, loadAcl};
 LEENAI.init({
-  sys:'D-00', name:'FD 確認試験', version:'0.1', date:'2026-11-25',
+  sys:'D-00', name:'FD 確認試験', version:'0.2', date:'2026-11-25',
   desc:'FD の部品 PDF (文字) を L/C 保管所の要件と照合 · TO BANK は AI の頁判別の保存結果 (枚数 · 原本/写し · 署名) · 新しい確認は全部 試験 (読むだけ · AI なし)',
   graphScopes:['Sites.ReadWrite.All'],
   redirectUri:'https://mhlee205.github.io/CONTRACT_SEND/fd_bench.html',

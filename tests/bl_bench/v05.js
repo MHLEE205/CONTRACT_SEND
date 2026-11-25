@@ -19,5 +19,5 @@ ok(res.CP.every(i=>i.trial&&i.status==='INFO'),'試験 = INFO (trial)');
 ok(J(res.A)===J(JSON.parse(before).A),'A (照合 項目) 변화 0');
 const r2={A:[],B:[],C:[]}; BL.applyCp(r2, CPX, {lc, meta:{pay:'LC'}, F:{pod:{conf:'SURE', text:'OTHER HARBOUR'}}, text:'LCL CFS/CFS'});
 ok(r2.CP.find(i=>i.cp==='CP-A80').would==='DIFF'&&r2.CP.find(i=>i.cp==='CP-A81').would==='DIFF','揚地 다름 · LCL = 相違 (試験)');
-ok(/fd_bench|text:L\.map/.test(BLH)&&BL.VERSION==='0.5','bl-core v0.5 · Draft 전체 글자를 cpCtx 에');
+ok(/fd_bench|text:L\.map/.test(BLH)&&BL.VERSION>='0.5','bl-core v0.5+ · Draft 전체 글자를 cpCtx 에');
 console.log('v05 pass '+pass+' fail '+fail); process.exit(fail?1:0);

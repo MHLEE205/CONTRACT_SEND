@@ -1,4 +1,4 @@
-/* fd_bench v0.1 시험 (지시서 THOR_15 ①-1 ~ ①-7) — 가짜 데이터 · 가짜 거래처 (SAMPLE · TEST · 2699) · 네트워크 없음 · AI 0
+/* fd_bench v0.2 시험 (지시서 THOR_15 ①-1 ~ ①-7 · v0.2 THOR_17 E-K3 보험 AI · E-K4 FD送付日) — 가짜 데이터 · 가짜 거래처 (SAMPLE · TEST · 2699) · 네트워크 없음 · AI 0
    쪽 판별 (v3 + 새 종류 6 · 手形 종류 없음) · 읽는 곳 순서 (FD_DATA > 文字版 > DRAFT DOC > 단품 > 通関 [通関版] · FD.pdf · TO BANK 안 읽음) ·
    묶음별 판정 (一致 · 相違 · 読取確認 · 対象外) · 試験 = trial (전체 판정 영향 0) · 有効 만 판정 · 마스터에 없는 줄 = 실행 안 함 ·
    TO BANK AI (2 회 같음/다름 · THIRD ORIGINAL = TRIPLICATE · 1 쪽째만 셈 · Sea Waybill 사본 · Free Time 증명) · 저장본 다시 안 읽음 · 화면 한글 0 · 버전 · 푸터
@@ -36,8 +36,8 @@ const run=(o)=>FD.check(Object.assign({iv:IV, files:files(o), lc:LC(o&&o.lc), lc
 const it=(r,k)=>r.items.find(i=>i.key===k)||{};
 const W=i=>i.trial?i.would:i.status;
 
-sect('기본 (버전 0.1 · LEENAI.init 1곳 · 푸터 · confirm/alert 0 · 한글 0 · 쓰기 0)', ()=>{
-  eq(FD.VERSION,'0.1','fd-core VERSION'); eq((HTML.match(/version:'0\.1'/g)||[]).length,1,'LEENAI.init version 1곳');
+sect('기본 (버전 0.2 · LEENAI.init 1곳 · 푸터 · confirm/alert 0 · 한글 0 · 쓰기 0)', ()=>{
+  eq(FD.VERSION,'0.2','fd-core VERSION'); eq((HTML.match(/version:'0\.2'/g)||[]).length,1,'LEENAI.init version 1곳');
   ok(/✦ Powered by LEENAI Automation System/.test(HTML),'푸터'); ok(!/\b(confirm|alert)\(/.test(HTML),'confirm/alert 0');
   ok(!/[가-힣]/.test(HTML),'화면 · 코드 한글 0'); ok(/書き込み禁止/.test(HTML)&&!/method:'(PUT|POST|PATCH|DELETE)'/.test(HTML),'Graph 쓰기 0 (GET 만)');
   ok(!/ghp_|github_pat_|sk-ant|client_secret|AKIA/.test(HTML),'보안 grep 0');
@@ -75,7 +75,7 @@ sect('묶음별 판정 (一致 · 相違 · 読取確認 · 対象外)', ()=>{
   eq(W(it(run({lc:{latest_shipment:'2026-11-01'}}),'fd:bl:onboard')),'DIFF','ON BOARD > 44C = 相違');
   ['fd:ins:amount','fd:ins:cond','fd:ins:claims'].forEach(k=>eq(W(it(r,k)),'READ_CHECK',k+' 보험 표면 글자 없음 = 読取確認'));
   eq(W(it(r,'fd:pl:mark')),'NA','タイ 아님 = 対象外'); eq(W(it(r,'fd:co:issuer')),'NA','46A 에 C/O 없음 = 対象外');
-  eq(W(it(run({ctx:{today:'2026-11-10'}}),'fd:due:present')),'INFO','提出期限 — TO BANK 없음 = 参考 (期限 표시)'); eq(W(it(run({ctx:{today:'2026-11-28'}}),'fd:due:present')),'DIFF','提出期限 지남 (TO BANK 없음) = 相違');
+  eq(W(it(run({ctx:{today:'2026-11-10'}}),'fd:due:present')),'INFO','提出期限 — FD送付日 없음 = 参考 (期限 표시)'); eq(W(it(run({ctx:{today:'2026-11-28'}}),'fd:due:present')),'INFO','v0.2 (K4): 지나도 FD送付日 없음 = 参考 (注意 아님)');
   ok(/2026-11-26/.test(it(r,'fd:due:present').expected),'提出期限 = 船積 + 21 日',it(r,'fd:due:present'));
   const t=run({extra:[{name:'通関/'+IV+'_IV.pdf', pages:[]}]}); ok(t.items.length>=44,'FD 항목 44 + TO BANK',t.items.length);
 });
@@ -110,6 +110,36 @@ sect('TO BANK AI (2 회 같음/다름 · THIRD ORIGINAL · 1 쪽째 · Sea Waybi
   ok(/claude-opus-5-5/.test(FD.AI.model)&&FD.AI.dpi===150&&FD.AI.gray&&FD.AI.effort==='low','AI 설정 (opus 5.5 · 150 dpi 회색 · effort low)');
   ok(/doc_type/.test(FD.AI.prompt)&&!/wording|quote/i.test(FD.AI.prompt.replace(/doc_type|mark|signed|first/g,'')),'AI 는 쪽 판별 (종류 · 원본/사본 · 서명) 만 — 문구 판정 안 함');
   eq(FD.AI.parse('x {"doc_type":"iv","mark":"original","signed":1,"first":false} y'),{doc_type:'IV',mark:'ORIGINAL',signed:true,first:false},'AI 답 읽기');
+});
+sect('v0.2 — K4 提出期限 = FD送付日 · K3 보험증권 AI (2 회 같은 값 · 코드 판정 · 읽는 쪽 · 저장본)', ()=>{
+  eq([W(it(run({ctx:{fdSent:'2026-11-20'}}),'fd:due:present')), W(it(run({ctx:{fdSent:'2026-11-27'}}),'fd:due:present')), W(it(run({ctx:{fdSent:'2026-11-26'}}),'fd:due:present'))],['MATCH','DIFF','MATCH'],'FD送付日 ≤ 船積 + 21 日 = 一致 · 넘으면 相違 (그날까지 一致)');
+  eq(W(it(run({ctx:{fdSent:'2026-12-21'}, lc:{expiry_date:'2026-11-20'}}),'fd:due:present')),'DIFF','有効期限이 더 빠르면 그날이 기한');
+  eq(W(it(run({ctx:{fdSent:'', toBank:{name:'x', modified:'2026-12-30T00:00:00Z'}}}),'fd:due:present')),'INFO','TO BANK 파일 날짜는 안 씀 (FD送付日 없음 = 参考)');
+  const rd={is_insurance:true, currency:'USD', amount:'26,940.49', conditions:'INSTITUTE CARGO CLAUSES (A) 1/1/82', exclusions:'', vessel:'SAMPLE STAR 2699S', sailing:'ON OR ABOUT NOV. 05, 2026', voyage_from:'TOKYO, JAPAN', voyage_to:'SAMPLE PORT, SAMPLELAND',
+    claims_payable_at:'SAMPLELAND', claims_currency:'USD', agent:'SAMPLE SURVEY CO., SAMPLE CITY, SAMPLELAND', assured:'SAMPLE EXPORT CORPORATION', originals:'ISSUED IN 2 ORIGINALS'};
+  const ins=(a,b)=>({schema:'fd_ins_ai/1', sha256:'0'.repeat(64), by:'TB_AI', pages:[12], reads:[Object.assign({},rd,a||{}),Object.assign({},rd,b||a||{})]});
+  const R0=run({ctx:{insAi:ins()}}), K=['amount','cond','claims','originals','assured','currency','sailing','voyage','vessel'];
+  eq(K.map(k=>W(it(R0,'fd:ins:'+k))),K.map(()=>'MATCH'),'보험 AI 2 회 같음 → 9 줄 一致 (코드 판정)');
+  eq(W(it(run(),'fd:ins:amount')),'READ_CHECK','AI 없음 = 지금처럼 読取確認');
+  eq(W(it(run({ctx:{insAi:ins({amount:'20,000.00'})}}),'fd:ins:amount')),'DIFF','금액 < Invoice × 110 % = 相違');
+  eq(W(it(run({ctx:{insAi:ins({amount:'26,940.49'},{amount:'28,940.49'})}}),'fd:ins:amount')),'READ_CHECK','2 회 다름 = 読取確認');
+  eq(W(it(run({ctx:{insAi:ins({exclusions:'EXCLUDING RUST'})}}),'fd:ins:cond')),'NOTATION','제외 특약 = 注意');
+  eq(W(it(run({ctx:{insAi:ins({conditions:'INSTITUTE CARGO CLAUSES (C)'})}}),'fd:ins:cond')),'DIFF','(A) 아님 = 相違');
+  eq(W(it(run({ctx:{insAi:ins({sailing:'ON OR ABOUT NOV. 07, 2026'})}}),'fd:ins:sailing')),'DIFF','Sailing ≠ B/L ON BOARD = 相違');
+  eq(W(it(run({ctx:{insAi:ins({sailing:'AS PER B/L'})}}),'fd:ins:sailing')),'NOTATION','AS PER B/L = 注意');
+  eq(W(it(run({ctx:{insAi:ins({vessel:'OTHER SHIP'})}}),'fd:ins:vessel')),'DIFF','선명 다름 = 相違');
+  eq(W(it(run({ctx:{insAi:ins({originals:''})}}),'fd:ins:originals')),'DIFF','ORIGINALS 기재 없음 = 相違');
+  eq(W(it(run({ctx:{insAi:ins({claims_payable_at:'TOKYO'})}}),'fd:ins:claims')),'DIFF','支払地 다름 = 相違');
+  eq(W(it(run({ctx:{insAi:ins({voyage_to:'OTHER PORT'})}}),'fd:ins:voyage')),'DIFF','VOYAGE 에 44F 없음 = 相違');
+  eq(W(it(run({ctx:{insAi:{schema:'fd_ins_ai/1', pages:[3], reads:[{is_insurance:false},{is_insurance:false}]}}}),'fd:ins:amount')),'READ_CHECK','보험 쪽이 아님 = 読取確認');
+  ok(/保険 AI \(TB_AI p\.12\)/.test(it(R0,'fd:ins:amount').detail),'detail 에 읽은 쪽',it(R0,'fd:ins:amount').detail);
+  eq(W(it(R0,'fd:ins:count')),'READ_CHECK','枚数 = TO BANK AI 그대로 (보험 AI 안 씀)');
+  const P=(page,t)=>({page, r1:{doc_type:t}, r2:{doc_type:t}});
+  eq(FD.insPick([{name:'X_1POL.pdf'}],null,'TB.pdf'),{by:'POL',file:'X_1POL.pdf',pages:[1,2]},'읽는 쪽 ① 보험 파일 (_1POL)');
+  eq(FD.insPick([],{pages:[P(11,'BL'),P(12,'INS'),P(13,'INS'),P(15,'INS')]},'TB.pdf'),{by:'TB_AI',file:'TB.pdf',pages:[12,13]},'② TO BANK AI 의 INS 첫 쪽 + 이어진 1 쪽');
+  eq(FD.insPick([],null,'TB.pdf'),{by:'LOCATE',file:'TB.pdf',pages:null},'③ 없으면 축소 그림으로 찾기');
+  ok(FD.INS_AI.usable({schema:'fd_ins_ai/1',sha256:'AB'+'0'.repeat(62),reads:[{},{}]},'ab'+'0'.repeat(62))&&!FD.INS_AI.usable({schema:'fd_ins_ai/1',sha256:'AB',reads:[{}]},'ab'),'저장본 = 같은 파일 다시 안 읽음');
+  ok(/claude-opus-5-5/.test(FD.INS_AI.model)&&FD.INS_AI.maxPages===2&&/\.ins\.json$/.test(FD.INS_AI.cachePath('ab')),'설정 (opus 5.5 · 1 ~ 2 쪽 · .ins.json)');
 });
 sect('가짜 데이터 (시험 파일에 실제 거래 값 0)', ()=>{
   const me=fs.readFileSync(__filename,'utf8'); ok(!/\b(LRS-\d{4}[A-Z]{1,3}\d|N[A-Z]{1,3}\d{4}-\d{2})\b/.test(me.replace(/NTST2699-01/g,'')),'실제 모양의 계약 · Invoice 번호 0');
