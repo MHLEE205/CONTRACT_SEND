@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link id="leenaiFavicon" rel="icon">
+<link rel="stylesheet" href="https://mhlee205.github.io/LEENAI_COMMON/v1/leenai-common.css">
+<script src="https://mhlee205.github.io/LEENAI_COMMON/v1/leenai-common.js"></script>
+<script>if(!window.LEENAI){document.addEventListener('DOMContentLoaded',function(){document.body.innerHTML='<div style="padding:40px;font-family:sans-serif">共通ファイルの読み込みに失敗しました。ページを再読み込みしてください。</div>';});}</script>
+<title>FD 確認試験</title>
+<style>
+.fb-card{background:var(--read);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-bottom:14px}
+.fb-card h3{margin:0 0 10px;font-size:14px}
+.fb-note{font-size:12px;color:var(--text2);line-height:1.7;margin:4px 0 8px}
+.fb-row{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:6px 0}
+.fb-in{background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-size:12.5px;font-family:var(--mono)}
+.fb-btn{background:var(--accent-btn,var(--accent));color:#fff;border:0;border-radius:6px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer}
+.fb-btn:disabled{opacity:.45;cursor:not-allowed}
+.fb-t{border-collapse:collapse;width:100%;font-size:12px;margin-top:6px;table-layout:fixed}
+.fb-t th,.fb-t td{border:1px solid var(--border);padding:4px 6px;text-align:left;vertical-align:top;word-break:break-word}
+.fb-t th{background:var(--surface2)}
+.fb-t tr.g td{background:var(--surface2);font-weight:700}
+.fb-st{font-weight:700;white-space:nowrap}
+.fb-MATCH{color:var(--ok)}.fb-DIFF{color:var(--danger)}.fb-NOTATION,.fb-READ_CHECK{color:var(--warn)}.fb-INFO,.fb-NA{color:var(--text2)}
+.fb-trial{display:inline-block;font-size:10.5px;border:1px solid var(--border);border-radius:6px;padding:0 5px;margin-left:4px;color:var(--text2)}
+.fb-src{font-size:11px;color:var(--text2)}
+#fbLog{font-family:var(--mono);font-size:11.5px;max-height:200px;overflow:auto;line-height:1.6}
+#fbLog .ok{color:var(--ok)}#fbLog .warn{color:var(--warn)}#fbLog .danger{color:var(--danger)}
+.fb-foot{text-align:center;font-size:11px;color:var(--text2);padding:18px 0 28px}
+</style>
+</head>
+<body>
+<div id="app" style="display:none">
+<main id="fbMain" style="display:none;max-width:1300px;margin:0 auto;padding:20px 16px">
+  <div class="fb-card">
+    <h3>FD 確認試験 — FD の部品 PDF (文字) ↔ L/C 保管所 · TO BANK (AI の頁判別の保存結果) (読むだけ)</h3>
+    <div class="fb-note">読む所: <code>{IV}_FD_DATA.pdf</code> &gt; <code>{IV}_.pdf</code> (FD 文字版) &gt; <code>DRAFT DOC</code> (最新 REV) &gt; 単品 (IV,PL · SWB · DRAFT · POL · 証明書) &gt; <code>通関/</code> ([通関版])。
+    FD.pdf · TO BANK はスキャンなので 文言の確認には使いません。TO BANK は AI の頁判別 (枚数 · 原本/写し · 署名) の保存結果 (<code>ACL_bench/_fd_ai/</code>) があれば使います — この画面は AI を呼びません (費用 0)。
+    新しい確認は 全部 <b>試験</b> (判定に入れない)。COMPASS · SharePoint は読むだけ · 書き込み 0。</div>
+    <div class="fb-row"><label class="fb-note" style="margin:0">Invoice <input id="fbInv" class="fb-in" style="width:140px" placeholder="NXX0000-00"></label>
+      <button id="fbRun" class="fb-btn">確認 実行</button><span id="fbSt" class="fb-note" style="margin:0"></span></div>
+    <div id="fbOut"></div>
+  </div>
+  <div class="fb-card"><h3>記録</h3><div id="fbLog"></div></div>
+  <div class="fb-foot">✦ Powered by LEENAI Automation System</div>
+</main>
+</div>
+<script id="fd-core">
+const FD = (function(){
+  'use strict';
+  /* ══════════ fd-core v0.1 — FD 確認 (銀行に出す前に FD の部品 PDF の文字を L/C の要件と照合) ══════════
+     指示書 (2026-11-25) THOR_15 D00 FD確認 fd_bench v0.1 · 設計書 D-00_FD確認機能設計_CP候補整理_v0.2 (形さん F1 · F2 · F3)
+     ・読む所 (優先順): {IV}_FD_DATA.pdf > {IV}_.pdf (FD 文字版) > DRAFT DOC (最新 REV) > 単品 (IV,PL · SWB · DRAFT · POL · 証明書) > 通関/ ([通関版])
+       FD.pdf · TO BANK はスキャン → 文言の確認には使わない (TO BANK は AI で 枚数 · 原本/写し · 署名 だけ)
+     ・頁の種類 = コード (トール 13 の v3 の規則 + 新しい種類 6) · 手形 の種類はない (形さん: 手形は銀行のサイトで作る — 対象外)
+     ・判定の言葉 = ACL エンジンと同じ (MATCH 一致 · NOTATION 表記差/注意 · DIFF 相違 · READ_CHECK 読取確認 · INFO 参考 · NA 対象外)
+     ・チェックポイント: 1 項目 = master_checkpoint の 1 行 (engine_key fd:…) · 行が 有効 のときだけ判定に入る · 試験 = trial:true (判定に入れない)
+       マスターを渡さない → 全部 試験 扱い (判定 0) · マスターにない項目 → 実行しない
+     ・純粋関数 (通信 0) — 書類ツール (DOC_TOOL) がコミット + sha256 で固定して使う */
+  const VERSION = '0.1';
+  const S = v => v==null?'':String(v);
+  const U = t => S(t).normalize('NFKC').toUpperCase().replace(/\s+/g,' ').trim();
+  const AN = t => U(t).replace(/[^A-Z0-9]/g,'');
+  const DIG = t => S(t).replace(/\D/g,'');
+  const despace = t => { const s=S(t).trim(); return s&&s.split(' ').every(w=>w.length<=1)?s.replace(/ /g,''):s.replace(/b(\S) (?=\Sb)/g,(m,a)=>a); };   // L/C 判読の 「W A S T E」 → WASTE
+  const CJK0 = /[\u3040-\u30fa\u30fc-\u30ff\u3400-\u9fff\uac00-\ud7af]/;   // \u300c\u30fb\u300d (30FB) \u306f \u8a18\u53f7\u3068\u3057\u3066\u5916\u3059
+  const CJK = {test:l=>CJK0.test(l)&&!/Powered by LEENAI/i.test(l)};       // D-03 \u306e \u4e0b\u306e\u884c (\u2726 Powered by \u2026 \u7d71\u5408\u66f8\u985e\u30c4\u30fc\u30eb) \u306f \u66f8\u985e\u306e\u6587\u3067\u306a\u3044
+  /* ── 頁 → 行 (pdf.js の items {s,x,y,w} を y でまとめる · 上から) ── */
+  function pageLines(pg){
+    if(!pg) return []; if(Array.isArray(pg.lines)) return pg.lines;
+    const L=[]; (pg.items||[]).slice().sort((a,b)=>(b.y-a.y)||(a.x-b.x)).forEach(it=>{ const l=L.find(q=>Math.abs(q.y-it.y)<=2.5); if(l) l.p.push(it); else L.push({y:it.y,p:[it]}); });
+    /* 1 字ずつの items (「C O M M E R C I A L」 の様式) は 間が狭ければ つなぐ */
+    return L.map(l=>{ const P=l.p.sort((a,b)=>a.x-b.x); let o=''; P.forEach((p,i)=>{ if(i){ const q=P[i-1], gap=p.x-(q.x+(q.w||0)); o+=(q.w&&S(q.s).trim().length===1&&S(p.s).trim().length===1&&gap<1.2)?'':' '; } o+=p.s; }); return o.replace(/\s+/g,' ').trim(); }).filter(Boolean);
+  }
+  const pageText = pg => pageLines(pg).join('\n');
+  /* ── 頁の種類 (コード) — 頭 500 字で 一番先に出る題名 · 題名なし の B/L 本体 · v3 + 新しい種類 6 ── */
+  const TYPES = {IV:'Invoice', PL:'Packing List', CO:'原産地証明', QQ:'品質数量証明', BENE:'受益者証明', INS:'保険証券', RR:'放射線証明', LABEL:'セキュリティラベル',
+    LABEL_TERMS:'ラベル約款', PIR:'検査報告', PIR_LETTER:'COTECNA 配属レター', EXP_STMT:'輸出者声明', CARRIER_CERT:'船会社証明', CERT_GEN:'一般証明書', SHIP_ADVICE:'船積通知の写し',
+    SI:'S/I の写し', BL:'B/L', CLP:'コンテナ積付表', FRT:'運賃請求', COVER:'銀行宛通信欄', MAIL:'メール', UNKNOWN:'不明', SCAN:'スキャン'};
+  const NEW_TYPES = ['SI','PIR_LETTER','LABEL_TERMS','CARRIER_CERT','SHIP_ADVICE','CERT_GEN'];
+  const TITLE = [
+    ['LABEL', /EUCP VERSION|SGSIN\d{6}/], ['PIR', /COTECNA|COT=CNA|VANNING/], ['CARRIER_CERT', /TRANSPORT STATEMENT/], ['COVER', /銀行宛通信欄|E-TRADE受付番号/],
+    ['IV', /COMMERCIAL INVOICE/], ['PL', /PACKING LIST|PACKING\/WEIGHT LIST/], ['CO', /CERTIFICATE OF ORIGIN/],
+    ['QQ', /CERTIFICATE OF QUALITY ?(AND|&) ?QUANTITY|QUALITY ?(AND|&) ?QUANTITY CERTIFICATE|CERTIFICATE OF (QUALITY|QUANTITY|WEIGHT)/],
+    ['BENE', /BENEFICIARY'?S?'? ?(CERTIFICATE|CERTIFICATION|STATEMENT)/], ['INS', /MARINE CARGO (POLICY|INSURANCE)|INSURANCE POLICY|CERTIFICATE OF INSURANCE|INSURANCE CERTIFICATE|MARINE INSURANCE/],
+    ['RR', /RADIATION|RADIOACTIV/], ['LABEL', /SECURITY LABEL|LABEL ISSUE DATE/], ['PIR', /INSPECTION REPORT|ASSIGNMENT LETTER|LAPORAN SURVEYOR|PRE-?SHIPMENT INSPECTION/],
+    ['EXP_STMT', /EXPORTER'?S STATEMENT/], ['CARRIER_CERT', /FREE ?TIME|VESSEL CERTIFICATE|SHIPPING CERTIFICATE|CERTIFICATE OF (VESSEL|REGISTRY|FLAG)|CARRIER.?S CERTIFICATE/],
+    ['CLP', /CONTAINER LOADING PLAN/], ['SI', /SHIPPING INSTRUCTION/],
+    ['BL', /BILL OF LADING|SEA ?WAY ?BILL|NON-NEGOTIABLE WAYBILL|WAYBILL|B\/L NO\b|B\/L:|CONTINUED (FROM|ON) (PREVIOUS|NEXT) SHEET|OCEAN VESSEL|DOCK RECEIPT/],
+    ['CERT_GEN', /TO WHOM IT MAY CONCERN|WE HEREBY CERTIFY|THIS IS TO CERTIFY|CERTIFICATE/], ['FRT', /DEBIT NOTE|(?<!適格)請求書(?!発行)|FREIGHT MEMO|EXPORT INVOICE/],
+    ['MAIL', /\bFROM:|\bSENT:|BEST REGARDS|件名/]
+  ];
+  const CARRIER_HEAD = /OCEAN NETWORK EXPRESS|\bONE\b|CMA CGM|MAERSK|HAPAG|EVERGREEN|YANG ?MING|COSCO|OOCL|WAN HAI|PAN OCEAN|SINOKOR|HEUNG-?A|KMTC|NAMSUNG|SITC|T\.?S\.? LINES|\bRCL\b|JINJIANG|INTERASIA|AS (THE )?CARRIER|AS AGENTS?/;
+  const SQZ = {};
+  function classifyPage(text, fileName){
+    const t=S(text); if(t.replace(/\s/g,'').length<50) return {type:'SCAN', how:'scan'};
+    const h=U(t).slice(0,500), squeeze=h.replace(/ /g,''); let best=null, sq=null;
+    TITLE.forEach(([k,r])=>{ const m=h.match(r); if(m&&(!best||m.index<best.i)) best={k,i:m.index}; });
+    /* pdf.js が 語を切ることがある (「PACKI NG LI ST」 「CERTI FI CA TE」) → 空白を外した頭 500 字でも探す (題名の語の 空白も外して) · 空白ありより 前に見つかれば そちら */
+    TITLE.filter(([k])=>k!=='MAIL').forEach(([k,r])=>{ const r2=SQZ[k+r.source]||(SQZ[k+r.source]=new RegExp(r.source.replace(/ \?/g,'').replace(/ /g,'').replace(/\\b/g,''))); const m=squeeze.match(r2); if(m&&(!sq||m.index<sq.i)) sq={k,i:Math.round(m.index*1.15)}; });
+    if(sq&&(!best||(sq.k!==best.k&&sq.i+20<best.i))) best=sq;
+    /* セキュリティラベルの ファイル (SecurityLabel …) の頁は COTECNA の語があっても ラベル */
+    if(best&&best.k==='PIR'&&/SecurityLabel/i.test(S(fileName))) best={k:'LABEL', i:best.i};
+    if(best){ let k=best.k;
+      /* 新しい種類 (トール 13 の調査で 判別できなかった実例 から) */
+      if(k==='PIR'&&/ASSIGNMENT LETTER|DEAR\b[\s\S]*BEST REGARDS/.test(h)) k='PIR_LETTER';
+      if(k==='CERT_GEN'&&/TO WHOM IT MAY CONCERN/.test(h)&&CARRIER_HEAD.test(h)) k='CARRIER_CERT';
+      if(k==='MAIL'&&/SHIPPING ADVICE|SHIPMENT ADVICE|ADVICE OF SHIPMENT|PARTICULARS OF SHIPMENT/.test(U(t))) k='SHIP_ADVICE';
+      return {type:k, how:best.i<=200?'title':'late'}; }
+    if(/EUCP|DIGITALRECORD|RELIEVE|SGS/.test(squeeze)&&/TERMS|CONDITIONS|LIABILITY|RELIEVE/.test(squeeze)) return {type:'LABEL_TERMS', how:'body'};
+    if(/FCL\/FCL|SHIPPER.S (PACK )?LOAD|AS CARRIER|SWB-NO|CONTAINER NO\. AND SEAL NO|MTQ KGM|SAID TO CONTAIN/.test(U(t))) return {type:'BL', how:'body'};
+    if(/SHIPPER.{0,400}CONSIGNEE.{0,400}NOTIFY/.test(h)) return /B\/L NO|BILL OF LADING|WAYBILL|AS CARRIER|OCEAN VESSEL/.test(U(t))?{type:'BL', how:'body'}:{type:'SI', how:'body'};
+    return {type:'UNKNOWN', how:'none'};
+  }
+  /* ── ファイル → 読む所の段 (1 が先) · 使わないファイル ── */
+  const TIER_JA = {1:'FD_DATA', 2:'文字版', 3:'DRAFT DOC', 4:'単品', 5:'通関版'};
+  const SKIP_FILE = /_FD(?![_ ]?DATA)[^\/]*\.pdf$|TO ?BANK|PHOTO|搬入票|_ED\.|_ED\s|DHL|FRT ?MEMO|ACL|仮ACL|WEIGHT LIST|\.(xlsx?|zip|json|msg|eml|png|jpe?g)$/i;
+  const LABEL_FILE = /SecurityLabel|X\.13\.|検査書類|ASSIGNMENT|\bPIR\b/i;
+  function fileTier(name, iv){
+    const n=S(name), base=n.split('/').pop(), ivx=S(iv).toUpperCase();
+    if(!/\.pdf$/i.test(n)) return {tier:0, why:'PDF でない'};
+    if(/_FD[_ ]?DATA\.pdf$/i.test(base)) return {tier:1};
+    if(SKIP_FILE.test(base)) return {tier:0, why:/TO ?BANK/i.test(base)?'TO BANK (スキャン · AI で枚数だけ)':/_FD/i.test(base)?'FD.pdf (スキャン)':'FD の部品でない'};
+    if(/^通関\//.test(n)||/通関/.test(n)) return {tier:5};
+    if(ivx&&new RegExp('^'+ivx.replace(/[-]/g,'\\-')+'_\\s*(REV\\s*\\d*)?\\s*\\.pdf$','i').test(base)) return {tier:2};
+    if(/DRA?F?A?T ?D[O0]C|DARFT DOC/i.test(base)) return {tier:3};
+    return {tier:4};
+  }
+  const revOf = n => { const m=S(n).match(/REV\s*(\d*)/i); return m?(m[1]?+m[1]:1):0; };
+  /* files = [{name, pages:[{page, items|lines}], modified}] → 頁 (種類つき) を 段 → REV 新しい順 */
+  function collect(files, iv){
+    const out=[], used=[];
+    (files||[]).forEach(f=>{ const t=fileTier(f.name, iv); used.push({name:f.name, tier:t.tier, why:t.why||''}); if(!t.tier||!Array.isArray(f.pages)) return;
+      f.pages.forEach(pg=>{ const lines=pageLines(pg), text=lines.join('\n'), c=classifyPage(text, f.name); out.push({file:f.name, tier:t.tier, rev:revOf(f.name), modified:f.modified||'', page:pg.page, lines, text, type:c.type, how:c.how}); }); });
+    out.sort((a,b)=>(a.tier-b.tier)||(b.rev-a.rev)||S(b.modified).localeCompare(S(a.modified))||a.file.localeCompare(b.file)||(a.page-b.page));
+    const docs={};
+    out.forEach(p=>{ if(p.type==='SCAN'||p.type==='UNKNOWN') return; if(LABEL_FILE.test(p.file)&&!/^(LABEL|LABEL_TERMS|PIR|PIR_LETTER)$/.test(p.type)) return;   // ラベルを貼った Invoice の写し (SecurityLabel · 検査書類) は 文字が重なる → Invoice · P/L の元にしない
+      const d=docs[p.type];
+      if(!d){ docs[p.type]={file:p.file, tier:p.tier, pages:[p]}; return; }
+      if(d.file===p.file) d.pages.push(p); });   // その種類は 一番よい段の 1 ファイルだけ
+    Object.values(docs).forEach(d=>{ d.text=d.pages.map(p=>p.text).join('\n'); d.U=U(d.text); d.src=TIER_JA[d.tier]+(d.tier===5?' [通関版]':''); });
+    return {pages:out, docs, files:used};
+  }
+  /* ── 値の読み取り ── */
+  const MON = {JAN:1,FEB:2,MAR:3,APR:4,MAY:5,JUN:6,JUL:7,AUG:8,SEP:9,SEPT:9,OCT:10,NOV:11,DEC:12};
+  const pad = n => String(n).padStart(2,'0');
+  function dateKey(s){ const t=U(s).replace(/\b(2) (0\d\d)\b/g,'$1$2').replace(/(\d) ?\/ ?(\d)/g,'$1/$2'); let m;   // 「2 026/02/18」 (字の間の空白) も読む
+    if((m=t.match(/(20\d\d)[\/\-.](\d{1,2})[\/\-.](\d{1,2})/))) return m[1]+'-'+pad(m[2])+'-'+pad(m[3]);
+    if((m=t.match(/\b(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEPT?|OCT|NOV|DEC)[A-Z]*\.? ?(\d{1,2}),? ?(20\d\d)/))) return m[3]+'-'+pad(MON[m[1]])+'-'+pad(m[2]);
+    if((m=t.match(/\b(\d{1,2})(?:ST|ND|RD|TH)? ?(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEPT?|OCT|NOV|DEC)[A-Z]*\.?,? ?(20\d\d)/))) return m[3]+'-'+pad(MON[m[2]])+'-'+pad(m[1]);
+    return ''; }
+  const days = (a,b) => { if(!a||!b) return null; return Math.round((Date.parse(b+'T00:00:00Z')-Date.parse(a+'T00:00:00Z'))/864e5); };
+  const addDays = (a,n) => { const d=new Date(Date.parse(a+'T00:00:00Z')+n*864e5); return d.toISOString().slice(0,10); };
+  const num = s => { const m=S(s).replace(/,/g,'').match(/-?\d+(?:\.\d+)?/); return m?+m[0]:null; };
+  const lineAfter = (lines, re) => { for(const l of lines){ const m=U(l).match(re); if(m) return U(l).slice(m.index+m[0].length).trim(); } return ''; };
+  /* Invoice · P/L (D-03 の様式) */
+  function readIvPl(d){
+    if(!d) return null; const L=d.pages[0].lines, T=d.U, o={};
+    o.date=dateKey(lineAfter(L,/\bDATE\b/)); o.invoice=(T.match(/INVOICE NO\.?\s*:?\s*([A-Z]{1,4}\d{4}-\d{2})/)||[])[1]||'';
+    o.vessel=lineAfter(L,/SHIPPED PER/).replace(/\s+(ETA|ON OR ABOUT).*$/,'');
+    o.from=lineAfter(L,/^FROM\b|\bFROM\b(?=\s+[A-Z])/).replace(/^:/,'').trim(); o.to=lineAfter(L,/^TO\b/).replace(/^:/,'').trim();
+    o.onboard=dateKey(lineAfter(L,/ON OR ABOUT/));
+    o.trade=lineAfter(L,/TRADE TERM/); o.payment=(T.match(/PAYMENT TERM\s+(.{5,120}?)\s+(TEL|INVOICE VALUE|[A-Z ]{3,}SDN|BUYER)/)||[])[1]||lineAfter(L,/PAYMENT TERM/);
+    if(/INVOICE VALUE/.test(T)&&!/INVOICE VALUE/.test(o.payment)&&/FOR\s+\d+\s*(PCT|PERCENT|%)\s*OF$/.test(o.payment)) o.payment+=' INVOICE VALUE';
+    o.lc=lineAfter(L,/L\/C NO\.?/).replace(/^:/,'').trim(); o.mark=lineAfter(L,/SHIPPING MARK/);
+    o.origin=/COUNTRY OF ORIGIN\s*:?\s*JAPAN/.test(T);
+    const tot=L.map(U).find(l=>/^TOTAL\b/.test(l)); o.totals=tot?(tot.replace(/,/g,'').match(/\d+(?:\.\d+)?/g)||[]).map(Number):[];
+    const gi=L.map(U).findIndex(l=>/^(\d+ )?WASTE ?PAPER|^(\d+ )?(OCC|ONP|OINP|SOP|MIXED|SORTED|DSOCC|DLK|CBS|AOCC|JOMG|KOCC|NCOCC)\b/.test(l));
+    o.goodsLine=gi>=0?U(L[gi]):''; o.grade=o.goodsLine.replace(/^\d+ /,'').replace(/\s+[A-Z]{4}\d{7}.*$/,'').replace(/(\s+[\d,]+(\.\d+)?)+(\s+(45GP|40HC|40GP|20GP|45R|40HQ))?$/,'').trim();
+    o.nums=(o.goodsLine.replace(/,/g,'').match(/\d+(?:\.\d+)?/g)||[]).map(Number);
+    return o;
+  }
+  /* L/C の値 (lc_read/1 + L/C 本文 lcText) */
+  function lcBits(lc, lcText){
+    const T=U(lcText||''), o={};
+    const g=(lc&&lc.goods)||[];
+    o.goodsCheck=g.some(x=>x.check); o.grades=g.map(x=>U(despace(x.grade))).filter(Boolean);
+    o.qty=g.map(x=>num(despace(x.quantity))).filter(x=>x!=null).reduce((a,b)=>a+b,0)||null;
+    o.price=g.length===1?num(despace(g[0].unit_price)):null;
+    o.amount=lc&&lc.amount?lc.amount.number:null; o.cur=lc&&lc.amount?lc.amount.currency:'';
+    o.tol=lc&&lc.tolerance&&lc.tolerance.pct!=null?+lc.tolerance.pct:null;
+    o.p43=(T.match(/:43P:\s*([A-Z ]+?)\s*=\s*([A-Z ]+)/)||T.match(/43P\s+([A-Z]+)/)||[])[2]||(T.match(/43P\s+([A-Z]+)/)||[])[1]||'';
+    o.t43=(T.match(/:43T:\s*([A-Z ]+?)\s*=\s*([A-Z ]+)/)||[])[2]||(T.match(/43T\s+([A-Z]+)/)||[])[1]||'';
+    const m48=T.match(/:48:[^=\n]*=\s*(\d+)/)||T.match(/PRESENTED WITHIN\s+(\d+)\s+DAYS/); o.presDays=m48?+m48[1]:null;
+    o.docs=(lc&&lc.docs_46A)||[]; o.c47=((lc&&lc.conditions_47A)||[]).map(c=>U(c.quote)).join('\n');
+    o.d46=o.docs.map(d=>U(d.quote)).join('\n'); o.all=o.d46+'\n'+o.c47;
+    return o;
+  }
+  const docQ = (lb, type) => lb.docs.filter(d=>d.doc_type===type).map(d=>U(d.quote)).join('\n');
+  const numWord = {ONE:1,TWO:2,THREE:3,FOUR:4,FIVE:5,SIX:6,SINGLE:1,DUPLICATE:2,TRIPLICATE:3,QUADRUPLICATE:4};
+  function countsOf(q){ const t=U(q), o={orig:null, copy:null, full:/FULL SET/.test(t)};
+    let m=t.match(/(\d+|ONE|TWO|THREE|FOUR|FIVE|SIX)\s*(\(\d+\)\s*)?ORIGINALS?/); if(m) o.orig=numWord[m[1]]||+m[1];
+    m=t.match(/IN\s+(DUPLICATE|TRIPLICATE|QUADRUPLICATE)/); if(m&&o.orig==null) o.orig=numWord[m[1]];
+    m=t.match(/(\d+|ONE|TWO|THREE|FOUR|FIVE|SIX)\s*(\(\d+\)\s*)?(NON[- ]NEGOTIABLE\s+)?COPIES?/); if(m) o.copy=numWord[m[1]]||+m[1];
+    m=t.match(/(\d)\/(\d)\s*(SET OF\s*)?ORIGINAL/); if(m) o.orig=+m[1];
+    return o; }
+  /* 42C の要 (日数 · 起算 (B/L 日 · 船積日 · 一覧) · %) が Invoice にあるか — DRAWEE · 手形 (IN DUPLICATE · DRAFT DRAWN ON) は見ない (RULE-02 · 手形は対象外) */
+  function pay42(t, IVT){ const L=U(t).replace(/DRAFTS? DRAWN ON.*$|IN DUPLICATE|DRAWN ON.*$/,''), want=[], T=U(IVT).replace(/BILL OF LADING/g,'B/L');
+    const d=L.match(/\b0*(\d{1,3})\s*DAY/); if(d) want.push({k:'日数', re:new RegExp('\\b0*'+d[1]+'\\s*DAY'), v:d[1]+' DAYS'});
+    if(/SIGHT/.test(L)) want.push({k:'一覧', re:/SIGHT/, v:'AT SIGHT'});
+    if(/B\/L|BILL OF LADING/.test(L)) want.push({k:'起算', re:/B\/L|BILL OF LADING/, v:'B/L DATE'}); else if(/SHIPMENT DATE|DATE OF SHIPMENT/.test(L)) want.push({k:'起算', re:/SHIPMENT|B\/L/, v:'SHIPMENT DATE'});
+    const p=L.match(/(\d{2,3})\s*(PCT|PERCENT|%)/); if(p) want.push({k:'%', re:new RegExp('\\b'+p[1]+'(\\s*(PCT|PERCENT|%)|[\\s\\S]{0,120}?\\b(PCT|PERCENT)\\b)'), v:p[1]+'%'});
+    if(!want.length) return R('INFO',t,'','42C の要を読めない — 比べない'); const sec=(T.match(/PAYMENT TERM[\s\S]{0,260}/)||[''])[0]||T, TS=T.replace(/ /g,'').replace(/BILLOFLADING/g,'B/L');
+    want.forEach(w=>{ w.re2=new RegExp(w.re.source.replace(/\\s\*/g,'').replace(/\\b/g,'').replace(/ /g,'').replace('BILL OF LADING','BILLOFLADING')); });   // 語が切れた PDF (「BI LL OF LADI NG」) は 空白を外して
+    const miss=want.filter(w=>!w.re.test(sec)&&!w.re.test(T)&&!w.re2.test(TS));
+    const inSec=want.filter(w=>!w.re.test(sec)); if(miss.length&&miss.every(w=>w.k==='%')) return R('NOTATION',t,want.map(w=>w.v).join(' · '),'Invoice に % の記載なし (日数 · 起算は同じ)'); return miss.length?R('DIFF',t,want.map(w=>w.v).join(' · '),'Invoice に ない: '+miss.map(w=>w.v).join(' · ')):R(inSec.length?'NOTATION':'MATCH',t,want.map(w=>w.v).join(' · '),inSec.length?'Payment Term の近くにない: '+inSec.map(w=>w.v).join(' · '):''); }
+  /* ── 項目の作り方 ── */
+  const ST = ['MATCH','NOTATION','DIFF','READ_CHECK','INFO','NA'];
+  const ST_JA = {MATCH:'一致', NOTATION:'表記差', DIFF:'相違', READ_CHECK:'読取確認', INFO:'参考', NA:'対象外'};
+  const GROUPS = ['Invoice','B/L','P/L','保険','C/O','BENE・47A','提出期限','TO BANK'];
+  /* 項目の定義 — engine_key · 群 · 名前 (日本語) · LC_FD_CHECKER の番号 · 関数 (c = 文脈) → [status, 基準, 書類, 説明] */
+  const R = (st,e,a,d) => ({st, e:e==null?'':S(e), a:a==null?'':S(a), d:d||''});
+  const need = (c,k,label) => c.docs[k]?null:R(c.docs.__none?'READ_CHECK':'READ_CHECK','',`(${label} なし)`,label+' の文字のある PDF がない — TO BANK / 原本で確認');
+  const lev1 = (a,b) => { if(Math.abs(a.length-b.length)>1||a===b) return a===b; let i=0; while(i<a.length&&a[i]===b[i]) i++; return a.slice(i+1)===b.slice(i+1)||a.slice(i)===b.slice(i+1)||a.slice(i+1)===b.slice(i); };
+  /* 語の比べ (品名 · 名前) — 全部ある = MATCH · 1 字違いの語 (誤字の疑い) = DIFF · 6 割以上ある = NOTATION · それ未満 = DIFF */
+  function wordJudge(want, T, min){ const ws=U(want).replace(/&/g,' AND ').split(/[^A-Z0-9]+/).filter(w=>w&&!/^(THE|OF)$/.test(w)), tw=U(T).replace(/&/g,' AND ').split(/[^A-Z0-9]+/).filter(Boolean), A=AN(T);
+    const miss=ws.filter(w=>tw.indexOf(w)<0&&!(w.length>=6&&A.indexOf(w)>=0)); if(!miss.length) return {st:'MATCH', miss};   // 短い語 (OCC など) は 語として一致 (OCCC の中の OCC は 数えない)
+    const typo=miss.map(w=>{ const h=tw.find(x=>x.length>=3&&lev1(w,x)); return h?w+'→'+h:null; }).filter(Boolean); if(typo.length) return {st:'DIFF', miss, typo};
+    return {st:1-miss.length/ws.length>=(min||0.6)?'NOTATION':'DIFF', miss}; }
+  const hasAll = (T, words) => words.filter(w=>w&&AN(T).indexOf(AN(w))<0);
+  const portWords = s => U(s).replace(/\b(PORT|IN|OF|ANY|OR|THE|CY|CFS)\b/g,' ').split(/[^A-Z]+/).filter(w=>w.length>=4);
+  const CHECKS = [
+    /* ── Invoice 13 ── */
+    {key:'fd:iv:42c', g:'Invoice', ref:'CHECK-2', ja:'決済条件 = L/C 42C', fn:c=>{ const n=need(c,'IV','Invoice'); if(n) return n; const t=c.lc&&c.lc.payment&&(c.lc.payment.tenor_text||c.lc.payment.read_text);
+      if(!t) return R('INFO','','','L/C の 42C がない — 比べない'); return pay42(t, c.docs.IV.U); const norm=x=>U(x).replace(/\bDRAFTS? AT\b|\bAT\b/g,' ').replace(/PERCENT|%/g,' PCT ').replace(/\b0+(\d)/g,'$1').replace(/(\d)(PCT)/g,'$1 $2').split(/[^A-Z0-9\/]+/).filter(w=>w&&!/^(OF|FOR|THE|SIGHT)$/.test(w));
+      const want=norm(t), have=norm(c.iv.payment||c.docs.IV.U), miss=want.filter(w=>have.indexOf(w)<0);
+      return miss.length?R(miss.length<=1&&want.length>4?'NOTATION':'DIFF',t,c.iv.payment,'Invoice の決済条件に ない語: '+miss.join(' · ')):R('MATCH',t,c.iv.payment,''); }},
+    {key:'fd:iv:goods', g:'Invoice', ref:'CHECK-3', ja:'商品名 = L/C 45A (品種 · 空白差は許容)', fn:c=>{ const n=need(c,'IV','Invoice'); if(n) return n; if(!c.lb.grades.length) return R('INFO','','','L/C の品名を読めない');
+      const js=c.lb.grades.map(gr=>wordJudge(gr,c.docs.IV.U)), best=js.find(j=>j.st==='MATCH')||js.find(j=>j.st==='NOTATION')||js[0];
+      if(c.lb.goodsCheck&&best.st!=='MATCH') return R('READ_CHECK',c.lb.grades.join(' / '),c.iv.grade,'L/C の品名の判読が 2 回違う — 目で確認 ('+(best.typo?'誤字の疑い: '+best.typo.join(' · '):'ない語: '+best.miss.join(' · '))+')');
+      return R(best.st,c.lb.grades.join(' / '),c.iv.grade,best.st==='MATCH'?'':best.typo?'誤字の疑い: '+best.typo.join(' · '):'Invoice に ない語: '+best.miss.join(' · ')); }},
+    {key:'fd:iv:price', g:'Invoice', ref:'CHECK-4', ja:'単価 = L/C 45A', fn:c=>{ const n=need(c,'IV','Invoice'); if(n) return n; if(c.lb.price==null) return R('INFO','','','L/C の単価が 1 つでない / 読めない — 比べない');
+      const all=(c.docs.IV.U.replace(/,/g,'').match(/\d+(?:\.\d+)?/g)||[]).map(Number), ok=c.iv.nums.some(x=>Math.abs(x-c.lb.price)<1e-6)||all.some(x=>Math.abs(x-c.lb.price)<1e-6);   /* 品名が 2 行に分かれると 数は別の行 */ return ok?R('MATCH',c.lb.price,c.lb.price,''):R('DIFF',c.lb.price,c.iv.nums.join(' '),'Invoice の品名の行に L/C の単価がない'); }},
+    {key:'fd:iv:qty', g:'Invoice', ref:'CHECK-5', ja:'数量 ≤ L/C 45A (+ 過不足 · 分割可なら 超過だけ 相違)', fn:c=>{ const n=need(c,'IV','Invoice'); if(n) return n; const w=c.ivW; if(c.lb.qty==null||w==null) return R('INFO',c.lb.qty,w,'数量を読めない');
+      const tol=c.lb.tol==null?0:c.lb.tol, hi=c.lb.qty*(1+tol/100); return w<=hi+1e-6?R('MATCH','≤ '+Math.round(hi*1000)/1000,w,'L/C '+c.lb.qty+' (±'+tol+'%)'):R('DIFF','≤ '+Math.round(hi*1000)/1000,w,'L/C の数量 (過不足込み) を超える'); }},
+    {key:'fd:iv:amount', g:'Invoice', ref:'CHECK-6', ja:'金額 = 数量 × 単価 · ≤ L/C 金額 (過不足込み)', fn:c=>{ const n=need(c,'IV','Invoice'); if(n) return n; const t=c.iv.totals, amt=t.length?t[t.length-1]:null, w=c.ivW;
+      if(amt==null) return R('READ_CHECK','','','Invoice の TOTAL を読めない'); const price=c.lb.price!=null?c.lb.price:(c.iv.nums.length>=4?c.iv.nums[c.iv.nums.length-2]:null);
+      if(price!=null&&w!=null&&Math.abs(Math.round(w*price*100)/100-amt)>0.011) return R('DIFF',Math.round(w*price*100)/100,amt,'数量 '+w+' × 単価 '+price+' と 金額が違う');
+      if(c.lb.amount!=null){ const hi=c.lb.amount*(1+(c.lb.tol||0)/100); if(amt>hi+0.01) return R('DIFF','≤ '+hi,amt,'L/C 金額を超える'); }
+      return R('MATCH',c.lb.amount!=null?'≤ '+Math.round(c.lb.amount*(1+(c.lb.tol||0)/100)*100)/100:'',amt,''); }},
+    {key:'fd:iv:incoterms', g:'Invoice', ref:'CHECK-7', ja:'価格条件 (INCOTERMS) = L/C', fn:c=>{ const n=need(c,'IV','Invoice'); if(n) return n; const pt=U(c.lc&&c.lc.price_term), k=(pt.match(/\b(CIF|CFR|C&F|CNF|FOB|CIP|CPT|DAP|FCA|EXW|DDP)\b/)||[])[1];
+      if(!k) return R('INFO','','','L/C の価格条件を読めない'); const tr=c.iv.trade||c.docs.IV.U, have=(tr.match(/\b(CIF|CFR|C&F|CNF|FOB|CIP|CPT|DAP|FCA|EXW|DDP)\b/)||[])[1];
+      const same=a=>({'C&F':'CFR',CNF:'CFR'})[a]||a; if(!have) return R('READ_CHECK',k,tr,'Invoice の Trade Term を読めない');
+      if(same(have)!==same(k)) return R('DIFF',k,have,'価格条件が違う'); return have===k?R('MATCH',k,have,''):R('NOTATION',k,have,'同じ条件の別の書き方'); }},
+    {key:'fd:iv:origin', g:'Invoice', ref:'CHECK-8', ja:'COUNTRY OF ORIGIN : JAPAN', fixed:true, fn:c=>{ const n=need(c,'IV','Invoice'); if(n) return n; const want=c.fixed||'COUNTRY OF ORIGIN : JAPAN';
+      return AN(c.docs.IV.U).indexOf(AN(want))>=0?R('MATCH',want,want,''):R('DIFF',want,'(なし)','Invoice に 原産国の記載がない'); }},
+    {key:'fd:iv:bene', g:'Invoice', ref:'CHECK-9', ja:'BENEFICIARY 名称 · 住所 = L/C 59', fn:c=>{ const n=need(c,'IV','Invoice'); if(n) return n; const b=U(c.lc&&c.lc.beneficiary); if(!b) return R('INFO','','','L/C 59 を読めない');
+      const words=b.split(/[^A-Z0-9]+/).filter(w=>w.length>=3&&!/^(THE|AND|CO|LTD|ADD|ADDRESS|TEL|FAX)$/.test(w)), miss=hasAll(c.docs.IV.U, words);
+      return !miss.length?R('MATCH',b,'(Seller 欄)',''):R(miss.length<=2?'NOTATION':'DIFF',b,'(Seller 欄)','Invoice に ない語: '+miss.join(' · ')); }},
+    {key:'fd:iv:applicant', g:'Invoice', ref:'CHECK-10', ja:'APPLICANT 名称 · 住所 = L/C 50', fn:c=>{ const n=need(c,'IV','Invoice'); if(n) return n; const a=c.lc&&c.lc.applicant; if(!a||!a.name) return R('INFO','','','L/C 50 を読めない');
+      if(AN(c.docs.IV.U).indexOf(AN(a.name))<0){ const j=wordJudge(a.name,c.docs.IV.U,0.8); return R(j.st==='MATCH'?'NOTATION':j.st,a.name,'(Buyer 欄)',j.typo?'名前の誤字の疑い: '+j.typo.join(' · '):j.st==='MATCH'?'名前の 記号 · 空白 が違う':'名前に ない語: '+j.miss.join(' · ')); }
+      const words=U(a.address).split(/[^A-Z0-9]+/).filter(w=>w.length>=3), miss=hasAll(c.docs.IV.U, words);
+      return !miss.length?R('MATCH',a.name,a.name,''):R('NOTATION',U(a.address),'(Buyer 欄)','住所に ない語: '+miss.join(' · ')); }},
+    {key:'fd:iv:date', g:'Invoice', ref:'CHECK-11', ja:'Invoice 日付 ≤ 有効期限 (31D) · 船積期限 (44C)', fn:c=>{ const n=need(c,'IV','Invoice'); if(n) return n; const d=c.iv.date, ex=c.lc&&c.lc.expiry_date, ls=c.lc&&c.lc.latest_shipment;
+      if(!d) return R('READ_CHECK','','','Invoice の日付を読めない'); if(ex&&d>ex) return R('DIFF','≤ '+ex,d,'有効期限より後'); if(ls&&d>ls) return R('NOTATION','≤ '+ls,d,'船積期限より後 (注意)'); return R('MATCH','≤ '+(ex||'?'),d,''); }},
+    {key:'fd:iv:47a', g:'Invoice', ref:'CHECK-12', ja:'47A 全書類記載事項 (L/C 番号 · P/O · 契約番号 · 輸入許可 · HS)', fn:c=>{ const n=need(c,'IV','Invoice'); if(n) return n; const want=c.req47; if(!want.length) return R('NA','','','47A に 全書類の記載の指示がない');
+      const miss=want.filter(w=>AN(c.docs.IV.U).indexOf(AN(w.v))<0); return miss.length?R('DIFF',want.map(w=>w.k+' '+w.v).join(' · '),'(Invoice)','Invoice に ない: '+miss.map(w=>w.k+' '+w.v).join(' · ')):R('MATCH',want.map(w=>w.k+' '+w.v).join(' · '),'(Invoice)',''); }},
+    {key:'fd:iv:english', g:'Invoice', ref:'CHECK-13', ja:'英語で書く (日本語の文字がない)', fn:c=>{ const n=need(c,'IV','Invoice'); if(n) return n; const bad=c.docs.IV.pages.map(p=>p.lines.find(l=>CJK.test(l))).filter(Boolean);
+      return bad.length?R('DIFF','英語',bad[0].slice(0,60),'日本語の文字がある'):R('MATCH','英語','英語',''); }},
+    {key:'fd:iv:port', cross:['IV','BL'], g:'Invoice', ref:'CHECK-13A', ja:'Invoice の港 = B/L の港', fn:c=>{ const n=need(c,'IV','Invoice'); if(n) return n; if(!c.docs.BL) return R('INFO',c.iv.to,'','B/L (Draft · SWB) の文字がない — 比べない');
+      const w=portWords(c.iv.to).concat(portWords(c.iv.from)); if(!w.length) return R('READ_CHECK','','','Invoice の From / To を読めない'); const miss=hasAll(c.docs.BL.U, w);
+      return miss.length?R('DIFF',c.iv.from+' → '+c.iv.to,'(B/L)','B/L に ない港の語: '+miss.join(' · ')):R('MATCH',c.iv.from+' → '+c.iv.to,'(B/L)',''); }},
+    /* ── B/L 5 ── */
+    {key:'fd:bl:fax', g:'B/L', ref:'CHECK-16', ja:'FAX 番号 (46A の B/L 条項に指定があるとき)', fn:c=>{ const q=docQ(c.lb,'B/L'), m=q.match(/FAX[^0-9+]{0,15}([+()\d][\d\s()+\-.]{6,})/g);
+      if(!m) return R('NA','','','46A の B/L 条項に FAX の指定がない'); const n=need(c,'BL','B/L'); if(n) return n; const nums=m.map(x=>DIG(x.replace(/^FAX[^0-9+]*/,''))).filter(x=>x.length>=7), T=DIG(c.docs.BL.text);
+      const miss=nums.filter(x=>T.indexOf(x.slice(-7))<0); return miss.length?R('DIFF',nums.join(' · '),'(B/L)','B/L に ない FAX 番号: '+miss.join(' · ')):R('MATCH',nums.join(' · '),'(B/L)',''); }},
+    {key:'fd:bl:onboard', g:'B/L', ref:'CHECK-20', ja:'CLEAN SHIPPED ON BOARD の表記と日付 (≤ 44C)', fn:c=>{ const q=docQ(c.lb,'B/L'); if(!/ON BOARD|SHIPPED/.test(q)) return R('NA','','','46A に ON BOARD の指定がない');
+      const n=need(c,'BL','B/L'); if(n) return n; const T=c.docs.BL.U, has=/(SHIPPED|LADEN|CLEAN)?\s*ON BOARD/.test(T), ls=c.lc&&c.lc.latest_shipment;
+      const dm=T.match(/(?:ON BOARD|SHIPPED ON BOARD|LADEN ON BOARD)[^\n]{0,60}?((?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*\.? ?\d{1,2},? ?20\d\d|\d{1,2} ?(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*\.?,? ?20\d\d|20\d\d[\/\-.]\d{1,2}[\/\-.]\d{1,2})/), d=dm?dateKey(dm[1]):'';
+      if(/\b(CLAUSED|DAMAGED|UNCLEAN)\b/.test(T)) return R('DIFF','CLEAN',T.match(/\b(CLAUSED|DAMAGED|UNCLEAN)\b/)[0],'B/L に 故障の表記');
+      if(!has) return R('INFO','ON BOARD','(Draft)','Draft に ON BOARD の表記なし — 原本 B/L で確認 (原本はスキャン)');
+      if(!d) return R('INFO','ON BOARD ≤ '+(ls||'?'),'ON BOARD (日付なし)','Draft に ON BOARD 日付なし — 原本 B/L で確認');
+      return ls&&d>ls?R('DIFF','≤ '+ls,d,'船積期限より後'):R('MATCH','≤ '+(ls||'?'),d,''); }},
+    {key:'fd:bl:partial', g:'B/L', ref:'CHECK-22', ja:'分割船積 (43P)', fn:c=>{ const p=c.lb.p43; if(!p) return R('READ_CHECK','','','L/C の 43P を読めない');
+      if(!/NOT ALLOWED|PROHIBITED/.test(p)) return R('MATCH',p,'','分割 可'); const w=c.ivW, q=c.lb.qty, tol=c.lb.tol||0; if(w==null||q==null) return R('READ_CHECK',p,'','数量を読めない');
+      return w>=q*(1-tol/100)-1e-6?R('MATCH','≥ '+q*(1-tol/100),w,'分割 不可 · 全量'):R('DIFF','≥ '+q*(1-tol/100),w,'分割 不可 なのに 数量が足りない'); }},
+    {key:'fd:bl:tranship', g:'B/L', ref:'CHECK-23', ja:'積替え (43T)', fn:c=>{ const t=c.lb.t43; if(!t) return R('READ_CHECK','','','L/C の 43T を読めない');
+      if(!/NOT ALLOWED|PROHIBITED/.test(t)) return R('MATCH',t,'','積替え 可'); const n=need(c,'BL','B/L'); if(n) return n; const T=c.docs.BL.U;
+      return /TRANSHIP|\bT\/S\b|PLACE OF TRANSHIPMENT\s*:?\s*[A-Z]{3}|\bVIA\b/.test(T)?R('DIFF','積替え 不可','積替えの表記あり','B/L に 積替え'):R('MATCH','積替え 不可','表記なし',''); }},
+    {key:'fd:bl:agent', g:'B/L', ref:'CHECK-25', ja:'現地 SHIPPING AGENT (名前 · 住所 · TEL) / Shipping Mark (TH)', fn:c=>{ const q=c.lb.all, ag=/SHIPPING AGENT|AGENT AT (THE )?(PORT OF )?DESTINATION|AGENT IN (INDONESIA|VIETNAM|THAILAND)/.test(q),
+      mk=c.country==='THAILAND'&&/SHIPPING MARK/.test(q); if(!ag&&!mk) return R('NA','','','L/C に 現地 Agent / Shipping Mark の指定がない'); const n=need(c,'BL','B/L'); if(n) return n; const T=c.docs.BL.U, out=[];
+      if(ag){ const i=T.search(/AGENT/); if(i<0) out.push('AGENT の記載なし'); else if(!/TEL|PHONE|\+\d{2}|\(\d{2,3}\)/.test(T.slice(i,i+400))) out.push('AGENT の TEL なし'); }
+      if(mk&&/NO MARK|N\/M/.test(T)) out.push('Shipping Mark が NO MARK');
+      return out.length?R(out.length===1&&/TEL/.test(out[0])?'NOTATION':'DIFF',(ag?'現地 Agent':'')+(mk?' · Mark':''),'(B/L)',out.join(' · ')):R('MATCH',(ag?'現地 Agent':'')+(mk?' · Mark':''),'(B/L)',''); }},
+    /* ── P/L 7 ── */
+    {key:'fd:pl:goods', cross:['IV','PL'], g:'P/L', ref:'CHECK-28', ja:'P/L 品名 = Invoice', fn:c=>{ const n=need(c,'PL','P/L')||need(c,'IV','Invoice'); if(n) return n; const g=c.iv.grade.replace(/\s+HS( CODE)?b.*$/,'').trim(); if(!g) return R('READ_CHECK','','','Invoice の品名を読めない');
+      const j=wordJudge(g,c.docs.PL.U,0.8); return R(j.st,g,c.pl.grade,j.st==='MATCH'?'':j.typo?'誤字の疑い: '+j.typo.join(' · '):'P/L に ない語: '+j.miss.join(' · ')); }},
+    {key:'fd:pl:qty', cross:['IV','PL'], g:'P/L', ref:'CHECK-29', ja:'P/L 数量 (重量) = Invoice', fn:c=>{ const n=need(c,'PL','P/L')||need(c,'IV','Invoice'); if(n) return n; const a=c.ivW, t=c.pl.totals, b=t.length>=2?t[t.length-2]:null;
+      if(a==null||b==null) return R('READ_CHECK',a,b,'TOTAL を読めない'); return Math.abs(a-b)<1e-6?R('MATCH',a,b,''):R('DIFF',a,b,'P/L の Net と Invoice の数量が違う'); }},
+    {key:'fd:pl:gross', cross:['IV','PL'], g:'P/L', ref:'CHECK-30', ja:'P/L 総重量 · 梱包数 (Bales = Invoice · Gross ≥ Net)', fn:c=>{ const n=need(c,'PL','P/L')||need(c,'IV','Invoice'); if(n) return n; const t=c.pl.totals, net=t.length>=2?t[t.length-2]:null, gross=t.length?t[t.length-1]:null;
+      const pb=t.length>=3?t[t.length-3]:null, ib=c.iv.totals.length>=3?c.iv.totals[0]:null; if(gross==null||net==null) return R('READ_CHECK','','','P/L の TOTAL を読めない');
+      if(gross+1e-6<net) return R('DIFF','Gross ≥ '+net,gross,'Gross が Net より小さい'); if(ib!=null&&pb!=null&&ib!==pb) return R('DIFF',ib+' Bales',pb+' Bales','梱包数が Invoice と違う'); return R('MATCH','Gross ≥ Net · '+(ib==null?'':ib+' Bales'),gross,''); }},
+    {key:'fd:pl:origin', g:'P/L', ref:'CHECK-31', ja:'COUNTRY OF ORIGIN : JAPAN (P/L)', fixed:true, fn:c=>{ const n=need(c,'PL','P/L'); if(n) return n; const want=c.fixed||'COUNTRY OF ORIGIN : JAPAN';
+      return AN(c.docs.PL.U).indexOf(AN(want))>=0?R('MATCH',want,want,''):R('DIFF',want,'(なし)','P/L に 原産国の記載がない'); }},
+    {key:'fd:pl:lcno', g:'P/L', ref:'CHECK-32', ja:'P/L に L/C 番号 · 発行日', fn:c=>{ const n=need(c,'PL','P/L'); if(n) return n; const no=c.lc&&c.lc.lc_no, dt=c.lc&&c.lc.issue_date; if(!no) return R('INFO','','','L/C 番号を読めない');
+      if(AN(c.docs.PL.U).indexOf(AN(no))<0) return R('DIFF',no,c.pl.lc,'P/L に L/C 番号がない');
+      /* 番号の後ろの 「DATED ON 日付」 を P/L の文字全体から (欄の読み取りに頼らない · 語が切れていても) */
+      const mm=c.docs.PL.U.match(new RegExp(AN(no).split('').join(' ?')+'[^A-Z0-9]{0,4}D ?A ?T ?E ?D ?O ?N ?:?\\s*([^\\n]{0,24})')); const d=mm?dateKey(mm[1]):dateKey(c.pl.lc.replace(/^.*DATED ON/,''));
+      if(dt&&d&&d!==dt) return R('DIFF',no+' DATED ON '+dt,c.pl.lc,'発行日が違う'); return R(dt&&!d?'NOTATION':'MATCH',no+(dt?' DATED ON '+dt:''),c.pl.lc,dt&&!d?'発行日の記載なし':''); }},
+    {key:'fd:pl:mark', g:'P/L', ref:'CHECK-33', ja:'P/L SHIPPING MARK (タイ · L/C に指定があるとき)', fn:c=>{ if(!(c.country==='THAILAND'&&/SHIPPING MARK/.test(c.lb.all))) return R('NA','','','タイの Shipping Mark 指定なし');
+      const n=need(c,'PL','P/L'); if(n) return n; return /NO MARK|^N\/M$/.test(c.pl.mark)||!c.pl.mark?R('DIFF','Shipping Mark',c.pl.mark||'(なし)','P/L の Shipping Mark が NO MARK / 空'):R('MATCH','Shipping Mark',c.pl.mark,''); }},
+    {key:'fd:pl:port', cross:['PL','BL'], g:'P/L', ref:'CHECK-33A', ja:'P/L の港 = B/L の港', fn:c=>{ const n=need(c,'PL','P/L'); if(n) return n; if(!c.docs.BL) return R('INFO',c.pl.to,'','B/L の文字がない — 比べない');
+      const w=portWords(c.pl.to).concat(portWords(c.pl.from)), miss=hasAll(c.docs.BL.U,w); if(!w.length) return R('READ_CHECK','','','P/L の From / To を読めない');
+      return miss.length?R('DIFF',c.pl.from+' → '+c.pl.to,'(B/L)','B/L に ない港の語: '+miss.join(' · ')):R('MATCH',c.pl.from+' → '+c.pl.to,'(B/L)',''); }},
+    /* ── 保険 11 — 証券の表面 (金額 · 条件 · 船名) は 画像で 文字がないことが多い → 読取確認 (基準の値は出す) ── */
+    {key:'fd:ins:amount', g:'保険', ref:'CHECK-34', ja:'保険金額 ≥ Invoice × n %', fn:c=>{ const pct=(docQ(c.lb,'INS').match(/(\d{3})\s*(%|PERCENT|PCT|PER ?CENT)/)||[])[1]; const amt=c.iv&&c.iv.totals.length?c.iv.totals[c.iv.totals.length-1]:null;
+      const want=pct&&amt!=null?'≥ '+c.lb.cur+' '+(Math.ceil(amt*pct)/100).toLocaleString('en-US',{minimumFractionDigits:2}):(pct?pct+'%':''); return c.insRead('AMOUNT INSURED|INSURED AMOUNT|AMOUNT',want); }},
+    {key:'fd:ins:cond', g:'保険', ref:'CHECK-35', ja:'保険条件 ICC(A) / ALL RISKS (除外特約は 注意)', fn:c=>{ const q=docQ(c.lb,'INS'), w=/CLAUSES? ?\(A\)|ALL RISKS/.test(q)?'ICC(A) / ALL RISKS':''; if(!c.insText) return c.insRead('',w);
+      const T=c.insText; if(!/CLAUSES? ?\(A\)|ALL RISKS/.test(T)) return R('DIFF',w,'(なし)','保険条件 (A) の記載がない'); return /EXCLUDING|EXCLUSION OF/.test(T)?R('NOTATION',w,'除外特約あり','除外特約 (RULE-16 · 注意)'):R('MATCH',w,w,''); }},
+    {key:'fd:ins:claims', g:'保険', ref:'CHECK-36', ja:'CLAIMS PAYABLE (場所 · L/C の通貨)', fn:c=>{ const m=docQ(c.lb,'INS').match(/CLAIMS? (ARE )?PAYABLE (AT|IN) ([A-Z ,]{3,40}?)(,| IN THE| FOR| IN CURRENCY|\.)/); return c.insRead('PAYABLE', m?m[3].trim():''); }},
+    {key:'fd:ins:agent', g:'保険', ref:'CHECK-37', ja:'保険代理店 (指定国)', fn:c=>{ const q=docQ(c.lb,'INS'); if(!/AGENT|AGENCY/.test(q)) return R('NA','','','L/C に 代理店の指定がない'); return c.insRead('AGENT','代理店 ('+(c.country||'仕向国')+')'); }},
+    {key:'fd:ins:count', g:'保険', ref:'CHECK-39', ja:'保険 原本枚数 (FULL SET) — TO BANK AI', ai:true, fn:c=>c.tbCount('INS')},
+    {key:'fd:ins:originals', g:'保険', ref:'CHECK-40', ja:'証券の ORIGINALS 発行枚数の記載', fn:c=>{ const o=countsOf(docQ(c.lb,'INS')); return c.insRead('ORIGINAL',o.full?'FULL SET':o.orig?o.orig+' 通':''); }},
+    {key:'fd:ins:assured', g:'保険', ref:'CHECK-41', ja:'被保険者 (ASSURED)', fn:c=>{ const m=docQ(c.lb,'INS').match(/(?:ASSURED|INSURED)[^.]{0,20}?(?:IN THE NAME OF|TO THE ORDER OF|AS)\s+([A-Z .,&]{3,60})/); return c.insRead('ASSURED', m?m[1].trim():'LEENEAR CORPORATION (白地裏書)'); }},
+    {key:'fd:ins:currency', g:'保険', ref:'CHECK-42', ja:'保険の通貨 = Invoice の通貨', fn:c=>c.insRead('USD|US\\$|EUR|JPY',c.lb.cur||'USD')},
+    {key:'fd:ins:sailing', g:'保険', ref:'CHECK-42A', ja:'Sailing 日付 = B/L ON BOARD = Invoice', fn:c=>c.insRead('SAILING',c.iv&&c.iv.onboard||'')},
+    {key:'fd:ins:voyage', g:'保険', ref:'CHECK-42B', ja:'VOYAGE AT AND FROM 積地 TO 揚地 (44E · 44F)', fn:c=>c.insRead('FROM',(c.lc&&c.lc.pol&&c.lc.pol.text||'')+' → '+(c.lc&&c.lc.pod&&c.lc.pod.text||''))},
+    {key:'fd:ins:vessel', cross:['IV','PL','BL'], g:'保険', ref:'CHECK-42C', ja:'全書類の船名が同じ (Invoice · P/L · B/L · 保険)', fn:c=>{ const v=c.iv&&c.iv.vessel; if(!v) return R('READ_CHECK','','','Invoice の船名を読めない');
+      const vw=v.split(' '), name=vw.length>1&&/\d/.test(vw[vw.length-1])?vw.slice(0,-1).join(' '):v, out=[]; [['PL','P/L'],['BL','B/L']].forEach(([k,j])=>{ if(c.docs[k]&&AN(c.docs[k].U).indexOf(AN(name))<0) out.push(j); });
+      if(out.length) return R('DIFF',v,'(なし: '+out.join(' · ')+')',out.join(' · ')+' に 船名がない'); return c.insText?(AN(c.insText).indexOf(AN(name))>=0?R('MATCH',v,v,''):R('DIFF',v,'(保険になし)','保険に 船名がない')):R('READ_CHECK',v,'(保険は画像)','Invoice · P/L · B/L は同じ · 保険の表面は 画像 — TO BANK で目で確認'); }},
+    /* ── C/O 4 ── */
+    {key:'fd:co:issuer', g:'C/O', ref:'CHECK-43', ja:'C/O 発行者 = 46A の指定', fn:c=>{ const q=docQ(c.lb,'C/O'); if(!q) return R('NA','','','46A に C/O がない'); const n=need(c,'CO','C/O'); if(n) return n; const T=c.docs.CO.U;
+      if(/CHAMBER OF COMMERCE|JCCI|COMMERCE AND INDUSTRY/.test(q)) return /CHAMBER|COMMERCE AND INDUSTRY/.test(T)?R('MATCH','商工会議所','(C/O)',''):R('DIFF','商工会議所','(C/O)','商工会議所の記載がない');
+      if(/BENEFICIARY|EXPORTER|MANUFACTURER/.test(q)){ const b=c.bene; return AN(T).indexOf(AN(b))>=0?R('MATCH','受益者 ('+b+')','(C/O)',''):R('DIFF','受益者 ('+b+')','(C/O)','発行者が受益者でない'); } return R('INFO',q.slice(0,60),'','発行者の指定を読めない — 目で確認'); }},
+    {key:'fd:co:origin', g:'C/O', ref:'CHECK-44', ja:'C/O 原産国 JAPAN', fixed:true, fn:c=>{ if(!docQ(c.lb,'C/O')) return R('NA','','','46A に C/O がない'); const n=need(c,'CO','C/O'); if(n) return n; return /JAPAN/.test(c.docs.CO.U)?R('MATCH','JAPAN','JAPAN',''):R('DIFF','JAPAN','(なし)','C/O に JAPAN がない'); }},
+    {key:'fd:co:goods', cross:['IV','CO'], g:'C/O', ref:'CHECK-45', ja:'C/O 品名 · 数量 = Invoice', fn:c=>{ if(!docQ(c.lb,'C/O')) return R('NA','','','46A に C/O がない'); const n=need(c,'CO','C/O')||need(c,'IV','Invoice'); if(n) return n; const T=c.docs.CO.U, out=[];
+      if(c.iv.grade&&AN(T).indexOf(AN(c.iv.grade))<0) out.push('品名'); if(c.ivW!=null&&T.replace(/,/g,'').indexOf(String(c.ivW))<0&&T.replace(/,/g,'').indexOf(String(Math.round(c.ivW*1000)))<0) out.push('数量 '+c.ivW);
+      return out.length?R('DIFF',c.iv.grade+' · '+c.ivW,'(C/O)','C/O に ない: '+out.join(' · ')):R('MATCH',c.iv.grade+' · '+c.ivW,'(C/O)',''); }},
+    {key:'fd:co:count', g:'C/O', ref:'CHECK-46', ja:'C/O 枚数 — TO BANK AI', ai:true, fn:c=>docQ(c.lb,'C/O')?c.tbCount('CO'):R('NA','','','46A に C/O がない')},
+    /* ── BENE · 47A · 期限 4 ── */
+    {key:'fd:bene:text', g:'BENE・47A', ref:'CHECK-47', ja:'受益者証明 = 47A/46A の要求文言 + L/C 番号', fn:c=>{ const reqs=c.lb.docs.filter(d=>/BENE_CERT|FREE_TIME_CERT/.test(d.doc_type)||/BENEFICIARY'?S? CERTIFICATE/.test(U(d.quote)));
+      if(!reqs.length) return R('NA','','','46A に 受益者証明がない'); const pages=c.allPages.filter(p=>/BENE|CERT_GEN/.test(p.type)); if(!pages.length) return R('READ_CHECK','受益者証明','(なし)','受益者証明の文字のある PDF がない — TO BANK で確認');
+      const res=reqs.map(d=>{ const q=U(d.quote), body=(q.split(/CERTIFYING THAT|EVIDENCING THAT|STATING THAT|CERTIFY THAT|CONFIRMING THAT|CERTIFYING|EVIDENCING/)[1]||q);
+        const words=[...new Set(body.split(/[^A-Z0-9]+/).filter(w=>w.length>=4&&!/^(THAT|THIS|WITH|HAVE|BEEN|WHICH|WILL|FROM|THEIR|SHALL|ISSUED|BENEFICIARY|CERTIFICATE|ORIGINAL|COPY|COPIES|INCLUDING)$/.test(w)))];
+        let best=null; pages.forEach(p=>{ const T=AN(p.text), miss=words.filter(w=>T.indexOf(w)<0), r=words.length?1-miss.length/words.length:1; if(!best||r>best.r) best={r,miss,p}; });
+        return {d, words, best}; });
+      const worst=res.reduce((a,b)=>a.best.r<b.best.r?a:b), lcno=c.lc&&c.lc.lc_no, noLc=lcno&&!pages.some(p=>AN(p.text).indexOf(AN(lcno))>=0);
+      const pct=Math.round(worst.best.r*100), why='要求の語 '+pct+' %'+(worst.best.miss.length?' · ない語: '+worst.best.miss.slice(0,8).join(' · '):'')+(noLc?' · L/C 番号なし':'');
+      return worst.best.r>=0.85&&!noLc?R('MATCH',worst.d.quote.slice(0,80),worst.best.p.file+' p'+worst.best.p.page,why):R(worst.best.r>=0.5?'NOTATION':'DIFF',worst.d.quote.slice(0,80),worst.best.p.file+' p'+worst.best.p.page,why); }},
+    {key:'fd:bene:form', g:'BENE・47A', ref:'CHECK-49', ja:'受益者証明の形 (題名 · 発行者 LEENEAR · 日付)', fn:c=>{ if(!c.lb.docs.some(d=>/BENE_CERT|FREE_TIME_CERT/.test(d.doc_type))) return R('NA','','','46A に 受益者証明がない'); const p=c.allPages.filter(x=>x.type==='BENE'); if(!p.length) return R('READ_CHECK','受益者証明','(なし)','題名のある受益者証明がない');
+      const T=U(p[0].text), out=[], b=c.bene; if(AN(T).indexOf(AN(b))<0) out.push(b); if(!dateKey(T)) out.push('日付'); return out.length?R('DIFF','題名 · '+b+' · 日付','(BENE)','ない: '+out.join(' · ')):R('MATCH','題名 · '+b+' · 日付','(BENE)',''); }},
+    {key:'fd:47a:lang', g:'BENE・47A', ref:'CHECK-53', ja:'47A 全書類 英語 · 日付の記載', fn:c=>{ const need47=/ENGLISH|DATED|MUST BE DATED|BEAR (THE )?DATE/.test(c.lb.c47); const D=['IV','PL','CO','QQ','BENE'].filter(k=>c.docs[k]);
+      if(!D.length) return R('READ_CHECK','','','書類の文字がない'); const bad=D.filter(k=>c.docs[k].pages.some(p=>p.lines.some(l=>CJK.test(l)))), nod=D.filter(k=>!dateKey(c.docs[k].text));
+      if(bad.length) return R('DIFF','英語','日本語あり: '+bad.join(' · '),'日本語の文字'); if(need47&&nod.length) return R('DIFF','日付','日付なし: '+nod.join(' · '),'47A: 日付の記載'); return R('MATCH','英語'+(need47?' · 日付':''),D.join(' · '),''); }},
+    {key:'fd:due:present', g:'提出期限', ref:'CHECK-57', ja:'提出期限 (船積後 n 日以内 · 有効期限まで)', fn:c=>{ const base=c.blDate||(c.iv&&c.iv.onboard)||''; if(!base) return R('READ_CHECK','','','船積日を読めない');
+      const n=c.lb.presDays!=null?c.lb.presDays:21, ex=c.lc&&c.lc.expiry_date; let due=addDays(base,n); if(ex&&ex<due) due=ex; const tb=c.toBank&&c.toBank.modified?S(c.toBank.modified).slice(0,10):'';
+      if(tb) return tb>due?R('NOTATION','≤ '+due,tb,'TO BANK のファイル日付が 提出期限より後 (船積 '+base+' + '+n+' 日 · ファイル日付 = 保存日で 呈示日と違うことがある — 目で確認)'):R('MATCH','≤ '+due,tb,'船積 '+base+' + '+n+' 日'+(c.lb.presDays==null?' (48 なし → 21 日)':''));
+      const left=c.today?days(c.today,due):null; return R(left!=null&&left<0?'DIFF':left!=null&&left<=3?'NOTATION':'INFO','≤ '+due,'(TO BANK なし)','提出期限 '+due+(left!=null?' (あと '+left+' 日)':'')); }}
+  ];
+  /* ── TO BANK AI (頁ごとの 書類の種類 · 原本/写し · 署名) → 書類ごとの数 ── */
+  const AI_TYPES = ['IV','PL','BL','INS','CO','QQ','BENE','CERT','LABEL','PIR','COVER','OTHER'];
+  const TB_FROM_LC = {IV:'IV', PL:'PL', 'B/L':'BL', INS:'INS', 'C/O':'CO', 'Q&Q':'QQ', BENE_CERT:'BENE', FREE_TIME_CERT:'FT'};   // FT = Free Time 証明 (船会社 · 受益者 どちらでも · B/L の記載でも可のことあり)
+  /* ai = {pages:[{page, r1:{doc_type, mark, signed}, r2:{…}}]} → 2 回同じ頁だけ数える */
+  function tbTally(ai){
+    /* 印は 3 つにまとめて比べる (ORIGINAL · DUPLICATE · TRIPLICATE = 原本 / COPY · NON-NEGOTIABLE = 写し / なし) — 「THIRD ORIGINAL」 を ORIGINAL と TRIPLICATE に読んでも 同じ */
+    const mk=m=>{ m=S(m).toUpperCase(); return /COPY|NON[- ]?NEGOTIABLE/.test(m)?'COPY':/ORIGINAL|DUPLICATE|TRIPLICATE/.test(m)?'ORIG':'NONE'; };
+    const t={}, unsure=[]; ((ai&&ai.pages)||[]).forEach(p=>{ const a=p.r1||{}, b=p.r2||{};
+      const same=a.doc_type&&a.doc_type===b.doc_type&&mk(a.mark)===mk(b.mark)&&!!a.signed===!!b.signed;
+      if(!same){ unsure.push(p.page); return; } const k=AI_TYPES.indexOf(a.doc_type)>=0?a.doc_type:'OTHER';
+      t[k]=t[k]||{orig:0, copy:0, nomark:0, signed:0, pages:0, docs:[]}; const o=t[k]; o.pages++; o.docs.push({page:p.page, first:a.first!==false&&b.first!==false, mark:mk(a.mark), signed:!!a.signed}); });
+    /* 通数 = 1 頁目 (first) の数 — 続きの頁 (B/L の 2 枚目 · 添付) は 数えない · 1 頁目が 1 つもなければ 頁の数 */
+    Object.values(t).forEach(o=>{ const F=o.docs.some(d=>d.first)?o.docs.filter(d=>d.first):o.docs; F.forEach(d=>{ if(d.mark==='ORIG') o.orig++; else if(d.mark==='COPY') o.copy++; else o.nomark++; if(d.signed) o.signed++; }); o.count=F.length; });
+    return {t, unsure};
+  }
+  function tbCountItem(c, type){
+    if(!c.ai) return R('READ_CHECK','','',c.toBank?'TO BANK の AI 判別なし (未実行)':'TO BANK がない'); const reqs=c.lb.docs.filter(d=>TB_FROM_LC[d.doc_type]===type); if(!reqs.length) return R('NA','','','46A にない');
+    const Q=U(reqs.map(d=>d.quote).join(' '));
+    /* Free Time 証明: 受益者証明 · 船会社証明 (AI の BENE · CERT) どちらでも · 「B/L に記載でも可」 なら 証明がなくても 注意 (B/L を目で確認) */
+    if(type==='FT'){ const n=['BENE','CERT'].reduce((a,k)=>a+((c.tb.t[k]||{}).count||0),0); if(n) return R('MATCH','Free Time 証明','証明の頁 '+n,'受益者 / 船会社 の証明 (AI は 証明の中身を読まない)');
+      return /ON (THE )?B\/L|CLAUSE ON B\/L|MENTIONED ON B\/L/.test(Q)?R('NOTATION','Free Time (B/L の記載でも可)','証明の頁なし','B/L に Free Time の記載があるか 目で確認'):R(c.tb.unsure.length?'READ_CHECK':'DIFF','Free Time 証明','(TO BANK に なし)','TO BANK に 証明の頁がない'); }
+    const T=c.tb.t[type]||{orig:0,copy:0,nomark:0,pages:0,signed:0,count:0}, want=countsOf(Q), got=T.orig+T.nomark;
+    /* B/L: 「PHOTOCOPIES OF TELEX RELEASED … OR SEA WAYBILL」 = 原本は求めない (写し n 通) · それ以外の FULL SET = L/C の原本通数 (保管所 bl.originals) */
+    if(type==='BL'&&/PHOTOCOP|SEA ?WAY ?BILL|TELEX RELEASE|SURRENDER/.test(Q)&&!/\bORIGINALS?\b(?! (OR|AND) )/.test(Q.replace(/NON[- ]NEGOTIABLE/g,''))){ const m=Q.match(/(\d+|ONE|TWO|THREE|FOUR|FIVE|SIX)\s*(\(\d+\)\s*)?PHOTOCOP/); want.orig=null; want.full=false; if(m) want.copy=numWord[m[1]]||+m[1];
+      const all=T.orig+T.copy+T.nomark; return want.copy!=null&&all<want.copy?R('DIFF','写し '+want.copy+' (Sea Waybill / Telex)','計 '+all,'通数が足りない'):R('MATCH','写し '+(want.copy||'?')+' (Sea Waybill / Telex)','原本 '+T.orig+' · 写し '+T.copy+' · 印なし '+T.nomark,''); }
+    if(type==='BL'&&want.orig==null){ const n=num(c.lc&&c.lc.bl&&c.lc.bl.originals); if(n) want.orig=n; }
+    const signReq=/\bSIGNED\b/.test(U(reqs.map(d=>d.quote).join(' ')))||(type!=='BL'&&/ALL (REQUIRED )?DOCUMENTS[^.]{0,60}(MUST BE |TO BE )?SIGNED/.test(c.lb.c47));
+    const e=(want.full?'FULL SET':want.orig!=null?'原本 '+want.orig:'')+(want.copy!=null?' · 写し '+want.copy:''), a='原本 '+T.orig+(T.nomark?' · 印なし '+T.nomark:'')+' · 写し '+T.copy+(c.tb.unsure.length?' (2 回違う頁 '+c.tb.unsure.length+')':'');
+    if(!T.pages) return R(c.tb.unsure.length?'READ_CHECK':'DIFF',e,'(TO BANK に なし)',c.tb.unsure.length?'2 回の判別が違う頁がある — 目で確認':'TO BANK に この書類の頁がない');
+    if(want.orig!=null&&got<want.orig) return R(c.tb.unsure.length?'READ_CHECK':'DIFF',e,a,'原本が足りない');
+    if(signReq&&T.count&&T.signed<T.count) return R('DIFF',e+' · 署名',a+' · 署名 '+T.signed+'/'+T.count,'署名 · 印のない通がある (L/C: SIGNED)');
+    if(want.copy!=null&&T.copy+Math.max(0,got-(want.orig||0))<want.copy) return R('NOTATION',e,a,'写しが少ない (原本で代えられる場合あり)');
+    return R('MATCH',e,a+(signReq?' · 署名 '+T.signed+'/'+T.count:''),''); }
+  /* 47A: 全書類に書くもの (L/C 番号 · P/O · 契約番号 · 輸入許可 · HS) */
+  function req47(lc, lb, meta){
+    const T=lb.c47+'\n'+lb.d46, out=[]; if(!/ALL (THE )?(REQUIRED )?DOCUMENTS?[^.]{0,80}(MUST|SHOULD|TO)\s+(SHOW|BEAR|INDICATE|MENTION|STATE|QUOTE)|DOCUMENTS? MUST (SHOW|BEAR|INDICATE|MENTION)/.test(T)) return out;
+    const seg=(T.match(/ALL (THE )?(REQUIRED )?DOCUMENTS?[^.\n]{0,200}/g)||[]).join(' ');
+    if(/L\/?C NO|CREDIT NUMBER|L\/C NUMBER|THIS CREDIT NUMBER/.test(seg)&&lc&&lc.lc_no) out.push({k:'L/C No.', v:lc.lc_no});
+    if(/P\/?O |PURCHASE ORDER|P\.O\./.test(seg)&&lc&&lc.po) out.push({k:'P/O', v:lc.po});
+    const il=seg.match(/IMPORT(?:ER)?'?S? LICEN[CS]E'?\s*(?:NO\.?|NUMBER)?\s*:?\s*([A-Z0-9][A-Z0-9.\-\/]{4,})/); if(il) out.push({k:'Import Licence', v:il[1].replace(/[.,]$/,'')});
+    const hs=seg.match(/HS CODE\s*:?\s*(\d{4}[\d.]*)/); if(hs) out.push({k:'HS', v:hs[1]});
+    return out; }
+  /* ── 実行 ── ctx = {iv, files, lc, lcText, meta:{country, pay, contract, blDate}, ai (TO BANK AI), toBank:{name, modified}, today, cp (cpPrepare の結果 · なし = 全部 試験), fixed:{engine_key: 値}} */
+  function check(ctx){
+    const c0=ctx||{}, col=collect(c0.files, c0.iv), lb=lcBits(c0.lc, c0.lcText), docs=col.docs, iv=readIvPl(docs.IV), pl=readIvPl(docs.PL);
+    const insText=docs.INS&&/AMOUNT INSURED|INSURED AMOUNT|SUM INSURED|CLAIMS? (ARE )?PAYABLE AT/.test(docs.INS.U)?docs.INS.U:'';
+    const ivW=iv?(iv.totals.length>=3?iv.totals[1]:iv.totals.length===2?iv.totals[0]:null):null;
+    const c={iv, pl, docs, lb, lc:c0.lc||null, ivW, allPages:col.pages, country:U((c0.meta||{}).country), blDate:(c0.meta||{}).blDate||'', toBank:c0.toBank||null, today:c0.today||'', ai:c0.ai||null, tb:tbTally(c0.ai), req47:req47(c0.lc, lb, c0.meta), insText};
+    c.insRead=(lab,want)=>{ if(!c.lb.docs.some(d=>d.doc_type==='INS')) return R('NA','','','46A に 保険がない'); if(!docs.INS) return R('READ_CHECK',want,'(保険なし)','保険証券の文字のある PDF がない — TO BANK で目で確認');
+      if(!insText) return R('READ_CHECK',want,'(表面は画像)','保険証券の表面 (金額 · 条件 · 船名) は画像で文字がない — TO BANK で目で確認');
+      const re=lab?new RegExp('('+lab+')[^\\n]{0,80}'):null, m=re&&insText.match(re); return m?R('INFO',want,m[0].slice(0,80),'文字あり — 目で確認'):R('READ_CHECK',want,'','証券の文字に 見つからない'); };
+    c.tbCount=type=>tbCountItem(c,type);
+    c.bene=U(c0.lc&&c0.lc.beneficiary).split(/[ ,]+/).filter(w=>/^[A-Z][A-Z.&]*$/.test(w)).slice(0,2).join(' ')||'LEENEAR';   // 受益者 (自社) の名前 = L/C 59 の頭の 英字の 2 語 (前の番号は外す)
+    const rows=c0.cp&&Array.isArray(c0.cp.rows)?c0.cp.rows:null, items=[];
+    CHECKS.forEach(k=>{ let row=null, state='試験', why='';
+      if(rows){ row=rows.find(r=>r.engine_key===k.key&&r.stages.indexOf('FD')>=0); if(!row) return; if(row.state==='停止') return; state=row.state; why=row.why||''; }
+      c.fixed=row&&/^text:/.test(row.left)?row.left.slice(5):(c0.fixed&&c0.fixed[k.key])||'';
+      let r; try{ r=k.fn(c); }catch(e){ r=R('READ_CHECK','','','読めない ('+S(e&&e.message).slice(0,60)+')'); }
+      /* 書類どうしの比べ (IV ↔ P/L · B/L · C/O) で 片方だけ 通関版 → 通関の後に直った (本船変更など) ことがある → 相違 にせず 読取確認 */
+      if(r.st==='DIFF'&&k.cross){ const tiers=k.cross.map(t=>docs[t]&&docs[t].tier).filter(Boolean); if(tiers.indexOf(5)>=0&&tiers.some(t=>t!==5)) r=R('READ_CHECK',r.e,r.a,r.d+' — 片方は [通関版] (通関の後に直ったことがある) · FD の版で確認'); }
+      const trial=state!=='有効', st=r.st, src=k.g==='TO BANK'||k.ai?'TO BANK (AI)':k.g==='保険'?(docs.INS?docs.INS.src:''):(({Invoice:docs.IV,'P/L':docs.PL,'B/L':docs.BL,'C/O':docs.CO})[k.g]||{}).src||'';
+      const file=k.ai?(c.toBank&&c.toBank.name)||'':(({Invoice:docs.IV,'P/L':docs.PL,'B/L':docs.BL,'C/O':docs.CO,'保険':docs.INS})[k.g]||{}).file||'';
+      items.push({group:k.g, key:k.key, ref:k.ref, cp:row?row.id:'', label:k.ja, status:trial?'INFO':st, would:trial?st:undefined, trial, cpState:state, expected:r.e, actual:r.a,
+        detail:(trial?'【'+state+(why?' · '+why:'')+'】 ':'')+r.d, src, file, tsukan:/通関/.test(src)}); });
+    /* TO BANK 書類ごと (IV · PL · BL · INS · CO · QQ · BENE) — 1 行 fd:tb:count */
+    const tbRow=rows?rows.find(r=>r.engine_key==='fd:tb:count'):null;
+    if(!rows||tbRow&&tbRow.state!=='停止'){ const state=tbRow?tbRow.state:'試験', trial=state!=='有効';
+      ['IV','PL','BL','QQ','BENE','FT'].forEach(t=>{ if(!lb.docs.some(d=>TB_FROM_LC[d.doc_type]===t)) return; const r=tbCountItem(c,t);
+        items.push({group:'TO BANK', key:'fd:tb:count:'+t, ref:'46A', cp:tbRow?tbRow.id:'', label:'TO BANK '+({IV:'Invoice',PL:'P/L',BL:'B/L',QQ:'品質数量証明',BENE:'受益者証明',FT:'Free Time 証明'})[t]+' の枚数 (原本 / 写し)', status:trial?'INFO':r.st, would:trial?r.st:undefined, trial, cpState:state, expected:r.e, actual:r.a, detail:(trial?'【'+state+'】 ':'')+r.d, src:'TO BANK (AI)', file:(c.toBank&&c.toBank.name)||'', tsukan:false}); }); }
+    const cnt={}; items.forEach(i=>{ const s=i.trial?i.would:i.status; cnt[s]=(cnt[s]||0)+1; });
+    const live=items.filter(i=>!i.trial), verdict=live.some(i=>i.status==='DIFF')?'DIFF':live.some(i=>i.status==='READ_CHECK')?'READ_CHECK':live.some(i=>i.status==='NOTATION')?'NOTATION':live.length?'MATCH':'NONE';
+    const trialDiff=items.filter(i=>i.trial&&i.would==='DIFF').length;
+    return {version:VERSION, iv:c0.iv||'', items, counts:cnt, verdict, trialDiff, read:Object.keys(docs).map(k=>({type:k, file:docs[k].file, src:docs[k].src, pages:docs[k].pages.map(p=>p.page)})), files:col.files, req47:c.req47};
+  }
+  /* ── AI (TO BANK 頁の判別) — 指示文 · 結果の読み方 (通信は app 側) ── */
+  const AI = {model:'claude-opus-5-5', effort:'low', dpi:150, gray:true, maxTokens:400, price:{in:4, out:20},
+    prompt:'This image is ONE scanned page of an export documentary-credit (L/C) document set that a Japanese exporter presents to its bank. Classify ONLY this page.\n'+
+      'Return ONLY JSON: {"doc_type":"IV|PL|BL|INS|CO|QQ|BENE|CERT|LABEL|PIR|COVER|OTHER","mark":"ORIGINAL|DUPLICATE|TRIPLICATE|COPY|NON-NEGOTIABLE|NONE","signed":true|false,"first":true|false}\n'+
+      'doc_type: IV=commercial invoice, PL=packing list, BL=bill of lading or sea waybill, INS=insurance policy/certificate (front), CO=certificate of origin, QQ=quality/quantity/weight certificate, BENE=beneficiary\'s certificate/statement, CERT=other certificate (carrier, free time, radiation, vessel), LABEL=security label, PIR=inspection report, COVER=bank cover letter/transmittal, OTHER=anything else (back of a form, terms and conditions, bill of exchange, blank).\n'+
+      'mark = the ORIGINAL/COPY/DUPLICATE/NON-NEGOTIABLE stamp or printed marking on THIS page (NONE if absent). signed = a handwritten signature or company stamp/seal is visible. first = this is the first page of that document (not a continuation/attached sheet).',
+    parse:t=>{ const m=S(t).match(/\{[\s\S]*\}/); if(!m) return null; try{ const j=JSON.parse(m[0]); return {doc_type:S(j.doc_type).toUpperCase(), mark:S(j.mark).toUpperCase(), signed:!!j.signed, first:j.first!==false}; }catch(e){ return null; } },
+    cost:u=>u?((u.input_tokens||0)*4+(u.cache_read_input_tokens||0)*0.2+(u.output_tokens||0)*20)/1e6:0,
+    /* 保存本 (SharePoint ACL_bench/_fd_ai/{sha256}.json · 同じファイルは 2 度読まない) */
+    dir:'古紙/-. AI 活用/D-00/ACL_bench/_fd_ai', schema:'fd_ai/1',
+    cachePath:sha=>'古紙/-. AI 活用/D-00/ACL_bench/_fd_ai/'+String(sha||'').toLowerCase()+'.json',
+    /* まだ読んでいない頁 (保存本にない頁 · r1 / r2 の片方がない頁) — 全部あれば [] = AI を呼ばない */
+    pending:(cache, nPages)=>{ const done=new Set(((cache&&cache.pages)||[]).filter(p=>p&&p.r1&&p.r2).map(p=>p.page)); const out=[]; for(let i=1;i<=nPages;i++) if(!done.has(i)) out.push(i); return out; },
+    usable:(cache, sha)=>!!cache&&cache.schema==='fd_ai/1'&&String(cache.sha256||'').toLowerCase()===String(sha||'').toLowerCase() };
+  return {VERSION, TYPES, NEW_TYPES, TITLE, classifyPage, pageLines, pageText, fileTier, TIER_JA, collect, readIvPl, lcBits, countsOf, dateKey, CHECKS, check, tbTally, req47, ST, ST_JA, GROUPS, AI, AI_TYPES, TB_FROM_LC};
+})();
+if(typeof module!=='undefined') module.exports=FD;
+</script>
+<script id="fd-app">
+/* ============================================================
+   FD 確認試験 — 通信 · 画面 (fd-app) · COMPASS · SharePoint = 読むだけ (GET) · AI 0
+   チェックポイント = master_checkpoint (stage FD) を ACL エンジン (同じレポの acl_bench.html の acl-core) の cpPrepare で読む (承認の安全装置そのまま)
+============================================================ */
+const FB_DV_API = 'https://orgde512c6f.crm7.dynamics.com/api/data/v9.2';
+const FB_GRAPH = 'https://graph.microsoft.com/v1.0/';
+const FB_PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+const FB_CMAPS = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/';
+const SRC_WIP = '古紙/-. 古紙書類/▲ 書類作成中', SRC_OLD = '古紙/_OLD_DOC';
+const FD_AI_DIR = '古紙/-. AI 活用/D-00/ACL_bench/_fd_ai';
+const MASTER_DIR = '古紙/-. AI 活用/MASTER';
+const $ = id => document.getElementById(id);
+const escH = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+const spEnc = p => p.split('/').map(encodeURIComponent).join('/');
+const drv = () => FB_GRAPH+'drives/'+LEENAI.SP.DRIVE_ID;
+let ACL=null;
+function logLine(msg, cls){ const el=$('fbLog'); if(!el) return; const d=document.createElement('div'); d.className=cls||''; d.textContent=new Date().toLocaleTimeString('ja-JP')+'  '+msg; el.prepend(d); }
+async function dvGet(path, _r){ _r=_r||0; const tok=await LEENAI.auth.token('dataverse');
+  const res=await fetch(FB_DV_API+'/'+path,{headers:{'Authorization':'Bearer '+tok,'OData-MaxVersion':'4.0','OData-Version':'4.0','Accept':'application/json','Prefer':'odata.include-annotations="OData.Community.Display.V1.FormattedValue"'}});
+  if(!res.ok){ if((res.status===429||res.status>=500)&&_r<2){ await sleep(1500*(_r+1)); return dvGet(path,_r+1); } throw new Error('DV '+res.status); } return res.json(); }
+async function graphFetch(url, opts, _r){ _r=_r||0; const tok=await LEENAI.auth.token('graph'); const o=Object.assign({},opts||{},{headers:Object.assign({'Authorization':'Bearer '+tok},(opts&&opts.headers)||{})});
+  if(o.method&&o.method!=='GET') throw new Error('書き込み禁止 (fd_bench は読むだけ)'); const res=await fetch(url,o);
+  if(res.status===401&&_r===0) return graphFetch(url,opts,1); if((res.status===429||res.status>=500)&&_r<3){ await sleep(1000*Math.pow(2,_r)); return graphFetch(url,opts,_r+1); } return res; }
+async function spKids(path){ let url=drv()+'/root:/'+spEnc(path)+':/children?$select=id,name,folder,file,size,lastModifiedDateTime,webUrl&$top=999', out=[];
+  while(url){ const r=await graphFetch(url); if(r.status===404) return null; if(!r.ok) throw new Error('Graph '+r.status); const j=await r.json(); out=out.concat(j.value||[]); url=j['@odata.nextLink']||null; } return out; }
+async function spJson(path){ const r=await graphFetch(drv()+'/root:/'+spEnc(path)+':/content'); if(r.status===404) return null; if(!r.ok) throw new Error('Graph '+r.status+' '+path); return r.json(); }
+async function spText(path){ const r=await graphFetch(drv()+'/root:/'+spEnc(path)+':/content'); if(!r.ok) return ''; return r.text(); }
+async function spBytes(id){ const r=await graphFetch(drv()+'/items/'+id+'/content'); if(!r.ok) throw new Error('Graph '+r.status); return new Uint8Array(await r.arrayBuffer()); }
+async function sha256hex(buf){ const h=await crypto.subtle.digest('SHA-256',buf); return Array.from(new Uint8Array(h)).map(b=>b.toString(16).padStart(2,'0')).join(''); }
+async function ensurePdfJs(){ if(window.pdfjsLib) return; await new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=FB_PDFJS+'pdf.min.js'; s.onload=()=>{ window.pdfjsLib.GlobalWorkerOptions.workerSrc=FB_PDFJS+'pdf.worker.min.js'; res(); }; s.onerror=rej; document.head.appendChild(s); }); }
+async function readPages(bytes){ await ensurePdfJs(); const pdf=await window.pdfjsLib.getDocument({data:bytes.slice(0), cMapUrl:FB_CMAPS, cMapPacked:true}).promise, pages=[];
+  try{ for(let i=1;i<=pdf.numPages;i++){ const pg=await pdf.getPage(i), vb=pg.view, tc=await pg.getTextContent(); pages.push({page:i, items:tc.items.filter(it=>it.str&&it.str.trim()).map(it=>({s:it.str, x:it.transform[4]-vb[0], y:it.transform[5]-vb[1], w:it.width||0}))}); } }
+  finally{ try{ await pdf.destroy(); }catch(e){} } return pages; }
+async function loadAcl(){ if(ACL) return ACL; const r=await fetch('acl_bench.html'); const html=await r.text(), m=html.match(/<script id="acl-core">([\s\S]*?)<\/script>/); if(!m) throw new Error('acl-core なし');
+  ACL=(new Function('module', m[1]+'\n;return ACL;'))(undefined); return ACL; }
+/* Invoice フォルダ (▲ 書類作成中/{IV} · _OLD_DOC/{年}/{IV}) — 中のフォルダも (PHOTO · COTECNA は外す) */
+async function folderOf(iv){ for(const root of [SRC_WIP, SRC_OLD+'/20'+iv.replace(/^\D+/,'').slice(0,2)]){ const k=await spKids(root+'/'+iv); if(k) return {path:root+'/'+iv, kids:k}; } return null; }
+async function walk(path, kids, pre){ let out=[]; for(const x of kids){ if(x.folder){ if(/^(PHOTO|COTECNA|写真)$/i.test(x.name)) continue; const k=await spKids(path+'/'+x.name); if(k) out=out.concat(await walk(path+'/'+x.name, k, pre+x.name+'/')); } else out.push({name:pre+x.name, id:x.id, size:x.size, modified:x.lastModifiedDateTime}); } return out; }
+async function runOne(){
+  const iv=$('fbInv').value.trim().toUpperCase(); if(!/^[A-Z]{1,4}\d{4}-\d{2}$/.test(iv)){ $('fbSt').textContent='Invoice 番号の形が違う'; return; }
+  $('fbRun').disabled=true; $('fbSt').textContent='読み込み中…'; $('fbOut').innerHTML='';
+  try{
+    const A=await loadAcl();
+    const bk=(await dvGet(`cr49f_bookings?$filter=cr49f_invoice_no eq '${iv}'&$select=cr49f_bookingid,crcf9_bl_etd,cr49f_etd,_cr49f_sale_contract_id_value`)).value[0];
+    const meta={}; if(bk){ meta.blDate=String(bk.crcf9_bl_etd||bk.cr49f_etd||'').slice(0,10); const sc=await dvGet(`cr49f_sale_contracts(${bk._cr49f_sale_contract_id_value})?$select=cr49f_sale_contract_no,cr49f_pay_cls,_cr49f_buyer_id_value`);
+      meta.contract=sc.cr49f_sale_contract_no||''; meta.pay=sc['cr49f_pay_cls@OData.Community.Display.V1.FormattedValue']||''; if(sc._cr49f_buyer_id_value){ const by=await dvGet(`cr49f_buyers(${sc._cr49f_buyer_id_value})?$select=crcf9_country`); meta.country=by['crcf9_country@OData.Community.Display.V1.FormattedValue']||by.crcf9_country||''; } }
+    const lc=meta.contract?await spJson('古紙/LC/_READ/'+meta.contract+'.json'):null, lcText=lc&&lc.source&&lc.source.lc_text?await spText(lc.source.lc_text):'';
+    const fo=await folderOf(iv); if(!fo) throw new Error('Invoice フォルダがない'); const all=await walk(fo.path, fo.kids, '');
+    const files=[]; for(const f of all){ const t=FD.fileTier(f.name, iv); if(!t.tier) continue; try{ files.push({name:f.name, modified:f.modified, pages:await readPages(await spBytes(f.id))}); }catch(e){ logLine(f.name+' を読めない','warn'); } }
+    const tb=all.filter(f=>/TO ?BANK/i.test(f.name)&&/\.pdf$/i.test(f.name)).sort((a,b)=>String(b.modified).localeCompare(String(a.modified)))[0]; let ai=null;
+    if(tb){ const h=await sha256hex(await spBytes(tb.id)); ai=await spJson(FD_AI_DIR+'/'+h+'.json'); logLine('TO BANK '+tb.name+(ai?' — AI 判別の保存結果あり':' — AI 判別の保存結果なし (書類ツールで自動実行)'),ai?'ok':'warn'); }
+    const cpm=await spJson(MASTER_DIR+'/master_checkpoint.json'), CPX=cpm?A.cpPrepare(cpm.items||[],[],{admins:new Set()}):null;
+    const res=FD.check({iv, files, lc, lcText, meta, ai, toBank:tb?{name:tb.name, modified:tb.modified}:null, today:new Date().toISOString().slice(0,10), cp:CPX});
+    render(res); $('fbSt').textContent='終わり — 試験の相違 '+res.trialDiff;
+  }catch(e){ $('fbSt').textContent='エラー: '+e.message; logLine(e.message,'danger'); }
+  $('fbRun').disabled=false;
+}
+function render(res){
+  const rd=res.read.map(r=>escH(FD.TYPES[r.type]||r.type)+': '+escH(r.file)+' <span class="fb-src">('+escH(r.src)+')</span>').join('<br>');
+  let h='<div class="fb-note">読んだ PDF:<br>'+(rd||'(なし)')+'</div><table class="fb-t"><colgroup><col style="width:8%"><col style="width:22%"><col style="width:9%"><col style="width:20%"><col style="width:20%"><col style="width:21%"></colgroup><tr><th>CP</th><th>確認</th><th>結果</th><th>基準</th><th>書類</th><th>説明</th></tr>';
+  FD.GROUPS.forEach(g=>{ const its=res.items.filter(i=>i.group===g); if(!its.length) return; h+='<tr class="g"><td colspan="6">'+escH(g)+'</td></tr>';
+    its.forEach(i=>{ const s=i.trial?i.would:i.status; h+='<tr><td>'+escH(i.cp||i.ref)+'</td><td>'+escH(i.label)+(i.tsukan?' <span class="fb-trial">通関版</span>':'')+'</td><td class="fb-st fb-'+s+'">'+escH(FD.ST_JA[s]||s)+(i.trial?'<span class="fb-trial">試験</span>':'')+'</td><td>'+escH(i.expected)+'</td><td>'+escH(i.actual)+'</td><td>'+escH(i.detail.replace(/^【[^】]*】\s*/,''))+'</td></tr>'; }); });
+  $('fbOut').innerHTML=h+'</table>';
+}
+function startPage(){ $('fbMain').style.display=''; $('fbRun').onclick=runOne; const dot=LEENAI.auth.status; logLine('接続: Dataverse '+dot.dataverse+' / Graph '+dot.graph); }
+window.FBAPP = {runOne, render, loadAcl};
+LEENAI.init({
+  sys:'D-00', name:'FD 確認試験', version:'0.1', date:'2026-11-25',
+  desc:'FD の部品 PDF (文字) を L/C 保管所の要件と照合 · TO BANK は AI の頁判別の保存結果 (枚数 · 原本/写し · 署名) · 新しい確認は全部 試験 (読むだけ · AI なし)',
+  graphScopes:['Sites.ReadWrite.All'],
+  redirectUri:'https://mhlee205.github.io/CONTRACT_SEND/fd_bench.html',
+  onReady:startPage
+});
+</script>
+</body>
+</html>

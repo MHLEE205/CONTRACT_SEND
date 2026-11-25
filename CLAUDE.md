@@ -12,13 +12,14 @@
 
 | 파일 | 내용 |
 |---|---|
-| `acl_bench.html` | **ACL 대조 엔진** (`<script id="acl-core">` · 순수 로직) + 시험 화면 (acl-app) — 현재 **v0.17** |
-| `bl_bench.html` | **B/L Draft 대조 엔진** (`<script id="bl-core">` · ACL 엔진을 `BL.useEngine` 로 받음) + 시험 화면 — 현재 **v0.4** |
+| `acl_bench.html` | **ACL 대조 엔진** (`<script id="acl-core">` · 순수 로직) + 시험 화면 (acl-app) — 현재 **v0.18** (새 체크포인트 試験 코드 판정 `CP_CODE` · S/I 단계 `siCheck`) |
+| `bl_bench.html` | **B/L Draft 대조 엔진** (`<script id="bl-core">` · ACL 엔진을 `BL.useEngine` 로 받음) + 시험 화면 — 현재 **v0.5** |
+| `fd_bench.html` | **FD 확인 엔진** (`<script id="fd-core">` · 순수 로직 · `FD`) + 시험 화면 (fd-app · 읽기만 · AI 0) — 현재 **v0.1**. 부품 PDF 글자 ↔ L/C 보관소 (묶음 Invoice 13 · B/L 5 · P/L 7 · 보험 11 · C/O 4 · BENE/47A/기한 4) + TO BANK AI 쪽 판별 저장본 (`ACL_bench/_fd_ai/{sha256}.json` · 매수 · 원본/사본 · 서명만). 새 판정은 마스터 `master_checkpoint` 의 그 줄 (engine_key `fd:…`) 이 있을 때만 · 有効 만 판정 (지금은 전부 試験) |
 | `a1_bench.html` | S/I 추천 (A1 R2) 엔진 · 시험 화면 |
 | `compass_write_test.html` | COMPASS 쓰기 시험 |
 | `index.html` · `mail/` · `common-test/` | A-02 MAIL 포털 시험 페이지 · LEENAI_COMMON 동작 확인 (README) |
 | `tools/` | node 도구 (PC 에서 실행): `acl_scan_ai.mjs` (스캔 · 乙仲様式 ACL AI 판독 저장) · `lc_read_*.mjs` (L/C 보관소) · `cp_trial.mjs` (체크포인트 시험) · `bl_repro.mjs` (B/L 전수 재현) · **`ms_token.mjs` (Microsoft 토큰 · OS 별 한 곳)** |
-| `tests/acl_bench` · `tests/bl_bench` · `tests/a1_bench` · `tests/compass_write_test` | node 시험 (가짜 데이터만 · 네트워크 0) |
+| `tests/acl_bench` · `tests/bl_bench` · `tests/fd_bench` · `tests/a1_bench` · `tests/compass_write_test` | node 시험 (가짜 데이터만 · 네트워크 0) |
 
 - **書類ツール (DOC_TOOL) 이 이 엔진을 쓴다** — DOC_TOOL 은 `acl_bench.html` · `bl_bench.html` 을 **커밋 + sha256 으로 고정**해서 raw 로 읽는다 (복사하지 않음). 엔진을 고치면 → push → 그 커밋 · sha256 을 DOC_TOOL `CLAUDE.md` §5 와 `index.html` (`ACL_ENGINE` · `BL_ENGINE`) 에 넣는다 (한 토르가 순서대로 · 버전을 다시 맞추는 일 0).
 - 엔진 안의 규칙 표는 **한 곳**: 형태 대응 `CNTR_TYPES` · 표시칸 `DISP` · 乙仲様式 `NA_MAP` · `CT_ONLY` · `PRINTED` · 체크포인트 `CP_OPS` · B/L `OTHER_CT` 등. 같은 규칙을 두 군데 쓰지 않는다.
@@ -30,6 +31,7 @@
 git clone -c core.autocrlf=false https://github.com/MHLEE205/CONTRACT_SEND.git
 cd CONTRACT_SEND/tests/acl_bench && npm install && node run_all.js   # ✅ ALL PASS
 cd ../bl_bench && npm install && node run_all.js                     # ALL PASS
+cd ../fd_bench && node run_all.js                                      # ALL PASS (npm install 필요 없음)
 ```
 
 - node 18 이상. 일부 시험은 `git show <옛 커밋>:acl_bench.html` 로 **전 판과 바이트 비교**를 하므로 **클론 (git 기록) 에서** 돌린다.
@@ -37,6 +39,8 @@ cd ../bl_bench && npm install && node run_all.js                     # ALL PASS
 - `tests/a1_bench` · `tests/compass_write_test` 는 각자 `npm install` 필요 (이 PC 에 없으면 그 묶음만 실패 — 엔진 변경과 무관한지 HEAD 에서도 같은지 확인).
 
 ## 3. 지켜야 할 규칙
+
+0. **새 체크포인트 (v0.18 · fd v0.1 · 형님 F2)** — 마스터 追加 줄에 `engine_key` 가 있으면 엔진 코드 (`ACL.CP_CODE` · `FD.CHECKS`) 가 판정. 상태가 有効 이 아니면 결과는 `trial:true` · 전체 판정에 0 영향. 有効 전환은 형님 승인 (承認の安全装置 그대로).
 
 1. **버전** — 각 html 의 `LEENAI.init({ … version:'x.y' … })` 1곳 (+ bl-core `VERSION`) · 맨 위 주석에 「vX.Y (날짜 · 지시서 · 형님 결정) 무엇을」 한 줄. 시험의 버전 기대값도 같이.
 2. **푸터** 「✦ Powered by LEENAI Automation System」 유지.
@@ -55,7 +59,7 @@ cd ../bl_bench && npm install && node run_all.js                     # ALL PASS
 
 ## 5. AI 비용
 
-- AI 를 부르는 곳 = 스캔 · 乙仲様式 ACL 판독 (`scanReadBrowser` · `acl_scan_ai.mjs`) · L/C 판독 (`lc_read_one`) · A1 추천.
+- AI 를 부르는 곳 = 스캔 · 乙仲様式 ACL 판독 (`scanReadBrowser` · `acl_scan_ai.mjs`) · L/C 판독 (`lc_read_one`) · A1 추천 · **TO BANK 쪽 판별 (`FD.AI` — 프롬프트 · 읽는 법은 fd-core · 부르는 곳은 書類ツール 브라우저 · 2 회 같을 때만 · 회색 150 dpi · 문구 판정 안 함)**.
 - **같은 파일은 다시 읽지 않는다** (sha256 저장본) · 실행 전 예상 비용 · 실행 후 실제 비용을 보고서에. 한 번 실행 상한은 지시서 (없으면 **US$10** — 넘을 것 같으면 멈추고 보고).
 - 회귀 · 전후 비교는 **AI 0** (저장본만).
 
