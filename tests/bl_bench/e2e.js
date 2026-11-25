@@ -66,7 +66,7 @@ const pdfjs=require('pdfjs-dist/legacy/build/pdf.js');
     w.LEENAI={init(cfg){ w.__cfg=cfg; w.document.addEventListener('DOMContentLoaded',()=>{ w.document.getElementById('app').style.display=''; cfg.onReady(); ready(); }); },
       auth:{token:async()=>'FAKE', status:{dataverse:'ok', graph:'ok'}}, SP:{DRIVE_ID:'DRIVE'}, master:{get:async n=>{ calls.push('MASTER '+n); return MASTERS?MASTERS[n]||null:null; }}}; }});
   const w=dom.window; await readyP;
-  eq(w.__cfg.version,'0.4','LEENAI.init 버전'); ok(/bl_bench\.html$/.test(w.__cfg.redirectUri),'redirectUri = bl_bench.html');
+  eq(w.__cfg.version,'0.5','LEENAI.init 버전'); ok(/bl_bench\.html$/.test(w.__cfg.redirectUri),'redirectUri = bl_bench.html');
   /* ① 照合 */
   w.document.getElementById('bbInv').value=IV+'\nNOT-AN-IV'; w.document.getElementById('bbRun').click();
   for(let i=0;i<200&&!/完了/.test(w.document.getElementById('bbRunSt').textContent);i++) await new Promise(r=>setTimeout(r,50));
