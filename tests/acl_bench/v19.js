@@ -35,9 +35,10 @@ eq(PN('SAMPLE TEL: 0000-1111','SAMPLE FAX: 0000-1111'),null,'V6 ⑥ TEL ↔ FAX 
   eq([ACL.itemIn(it,'SAMPLE CO.\nTEL : +81-3-0000-1111\nFAX : +81-3-0000-1112'), ACL.itemIn(it,'SAMPLE CO.\nTEL : +81-3-0000-1111\nFAX : +81-3-0000-1119')],[true,false],'V6 ⑩ 最終確認의 항목 찾기 = 전화 · FAX 숫자만 (번호 다르면 없음)'); }
 /* ── K6 (CP-A04 si:deadline) ── */
 const D=(l,s)=>ACL.CP_CODE['si:deadline']({lc:{payment:{tenor_text:l}}, si:{crcf9_payment_deadline:s}}).st;
-eq([D('AT 90 DAYS AFTER BL DATE','90 DAYS AFTER B/L DATE'), D('AT 90 DAYS AFTER BILL OF LADING DATE','90 DAY AFTER B/L DATE'), D('AT 90 DAYS AFTER B/L DATE FOR 100 PCT','AT 90 DAYS AFTER B/L DATE FOR 100 PCT')],['NOTATION','NOTATION','MATCH'],'K6 ① BL = B/L · BILL OF LADING · DAYS 단복수 = 表記差 · 같으면 一致');
+eq([D('AT 90 DAYS AFTER BL DATE','90 DAYS AFTER B/L DATE'), D('AT 90 DAYS AFTER BILL OF LADING DATE','90 DAY AFTER B/L DATE'), D('AT 90 DAYS AFTER B/L DATE FOR 100 PCT','AT 90 DAYS AFTER B/L DATE FOR 100 PCT'), D('AT 90 DAYS AFTER B/L DATE','at  90 days after b/l date')],['DIFF','DIFF','MATCH','NOTATION'],'K6 ① (v0.20 형님 P1) BL ↔ B/L ↔ BILL OF LADING · DAYS 단복수 = 相違 · 같으면 一致 · 공백 · 대소문자만 = 表記差');
 eq([D('AT 90 DAYS AFTER B/L DATE','AT 120 DAYS AFTER B/L DATE'), D('AT SIGHT','AT 90 DAYS AFTER B/L DATE'), D('AT 90 DAYS AFTER INVOICE DATE','AT 90 DAYS AFTER B/L DATE'), D('AT 90 DAYS AFTER B/L DATE FOR 100 PCT','AT 90 DAYS AFTER B/L DATE FOR 90 PCT')],['DIFF','DIFF','DIFF','DIFF'],'K6 ② 일수 · AT SIGHT ↔ n DAYS · 기준일 · % 다르면 相違');
-ok(/日数|起算日/.test(ACL.CP_CODE['si:deadline']({lc:{payment:{tenor_text:'AT 90 DAYS AFTER INVOICE DATE'}}, si:{crcf9_payment_deadline:'AT 90 DAYS AFTER B/L DATE'}}).d),'K6 ③ 相違 이유 (起算日)');
+{ const r=ACL.CP_CODE['si:deadline']({lc:{payment:{tenor_text:'90 DAYS AFTER BILL OF LADING DATE'}}, si:{crcf9_payment_deadline:'90 DAYS AFTER B/L DATE FOR 100PCT OF INVOICE VALUE'}});
+  ok(r.st==='DIFF'&&/書き換え: BILL OF LADING → B\/L/.test(r.d)&&/足した: FOR 100PCT OF INVOICE VALUE/.test(r.d)&&/抜けた: FOR/.test(ACL.CP_CODE['si:deadline']({lc:{payment:{tenor_text:'AT 90 DAYS AFTER B/L DATE FOR 100 PCT'}}, si:{crcf9_payment_deadline:'AT 90 DAYS AFTER B/L DATE'}}).d),'K6 ③ (v0.20) 相違 이유 = 書き換え · 足した · 抜けた',r.d); }
 /* ── V3 ── */
 const F=(t,ab)=>ab?{text:null, absent:true, page:1}:{text:t, absent:false, page:1, label:''};
 const j1={layout:'OTHER', form:'SAMPLE FORM', containerTable:false, pages:1, fields:{freight:F(''), agentSign:F(''), shipperMail:F('1) ????.???@??MPLE.TEST'), issuePlace:F('TOKYO')}, rows:[]};

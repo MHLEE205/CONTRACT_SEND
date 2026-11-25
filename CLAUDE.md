@@ -12,9 +12,9 @@
 
 | 파일 | 내용 |
 |---|---|
-| `acl_bench.html` | **ACL 대조 엔진** (`<script id="acl-core">` · 순수 로직) + 시험 화면 (acl-app) — 현재 **v0.19** (당사자 전화 · FAX 숫자만 · 우편번호 = 表記差 `partyNotation` · CP-A04 표기차 · AI 「読めず」 칸 3 번째 판독 `scanApplyR3` · 화면 `viewHtml(…,{v22:true})` = 書類ツール v0.22 순서) |
+| `acl_bench.html` | **ACL 대조 엔진** (`<script id="acl-core">` · 순수 로직) + 시험 화면 (acl-app) — 현재 **v0.20** (CP-A04 = L/C 42C 원문 그대로 · 공백 · 대소문자만 表記差  · FAX 메일 칸 「?」 밖 같으면 一致  · 당사자 전화 · FAX 숫자만 · 우편번호 = 表記差 `partyNotation` · CP-A04 표기차 · AI 「読めず」 칸 3 번째 판독 `scanApplyR3` · 화면 `viewHtml(…,{v22:true})` = 書類ツール v0.22 순서) |
 | `bl_bench.html` | **B/L Draft 대조 엔진** (`<script id="bl-core">` · ACL 엔진을 `BL.useEngine` 로 받음) + 시험 화면 — 현재 **v0.6** (전화 · 우편번호 줄 찾기 = ACL `partyLineKey`) |
-| `fd_bench.html` | **FD 확인 엔진** (`<script id="fd-core">` · 순수 로직 · `FD`) + 시험 화면 (fd-app · 읽기만 · AI 0) — 현재 **v0.2** (보험증권 앞면 AI 판독 `FD.INS_AI` · 저장본 `_fd_ai/{sha256}.ins.json` · 제출기한 = FD送付日). 부품 PDF 글자 ↔ L/C 보관소 (묶음 Invoice 13 · B/L 5 · P/L 7 · 보험 11 · C/O 4 · BENE/47A/기한 4) + TO BANK AI 쪽 판별 저장본 (`ACL_bench/_fd_ai/{sha256}.json` · 매수 · 원본/사본 · 서명만). 새 판정은 마스터 `master_checkpoint` 의 그 줄 (engine_key `fd:…`) 이 있을 때만 · 有効 만 판정 (지금은 전부 試験) |
+| `fd_bench.html` | **FD 확인 엔진** (`<script id="fd-core">` · 순수 로직 · `FD`) + 시험 화면 (fd-app · 읽기만 · AI 0) — 현재 **v0.3** (보험 표준 제외 특약  = 一致 · DESTINATION + 같은 나라 = 注意 · 보험증권 앞면 AI 판독 `FD.INS_AI` · 저장본 `_fd_ai/{sha256}.ins.json` · 제출기한 = FD送付日). 부품 PDF 글자 ↔ L/C 보관소 (묶음 Invoice 13 · B/L 5 · P/L 7 · 보험 11 · C/O 4 · BENE/47A/기한 4) + TO BANK AI 쪽 판별 저장본 (`ACL_bench/_fd_ai/{sha256}.json` · 매수 · 원본/사본 · 서명만). 새 판정은 마스터 `master_checkpoint` 의 그 줄 (engine_key `fd:…`) 이 있을 때만 · 有効 만 판정 (지금은 전부 試験) |
 | `a1_bench.html` | S/I 추천 (A1 R2) 엔진 · 시험 화면 |
 | `compass_write_test.html` | COMPASS 쓰기 시험 |
 | `index.html` · `mail/` · `common-test/` | A-02 MAIL 포털 시험 페이지 · LEENAI_COMMON 동작 확인 (README) |

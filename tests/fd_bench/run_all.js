@@ -36,8 +36,8 @@ const run=(o)=>FD.check(Object.assign({iv:IV, files:files(o), lc:LC(o&&o.lc), lc
 const it=(r,k)=>r.items.find(i=>i.key===k)||{};
 const W=i=>i.trial?i.would:i.status;
 
-sect('기본 (버전 0.2 · LEENAI.init 1곳 · 푸터 · confirm/alert 0 · 한글 0 · 쓰기 0)', ()=>{
-  eq(FD.VERSION,'0.2','fd-core VERSION'); eq((HTML.match(/version:'0\.2'/g)||[]).length,1,'LEENAI.init version 1곳');
+sect('기본 (버전 0.3 · LEENAI.init 1곳 · 푸터 · confirm/alert 0 · 한글 0 · 쓰기 0)', ()=>{
+  eq(FD.VERSION,'0.3','fd-core VERSION'); eq((HTML.match(/version:'0\.3'/g)||[]).length,1,'LEENAI.init version 1곳');
   ok(/✦ Powered by LEENAI Automation System/.test(HTML),'푸터'); ok(!/\b(confirm|alert)\(/.test(HTML),'confirm/alert 0');
   ok(!/[가-힣]/.test(HTML),'화면 · 코드 한글 0'); ok(/書き込み禁止/.test(HTML)&&!/method:'(PUT|POST|PATCH|DELETE)'/.test(HTML),'Graph 쓰기 0 (GET 만)');
   ok(!/ghp_|github_pat_|sk-ant|client_secret|AKIA/.test(HTML),'보안 grep 0');
@@ -123,7 +123,10 @@ sect('v0.2 — K4 提出期限 = FD送付日 · K3 보험증권 AI (2 회 같은
   eq(W(it(run(),'fd:ins:amount')),'READ_CHECK','AI 없음 = 지금처럼 読取確認');
   eq(W(it(run({ctx:{insAi:ins({amount:'20,000.00'})}}),'fd:ins:amount')),'DIFF','금액 < Invoice × 110 % = 相違');
   eq(W(it(run({ctx:{insAi:ins({amount:'26,940.49'},{amount:'28,940.49'})}}),'fd:ins:amount')),'READ_CHECK','2 회 다름 = 読取確認');
-  eq(W(it(run({ctx:{insAi:ins({exclusions:'EXCLUDING RUST'})}}),'fd:ins:cond')),'NOTATION','제외 특약 = 注意');
+  eq(W(it(run({ctx:{insAi:ins({exclusions:'EXCLUDING RUST'})}}),'fd:ins:cond')),'NOTATION','표준이 아닌 제외 특약 = 注意');
+  eq(FD.INS_STD_EXCL.map(x=>W(it(run({ctx:{insAi:ins({exclusions:x.toLowerCase().replace(/ /g,'  ')})}}),'fd:ins:cond'))),['MATCH','MATCH'],'v0.3 (형님 P2) 회사 표준 제외 특약 2 문구 = 一致 (공백 · 대소문자 무시)');
+  eq(W(it(run({ctx:{insAi:ins({exclusions:FD.INS_STD_EXCL[0]+' EXCLUDING RUST'})}}),'fd:ins:cond')),'NOTATION','v0.3 표준 + 다른 문구 = 注意');
+  eq([W(it(run({ctx:{insAi:ins({claims_payable_at:'DESTINATION', voyage_to:'INLAND DEPOT, SAMPLELAND'})}}),'fd:ins:claims')), W(it(run({ctx:{insAi:ins({claims_payable_at:'DESTINATION', voyage_to:'OTHERLAND PORT'})}}),'fd:ins:claims'))],['NOTATION','DIFF'],'v0.3 (형님 P3) DESTINATION + 仕向地 같은 나라 = 注意 · 다른 나라 = 相違');
   eq(W(it(run({ctx:{insAi:ins({conditions:'INSTITUTE CARGO CLAUSES (C)'})}}),'fd:ins:cond')),'DIFF','(A) 아님 = 相違');
   eq(W(it(run({ctx:{insAi:ins({sailing:'ON OR ABOUT NOV. 07, 2026'})}}),'fd:ins:sailing')),'DIFF','Sailing ≠ B/L ON BOARD = 相違');
   eq(W(it(run({ctx:{insAi:ins({sailing:'AS PER B/L'})}}),'fd:ins:sailing')),'NOTATION','AS PER B/L = 注意');

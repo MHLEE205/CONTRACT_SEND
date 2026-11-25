@@ -140,6 +140,8 @@ tr.ab-d td{background:var(--surface)}
      読み P2 (ラベル 0 → 読取確認要 · Booking 末尾 「-」 · コンテナ = 番号 + チェックデジット · 港の後ろの数字 · コンテナ行数 ↔ 本数) · Shipper's Mail 空欄 = 参考 (D1) · 本船変更 = 相違のまま 「本船変更依頼」 (D5) ·
      担当者メールの判断 (本文の自分の部分 · B/L 段階の件名は除く · [ACL訂正依頼] タグ · 3 か月 jsonl) · L/C JSON 照合 (L/C 番号 · 日付 · 揚地 · 積地 · 原本通数 · Notify) — 違えば 相違 (D2 · D5) · しないこと: S/I 確認を分ける (P3) · 連絡先を参考 (P6) · HS 末尾 0 · 1 〜 2 文字の許容
    v0.13 (2026-11-23 指示書 D00 B/L 照合結果の保存 · 日本語化): 画面に出る文の韓国語をなくした (Shipper's Mail 空欄の参考 · 報告の 「制作」 · 説明) — 判定 · 結果は v0.12 と同じ
+   v0.20 (2026-11-25 指示書 THOR_19 ①-1 · ①-4 · 形さん P1 · 리나이 Q4): CP-A04 = L/C 42C の原文どおり (表記差は 空白 · 大文字小文字だけ · BL ↔ B/L ↔ BILL OF LADING · 足した文 = 相違 · 理由 cx42Diff) ·
+     B/L ドラフト送付先メール (AI で決まらない) = 規則の値と 「?」 以外 全部同じなら 一致 (mailWild)
    v0.19 (2026-11-25 指示書 THOR_17 E-V3 · E-V6 · E-K6 · 형님 V3 · V6 · K6): 当事者 (Shipper · Consignee · Notify) の 電話 · FAX = 数字だけ · 郵便番号が片方だけ · 改行 · 句読点 = 表記差 (partyNotation · 規則 1 か所 · bl-core · 最終確認の項目 itemIn も使う) ·
      CP-A04 (S/I 42C) の BL ↔ B/L · 空白 · 句読点 · DAYS = 表記差 (日数 · 一覧 · 起算日 が違えば 相違) · AI 「読めず」 (2 回違う) 欄の 3 回目 (その欄だけ 切り抜いて · scanRetryPrompt · scanRetryMerge · 欄の名前 SCAN_FIELD_JA)
    v0.18 (2026-11-25 指示書 THOR_15 ①-6 · 形さん F2): 新しいチェックポイント (試験) のコード判定 CP_CODE — S/I 5 (新しい段階 S/I · siCheck) · ACL 7 (+ FAX は比べ方の行) · B/L Draft 3 · 試験 = trial (判定に入れない) · マスターなし = v0.17 と同じ
@@ -1485,6 +1487,11 @@ const ACL = (()=>{
     for(const st of SCOPE_ORDER){ if(!hit[st]) continue; const r=(rules||[]).find(x=>x.rule===rule&&x.scope_type===st&&hit[st](x)); if(r) return r; }
     return null;
   }
+  /* v0.20 (①-4): メール欄の 「?」 つきの判読 (2 回 · 3 回目) のどれかが 規則の値と 「?」 以外 全部同じ (字数も同じ · 「1)」 「2)」 · 空白 · 大文字小文字は見ない) → その判読 · なければ '' */
+  function mailWild(f, exp){ const K=v=>String(v==null?'':v).normalize('NFKC').toUpperCase().replace(/\b[12]\)/g,'').replace(/\s+/g,''), E=K(exp); if(!E) return '';
+    const C=[].concat(f.amb||[], f.r3?[f.r3.value, f.r3.value2]:[]).filter(v=>v!=null&&v!=='(なし)'&&v!=='(欄なし)');
+    for(const v of C){ const x=K(v); if(x.length!==E.length) continue; let known=0, okk=true; for(let i=0;i<x.length;i++){ if(x[i]==='?') continue; if(x[i]!==E[i]){ okk=false; break; } known++; } if(okk&&known>=3) return String(v); }
+    return ''; }
   /* v0.4 (Step 2 · D1 · D2): Way Bill · 原本数 の組合せの型 (B/L 種類の期待値は保留 — D2) */
   const WB_TYPES={'1|1':'SWB 型', '|3':'OBL 型', '|1':'Surrender 型'};
   function dispItems(F, rules, meta, ctx){
@@ -1505,6 +1512,8 @@ const ACL = (()=>{
         return Object.assign(base,{status:'READ_CHECK', expected:'(組合せ)', actual:got===''?'(空欄)':got, detail:pair+' → どの型でもない (SWB 1·1 · OBL 空欄·3 · Surrender 空欄·1)', kind:k==='wayBill'?'表示欄の組合せ':''}); }
       if(!r) return Object.assign(base,{status:'INFO', expected:'(規則未登録)', actual:got==null?'(ラベルなし)':got, detail:'規則未登録 — '+rule, kind:''});
       const exp=dispNorm(r.value), why=r.scope_type+' '+r.scope+(r.note?' · '+r.note:'');
+      /* v0.20 (指示書 THOR_19 ①-4 · 리나이 Q4): B/L ドラフト送付先メール — AI 3 回目まで決まらない (FAX の小さい字) でも 規則の値 (自社メール) と 「?」 を除いた読めた字が 全部合えば 一致 (読めた字 3 つ以上 · 1 つでも違えば 今まで通り) */
+      if(k==='shipperMail'&&f&&f.conf==='AI_DIFF'&&exp){ const c=mailWild(f, exp); if(c) return Object.assign(base,{status:'MATCH', expected:exp, actual:c, detail:'AI 判読 · 一部読めず (「?」 以外は 規則の値と同じ) · 規則 '+why, kind:'', partial:true}); }
       if(got==null||f.conf!=='SURE') return Object.assign(base,{status:'READ_CHECK', expected:exp, actual:f?f.text:'', detail:'読めず · 規則 '+why, kind:'読取確認要:'+lb});
       if(k==='shipperMail'&&got===''&&exp!=='') return Object.assign(base,{status:'INFO', expected:exp, actual:'(空欄)', detail:'空欄 — 参考 (社長 D1: 空欄でも構わない · 書いてほしい業者があるので書いている) · 規則 '+why, kind:''});   // v0.9 (D1) · 書いてあって違えば 下で 相違
       return Object.assign(base,{status:got===exp?'MATCH':'DIFF', expected:exp===''?'(空欄)':exp, actual:got===''?'(空欄)':got, detail:'規則 '+why, kind:got===exp?'':'表示欄相違:'+lb}); });
@@ -2151,6 +2160,12 @@ const ACL = (()=>{
   const cx42 = t => cxU(t).replace(/^(DRAFTS? )?AT\s+/,'').replace(/\bDRAFTS? DRAWN ON.*$/,'').trim();   // 頭の 「(DRAFTS) AT」 は 両方から外して比べる
   /* v0.19 (E-K6): 42C の表記差の鍵 (BILL OF LADING · B/L · B L = BL · DAYS = DAY · 英数字と % だけ) と 意味 (日数 · 一覧払 · 起算日 · %) */
   const cx42Bl = t => cx42(t).replace(/\bBILLS? OF LADING\b/g,'BL').replace(/\bB\s*\/\s*L\b|\bB\s+L\b/g,'BL');
+  /* v0.20: L/C 42C ↔ S/I の 語の違い → 「足した: … · 抜けた: … · 書き換え: A → B」 (語の LCS) */
+  function cx42Diff(a, b){ const tk=t=>cxU(t).replace(/BILLS? OF LADING/g,m=>m.replace(/ /g,'\u00a0')).split(' ').filter(Boolean), A=tk(a), B=tk(b), n=A.length, m=B.length, T=[]; for(let i=0;i<=n;i++) T.push(new Array(m+1).fill(0));
+    for(let i=n-1;i>=0;i--) for(let j=m-1;j>=0;j--) T[i][j]=A[i]===B[j]?T[i+1][j+1]+1:Math.max(T[i+1][j],T[i][j+1]);
+    const ops=[]; let i=0, j=0, del=[], ins=[]; const flush=()=>{ if(del.length&&ins.length) ops.push('書き換え: '+del.join(' ')+' → '+ins.join(' ')); else if(del.length) ops.push('抜けた: '+del.join(' ')); else if(ins.length) ops.push('足した: '+ins.join(' ')); del=[]; ins=[]; };
+    while(i<n||j<m){ if(i<n&&j<m&&A[i]===B[j]){ flush(); i++; j++; } else if(j<m&&(i>=n||T[i][j+1]>=T[i+1][j])){ ins.push(B[j]); j++; } else { del.push(A[i]); i++; } } flush();
+    return ops.join(' · ').replace(/\u00a0/g,' ')||'語の並び'; }   // BILL OF LADING = 1 語として並べる
   const cx42Key = t => cx42Bl(t).replace(/\bDAYS\b/g,'DAY').replace(/[^A-Z0-9%]/g,'');
   const cx42Sem = t => { const u=cx42Bl(t), d=u.match(/\b0*(\d{1,3})\s*DAYS?\b/), p=u.match(/\b(\d{2,3})\s*(%|PCT|PERCENT|PER CENT)/);
     const base=/AFTER SIGHT/.test(u)?'SIGHT':/\bBL\b|ON ?BOARD/.test(u)?'BL':/SHIPMENT/.test(u)?'SHIPMENT':/INVOICE/.test(u)?'INVOICE':/ARRIVAL/.test(u)?'ARRIVAL':'';
@@ -2170,12 +2185,12 @@ const ACL = (()=>{
     'si:price_term':c=>{ const l=c.lc&&c.lc.price_term, s=c.si&&c.si.cr49f_payment_terms, a=cxInco(l), b=cxInco(s); if(!a) return cxR('INFO',l,s,'L/C の価格条件を読めない'); if(!s) return cxR('INFO',a,'','S/I の payment_terms が空');
       return a===b?cxR('MATCH',a,b,''):cxR('DIFF',a,b||cpStr(s).slice(0,20),'S/I の価格条件の頭が L/C 45A と違う'); },
     'si:deadline':c=>{ const p=c.lc&&c.lc.payment, l=p&&(p.tenor_text||p.read_text), s=c.si&&c.si.crcf9_payment_deadline; if(!l) return cxR('INFO','',s,'L/C の 42C がない'); if(!s) return cxR('DIFF',cx42(l),'','S/I の payment_deadline が空');
-      if(cpWs(cx42(l))===cpWs(cx42(s))) return cxR('MATCH',cx42(l),s,'');
-      /* v0.19 (E-K6 · 形さん K6): BL ↔ B/L · 空白 · 大文字小文字 · 句読点 · DAYS の単複 = 表記差 · 日数 · AT SIGHT ↔ n DAYS · 起算日 · % が違えば 相違 */
-      if(cx42Key(l)===cx42Key(s)) return cxR('NOTATION',cx42(l),s,'表記差 (BL = B/L · 空白 · 句読点 · DAYS の単複) — 日数 · 起算日は同じ');
-      const A=cx42Sem(l), B=cx42Sem(s), dif=['days','sight','base','pct'].filter(k=>A[k]!==B[k]);
-      if((A.days||A.sight)&&!dif.length) return cxR('NOTATION',cx42(l),s,'表記差 (言い方だけ違う) — 日数 '+(A.days||'AT SIGHT')+' · 起算 '+(A.base||'-')+' は同じ');
-      return cxR('DIFF',cx42(l),s,'S/I の payment_deadline が L/C 42C と違う'+(dif.length&&(A.days||A.sight)?' ('+dif.map(k=>({days:'日数',sight:'一覧払',base:'起算日',pct:'%'})[k]).join(' · ')+')':' (DRAFT AT の前置きは外して比べる)')); },
+      /* v0.20 (指示書 THOR_19 ①-1 · 形さん P1: B/L と BILL OF LADING は別 · 表記差ではなく 相違): L/C 42C の原文どおり — 違ってよいのは 空白 · 大文字小文字だけ (表記差) ·
+         BL · B/L · BILL OF LADING の書き換え · 足した文 (FOR 100PCT OF INVOICE VALUE …) · 抜けた文 · 日数 · 起算日 · % = 相違 (v0.19 の 「BL ↔ B/L = 表記差」 は戻した) · 理由 = どこが違うか (cx42Diff) */
+      const rawL=cpStr(l).replace(/\s+/g,' ').trim().replace(/^(DRAFTS? )?AT\s+/i,'').replace(/\bDRAFTS? DRAWN ON.*$/i,'').trim(), rawS=cpStr(s).replace(/\s+/g,' ').trim().replace(/^(DRAFTS? )?AT\s+/i,'').replace(/\bDRAFTS? DRAWN ON.*$/i,'').trim();
+      if(rawL===rawS) return cxR('MATCH',cx42(l),s,'');
+      if(cpWs(cx42(l))===cpWs(cx42(s))) return cxR('NOTATION',cx42(l),s,'表記差 (空白 · 大文字小文字だけ)');
+      return cxR('DIFF',cx42(l),s,'S/I の payment_deadline が L/C 42C の原文と違う — '+cx42Diff(cx42(l),cx42(s))); },
     'si:to_order':c=>{ const t=c.lc&&c.lc.bl&&c.lc.bl.consignee_text, o=cpConsOrder(t), s=cxU(c.si&&c.si.crcf9_consignee); if(!o) return cxR('NA','','','L/C の Consignee が 「TO ORDER OF 銀行」 の形でない');
       if(!s) return cxR('DIFF',o,'','S/I の Consignee が空'); return /^TO (THE )?ORDER\b/.test(s)?cxR('MATCH','TO (THE) ORDER OF …',s.slice(0,40),''):cxR('DIFF','TO (THE) ORDER OF …',s.slice(0,40),'S/I の Consignee が 「TO (THE) ORDER OF」 で始まらない'); },
     'si:vn_notify':c=>{ if(cxCountry(c)!=='VIETNAM') return cxR('NA','','','ベトナム以外'); const s=[c.si&&c.si.crcf9_notify_party, c.si&&c.si.crcf9_address].filter(Boolean).join('#').replace(/\*+/g,'').replace(/#+/g,'#');
@@ -2221,7 +2236,7 @@ const ACL = (()=>{
   /* S/I 段階 — 入力された S/I を L/C 保管所と照合 (追加の行 · stage S/I) · ctx = {lc, si, meta, lcText} → 項目 */
   function siCheck(CPX, ctx){ const c=ctx||{}; return cpStageRows(CPX,'S/I',c.meta||{},c.lc).map(r=>cpRunRow(r,c)); }
   return {SP_OUT, SRC_DIRS, ISO, D03, LABELS, VERDICTS, invoiceOf,
-    /* v0.19 */ scanLabelsSame, SCAN_MEAN, PARTY, partySplit, partyLineKey, telSame, partyNotation, cx42Key, cx42Sem, SCAN_R3, SCAN_CHECK, SCAN_FIELD_JA, fieldJa, scanLocatePrompt, scanRetryPrompt, scanRetryValue, scanBox, scanApplyR3,
+    /* v0.20 */ cx42Diff, mailWild, /* v0.19 */ scanLabelsSame, SCAN_MEAN, PARTY, partySplit, partyLineKey, telSame, partyNotation, cx42Key, cx42Sem, SCAN_R3, SCAN_CHECK, SCAN_FIELD_JA, fieldJa, scanLocatePrompt, scanRetryPrompt, scanRetryValue, scanBox, scanApplyR3,
     /* v0.18 */ CP_CODE, siCheck,
     /* v0.15 */ SCAN_OTHER_HEAD, SCAN_OTHER_TAIL, NA_MAP, NA_NOTE, naApply, NA_CELL, naSets,
     /* v0.16 */ CT_ONLY, ctApply, PRINTED, printedApply, OTSU_MISTAKES, otsuKey, pastMistakes, pastLabel, typoCands,
@@ -2641,7 +2656,7 @@ function startPage(){
 }
 
 LEENAI.init({
-  sys:'D-00', name:'ACL 照合試験', version:'0.19', date:'2026-11-25',
+  sys:'D-00', name:'ACL 照合試験', version:'0.20', date:'2026-11-25',
   desc:'ACL (NACCS PDF) を座標で読み、COMPASS の S/I (sino 1) · ブッキング · コンテナ (セット) · 表示欄 (S/I ルールマスター) と 100% 照合 · 担当者メールの実績と突き合わせ (読むだけ · AI なし)',
   graphScopes:['Sites.ReadWrite.All'],
   redirectUri:'https://mhlee205.github.io/CONTRACT_SEND/acl_bench.html',
