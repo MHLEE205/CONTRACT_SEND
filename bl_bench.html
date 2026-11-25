@@ -988,7 +988,7 @@ const BB_CMAPS  = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/';   /
 const BB_JSPDF  = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';   // バイヤー用 Draft (画像 PDF) — 固定版
 const BB_DPI = 200;
 const SRC_WIP = '古紙/-. 古紙書類/▲ 書類作成中', SRC_OLD = '古紙/_OLD_DOC';
-const ACL_ENGINE = {commit:'f9db160f087b614992de57f78d297ac85af7f821', sha256:'9a6b005c2a34f601e1fbdfc1dd61b364aa51ce48e5bc796d89a54ced37c076e0', ver:'0.19'};   // v0.2: コミット固定 (書類ツール と同じ)
+const ACL_ENGINE = {commit:'ae7b0bde9f2de11cefc1af64063379f41c00bb10', sha256:'c097208805f8f24d4602963c55e91d8676ccd73a0ab0e40568ea82ab630324cd', ver:'0.20'};   // v0.2: コミット固定 (書類ツール と同じ)
 /* ── 以下 acl_bench v0.10 (af46667) の fetchCompass · L/C 保管所 · 乙仲 の写し (通信の部分 — 書類ツール と同じく写し · エンジン acl-core は コミット固定で共有) ── */
 async function fetchCompass(inv){
   if(!/^[A-Za-z0-9_\-]+$/.test(inv)) return {ok:false, reason:'Invoice 番号の形が違う'};
