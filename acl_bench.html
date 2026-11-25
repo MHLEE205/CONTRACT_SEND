@@ -2075,7 +2075,10 @@ const ACL = (()=>{
       const p=s.split('#').map(x=>x.trim()).filter(Boolean); if(!p.length) return cxR('DIFF','税番号#許可#DEPOSIT#会社','','S/I の Notify が空');
       const ok=p.length>=4&&/^\d[\d\-]{6,}$/.test(p[0])&&/\d/.test(p[1])&&/DEPOSIT/i.test(p[2])&&/[A-Z]{3}/i.test(p[3]); return ok?cxR('MATCH','税番号#許可#DEPOSIT#会社',p.slice(0,4).join('#').slice(0,60),''):cxR('DIFF','税番号#許可#DEPOSIT#会社',s.slice(0,60),'S/I の Notify が ベトナムの形 (税番号#許可番号#DEPOSIT#会社名) でない'); },
     'si:vn_bltext':c=>{ if(cxCountry(c)!=='VIETNAM') return cxR('NA','','','ベトナム以外'); const s=cxU(c.si&&c.si.crcf9_bl_text1); if(!s) return cxR('DIFF','WASTE PAPER#HS#…KGS#…BALES · DEPOSIT NUMBER','','S/I の bl_text1 が空');
-      const ok=/WASTE ?PAPER\s*#\s*\d{6,8}\s*#[^#]*KGS\s*#[^#]*BALES/.test(s)&&/DEPOSIT NUMBER/.test(s); return ok?cxR('MATCH','WASTE PAPER#HS#…KGS#…BALES · DEPOSIT NUMBER',s.slice(0,60),''):cxR('DIFF','WASTE PAPER#HS#…KGS#…BALES · DEPOSIT NUMBER',s.slice(0,60),'S/I の bl_text1 が ベトナムの形でない'); },
+      /* 「#HS CODE: 47072000#」 も可 · DEPOSIT NUMBER は bl_text1 か bl_text2 (続き) のどちらか */
+      /* HS は 「4707 1000」 「4707.1000」 も可 · KGS と BALES は どちらが先でも可 (L/C ごとの順) · DEPOSIT は L/C が求めるときだけ */
+      const s2=s+' '+cxU(c.si&&c.si.crcf9_bl_text2), needDep=/DEPOSIT/.test(cxLc(c)), head=/WASTE ?PAPER\s*#\s*(HS\s*(CODE)?\s*:?\s*)?\d{4}[\d .]{2,8}\d?\s*#/.test(s), qty=/KGS/.test(s)&&/BALES/.test(s);
+      const ok=head&&qty&&(!needDep||/DEPOSIT/.test(s2)); return ok?cxR('MATCH','WASTE PAPER#HS#…KGS#…BALES · DEPOSIT NUMBER',s.slice(0,60),''):cxR('DIFF','WASTE PAPER#HS#…KGS#…BALES · DEPOSIT NUMBER',s.slice(0,60),'S/I の bl_text1 が ベトナムの形でない'); },
     /* ── ACL 8 (FAX は 比べ方 contains_words の行) ── */
     'acl:lc_dated':c=>{ const no=c.lc&&c.lc.lc_no, dt=c.lc&&c.lc.issue_date, T=cxDoc(c); if(!no) return cxR('INFO','','','L/C 番号を読めない');
       const re=new RegExp(cxAN(no).split('').join('[^A-Z0-9]{0,2}')), m=T.match(re); if(!m) return cxR('INFO',no,'','ACL に L/C 番号がない (番号は CP-B36 で見る)');
