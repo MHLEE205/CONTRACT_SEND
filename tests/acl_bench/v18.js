@@ -40,6 +40,9 @@ eq([st('acl:measure',{F:{totalMeasure:{text:'40.000 M3'}}}), st('acl:measure',{F
 const F45=LC({conditions_47A:[{quote:'4. SHIPPED IN 45FT. CONTAINER IS UNACCEPTABLE.'}]});
 eq([st('acl:45ft',{lc:F45,acl:acl('1 X 45GP')}), st('acl:45ft',{lc:F45,acl:acl('1 X 40HC')}), st('acl:45ft',{lc:LC(),acl:acl('45GP')})],['NOTATION','MATCH','NA'],'45FT 금지 × 45GP = 注意 · 40HC 표기 = 一致 · 금지 없음 = 対象外');
 
+eq([st('acl:id_hs',{lc:LC({hs:'4707.10.00 / 4707.20.00'}),acl:acl('HS CODE: 4707.20-000'),meta:ID}), st('acl:id_hs',{lc:LC({hs:'4707.10.00 / 4707.20.00'}),acl:acl('HS 4707.90'),meta:ID})],['MATCH','DIFF'],'HS 가 여러 개 — 하나라도 있으면 一致 (점 · 하이픈 무시)');
+const own=LC({beneficiary:'SAMPLE EXPORT CORPORATION 2-6-99 SAMPLE-CHO'});
+eq([st('acl:fax',{lc:own,F:{shipper:{text:'SAMPLE EXPORT CORPORATION / TEL +81-3-3528-9850 FAX +81-3-3528-9851'}}}), st('acl:fax',{lc:own,F:{shipper:{text:'SAMPLE EXPORT CORPORATION / TEL +81-3-3528-9850'}}}), st('acl:fax',{lc:own,F:{shipper:{text:'OTHER TRADING CO., LTD.'}}}), st('acl:fax',{lc:own,F:{shipper:{text:''}}})],['MATCH','DIFF','NA','READ_CHECK'],'FAX: 자사 Shipper 만 (3 국간 = 対象外)');
 console.log('B/L Draft 3');
 eq([st('bl:pod44f',{lc:LC(),F:{pod:{text:'SAMPLE PORT, SAMPLELAND'}}}), st('bl:pod44f',{lc:LC(),F:{pod:{text:'OTHER HARBOUR'}}}), st('bl:pod44f',{lc:LC(),F:{pod:{text:''}}})],['MATCH','DIFF','READ_CHECK'],'揚地 = 44F');
 eq([st('bl:id_hsil',{lc:Object.assign(IL,{hs:'4707.10'}),text:'HS 4707.10 IMPORT LICENCE NO.04.TEST-2699',meta:ID}), st('bl:id_hsil',{lc:IL,text:'HS 4707.10',meta:ID})],['MATCH','DIFF'],'인니 Draft HS · IL');
@@ -73,5 +76,5 @@ for(const n of [71,72,73]){ const cp=FX.compass(n), sp=FX.perfectSpec(ACL,cp), f
   ok(extra.length===2&&extra.every(i=>i.trial&&i.status==='INFO'),'試験 項目 2 (ACL 단계만 · S/I 행은 ACL 에 안 나옴)',extra.map(i=>[i.cp,i.status,i.would]));
 }
 ok(!Object.values(ACL.CP_CODE).some(f=>/[가-힣]/.test(String(f))),'CP_CODE 문자열 한글 0');
-eq(Object.keys(ACL.CP_CODE).length,15,'CP_CODE 15 (S/I 5 · ACL 7 · B/L Draft 3)');
+eq(Object.keys(ACL.CP_CODE).length,16,'CP_CODE 16 (S/I 5 · ACL 8 · B/L Draft 3)');
 console.log('v18 pass '+pass+' fail '+fail); process.exit(fail?1:0);

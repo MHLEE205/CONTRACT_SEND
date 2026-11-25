@@ -2054,7 +2054,11 @@ const ACL = (()=>{
   const cxInco = t => { const m=cxU(t).match(CX_INCOTERM); return m?({'C&F':'CFR', CNF:'CFR'})[m[1]]||m[1]:''; };
   const cx42 = t => cxU(t).replace(/^(DRAFTS? )?AT\s+/,'').replace(/\bDRAFTS? DRAWN ON.*$/,'').trim();   // 頭の 「(DRAFTS) AT」 は 両方から外して比べる
   /* L/C の HS · 輸入許可 (Import Licence) の番号 */
-  const cxHs = c => { const h=cpStr(c.lc&&c.lc.hs).replace(/[^\d]/g,''); if(h.length>=4) return h; const m=cxLc(c).match(/HS\s*CODE\s*(?:NO\.?)?\s*:?\s*(\d{4}[\d.\s]{0,8}\d)/); return m?m[1].replace(/\D/g,''):''; };
+  /* HS は 1 つ以上 (「4707.10.00 / 4707.20.00」 のように L/C に 複数) → 番号の配列 (頭 6 桁で 書類にあるか見る) · 表示は 「/」 でつなぐ */
+  const cxHsList = c => { const raw=cpStr(c.lc&&c.lc.hs); let L=(raw.match(/\d{4}[\d.\-]{0,10}\d/g)||[]).map(x=>x.replace(/\D/g,'')).filter(x=>x.length>=4);
+    if(!L.length){ const m=cxLc(c).match(/HS\s*CODE\s*(?:NO\.?)?\s*:?\s*(\d{4}[\d.\-]{0,10}\d)/); if(m) L=[m[1].replace(/\D/g,'')]; } return L; };
+  const cxHs = c => cxHsList(c).join(' / ');
+  const cxHsIn = (c, T) => { const T2=cxU(T).replace(/[.\s\-]/g,''); return cxHsList(c).some(h=>T2.indexOf(h)>=0||T2.indexOf(h.slice(0,6))>=0); };
   const cxIl = c => { const m=cxLc(c).match(/IMPORT(?:ER)?'?S?\s+LICEN[CS]E'?\s*(?:NO\.?|NUMBER)?\s*[:.]?\s*'?([A-Z0-9][A-Z0-9.\-\/]{4,}[A-Z0-9])/); return m?m[1]:''; };
   const cx43 = (c,k) => { const t=cxU(c.lcText); const m=t.match(new RegExp(':'+k+':[^=\\n]*=\\s*([A-Z ]+)'))||t.match(new RegExp('\\b'+k+'\\s+(ALLOWED|NOT ALLOWED|PROHIBITED|CONDITIONAL)')); return m?m[1].trim():''; };
   const CX_45 = /45 ?(FT|FEET|')\.?[^.]{0,40}(UNACCEPT|NOT ACCEPT|NOT ALLOWED|PROHIBIT)|(UNACCEPT|NOT ACCEPT|NOT ALLOWED|PROHIBIT)[^.]{0,40}45 ?(FT|FEET|')/;
@@ -2077,8 +2081,12 @@ const ACL = (()=>{
       const re=new RegExp(cxAN(no).split('').join('[^A-Z0-9]{0,2}')), m=T.match(re); if(!m) return cxR('INFO',no,'','ACL に L/C 番号がない (番号は CP-B36 で見る)');
       const after=T.slice(m.index+m[0].length, m.index+m[0].length+40); if(!/^\W{0,3}DATED ON/.test(after)) return cxR('NOTATION',no+' DATED ON '+(dt||''),no,'「DATED ON 発行日」 の記載がない');
       const d=lcDateKey(after.replace(/^\W{0,3}DATED ON\s*:?\s*/,''))||''; if(dt&&d&&d!==dt) return cxR('DIFF',no+' DATED ON '+dt,no+' DATED ON '+d,'発行日が L/C と違う'); return cxR(d?'MATCH':'NOTATION',no+' DATED ON '+(dt||''),no+' DATED ON '+(d||'?'),d?'':'発行日を読めない'); },
-    'acl:id_hs':c=>{ if(cxCountry(c)!=='INDONESIA') return cxR('NA','','','インドネシア以外'); const h=cxHs(c), T=cxDoc(c).replace(/[.\s]/g,''); if(!h) return cxR('INFO','','','L/C に HS コードがない');
-      return T.indexOf(h)>=0||T.indexOf(h.slice(0,6))>=0?cxR('MATCH',h,h,''):cxR('DIFF',h,'(なし)','書類に L/C の HS コードがない'); },
+    'acl:id_hs':c=>{ if(cxCountry(c)!=='INDONESIA') return cxR('NA','','','インドネシア以外'); const h=cxHs(c); if(!h) return cxR('INFO','','','L/C に HS コードがない');
+      return cxHsIn(c,cxDoc(c))?cxR('MATCH',h,h,''):cxR('DIFF',h,'(なし)','書類に L/C の HS コードがない'); },
+    /* Shipper の FAX — Shipper が自社 (L/C の受益者の名前) のときだけ (3 国間で Shipper が別の会社なら 対象外) */
+    'acl:fax':c=>{ const F=c.F&&c.F.shipper, t=cxU(F&&F.text); if(!t) return cxR('READ_CHECK','03-3528-9851','','ACL の Shipper を読めない');
+      const own=cxU(c.lc&&c.lc.beneficiary).split(/[ ,]+/).filter(w=>/^[A-Z][A-Z.&]*$/.test(w)).slice(0,2).join(' ')||'LEENEAR'; if(cxAN(t).indexOf(cxAN(own))<0&&!/LEENEAR/.test(t)) return cxR('NA','','','Shipper が自社でない (3 国間など)');
+      const d=t.replace(/\D/g,''); return d.indexOf('35289851')>=0?cxR('MATCH','03-3528-9851','あり',''):cxR('DIFF','03-3528-9851',t.slice(0,60),'Shipper 欄に FAX 03-3528-9851 がない'); },
     'acl:id_il':c=>{ if(['INDONESIA','VIETNAM'].indexOf(cxCountry(c))<0) return cxR('NA','','','インドネシア · ベトナム以外'); const il=cxIl(c); if(!il) return cxR('NA','','','L/C に 輸入許可番号の指定がない');
       return cxAN(cxDoc(c)).indexOf(cxAN(il))>=0?cxR('MATCH',il,il,''):cxR('DIFF',il,'(なし)','書類に 輸入許可 (Import Licence) 番号がない'); },
     'acl:partial_ts':c=>{ const p=cx43(c,'43P'), t=cx43(c,'43T'); if(!p&&!t) return cxR('INFO','','','L/C の 43P · 43T を読めない (L/C 本文なし)'); const T=cxDoc(c);
@@ -2093,8 +2101,8 @@ const ACL = (()=>{
     'bl:pod44f':c=>{ const l=c.lc&&c.lc.pod&&c.lc.pod.text, f=c.F&&c.F.pod, d=cxU(f&&f.text); if(!l) return cxR('INFO','','','L/C 44F を読めない'); if(!d) return cxR('READ_CHECK',l,'','Draft の揚地を読めない');
       const lw=cxPortWords(l), dw=cxPortWords(d).filter(z=>z!=='JAPAN'); if(dw.some(z=>lw.indexOf(z)>=0)) return cxR('MATCH',l,d,'');
       const g=cpAliasSame((c.alias||[]),l,d); return g?cxR('NOTATION',l,d,'港の別名 ('+g+')'):cxR('DIFF',l,d,'Draft の揚地が L/C 44F にない'); },
-    'bl:id_hsil':c=>{ if(cxCountry(c)!=='INDONESIA') return cxR('NA','','','インドネシア以外'); const h=cxHs(c), il=cxIl(c), T=cxDoc(c), T2=T.replace(/[.\s]/g,''), out=[];
-      if(h&&T2.indexOf(h)<0&&T2.indexOf(h.slice(0,6))<0) out.push('HS '+h); if(il&&cxAN(T).indexOf(cxAN(il))<0) out.push('Import Licence '+il);
+    'bl:id_hsil':c=>{ if(cxCountry(c)!=='INDONESIA') return cxR('NA','','','インドネシア以外'); const h=cxHs(c), il=cxIl(c), T=cxDoc(c), out=[];
+      if(h&&!cxHsIn(c,T)) out.push('HS '+h); if(il&&cxAN(T).indexOf(cxAN(il))<0) out.push('Import Licence '+il);
       if(!h&&!il) return cxR('INFO','','','L/C に HS · 輸入許可がない'); const e=[h&&'HS '+h, il&&'IL '+il].filter(Boolean).join(' · ');
       return out.length?cxR('DIFF',e,'(Draft)','Draft に ない: '+out.join(' · ')):cxR('MATCH',e,'(Draft)',''); },
     'bl:fcl':c=>{ const T=cxDoc(c); if(!T) return cxR('READ_CHECK','FCL/FCL · CY/CY','','Draft の文字がない'); if(/\bLCL\b|CFS ?\/ ?CFS/.test(T)&&!/FCL/.test(T)) return cxR('DIFF','FCL/FCL · CY/CY','LCL / CFS','Draft が LCL · CFS');
