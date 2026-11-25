@@ -140,6 +140,7 @@ tr.ab-d td{background:var(--surface)}
      読み P2 (ラベル 0 → 読取確認要 · Booking 末尾 「-」 · コンテナ = 番号 + チェックデジット · 港の後ろの数字 · コンテナ行数 ↔ 本数) · Shipper's Mail 空欄 = 参考 (D1) · 本船変更 = 相違のまま 「本船変更依頼」 (D5) ·
      担当者メールの判断 (本文の自分の部分 · B/L 段階の件名は除く · [ACL訂正依頼] タグ · 3 か月 jsonl) · L/C JSON 照合 (L/C 番号 · 日付 · 揚地 · 積地 · 原本通数 · Notify) — 違えば 相違 (D2 · D5) · しないこと: S/I 確認を分ける (P3) · 連絡先を参考 (P6) · HS 末尾 0 · 1 〜 2 文字の許容
    v0.13 (2026-11-23 指示書 D00 B/L 照合結果の保存 · 日本語化): 画面に出る文の韓国語をなくした (Shipper's Mail 空欄の参考 · 報告の 「制作」 · 説明) — 判定 · 結果は v0.12 と同じ
+   v0.21 (2026-11-25 指示書 THOR_22 N11 · 形さん): CP-A04 · 「L/C の文言で直す」 · S/I 推薦の支払条件 = 42C の 「支払条件の部分だけ」 (payTerm — 前の 「… WILL BE PAID AT」 · 後ろの 「AGAINST THE PRESENTATION …」 を外す · 中は L/C の文字そのまま · DAYS DAYS も)
    v0.20 (2026-11-25 指示書 THOR_19 ①-1 · ①-4 · 形さん P1 · 리나이 Q4): CP-A04 = L/C 42C の原文どおり (表記差は 空白 · 大文字小文字だけ · BL ↔ B/L ↔ BILL OF LADING · 足した文 = 相違 · 理由 cx42Diff) ·
      B/L ドラフト送付先メール (AI で決まらない) = 規則の値と 「?」 以外 全部同じなら 一致 (mailWild)
    v0.19 (2026-11-25 指示書 THOR_17 E-V3 · E-V6 · E-K6 · 형님 V3 · V6 · K6): 当事者 (Shipper · Consignee · Notify) の 電話 · FAX = 数字だけ · 郵便番号が片方だけ · 改行 · 句読点 = 表記差 (partyNotation · 規則 1 か所 · bl-core · 最終確認の項目 itemIn も使う) ·
@@ -2157,7 +2158,13 @@ const ACL = (()=>{
   const cxCountry = c => cxU((c.meta||{}).country);
   const CX_INCOTERM = /\b(CIF|CFR|C&F|CNF|FOB|CIP|CPT|DAP|FCA|EXW|DDP)\b/;
   const cxInco = t => { const m=cxU(t).match(CX_INCOTERM); return m?({'C&F':'CFR', CNF:'CFR'})[m[1]]||m[1]:''; };
-  const cx42 = t => cxU(t).replace(/^(DRAFTS? )?AT\s+/,'').replace(/\bDRAFTS? DRAWN ON.*$/,'').trim();   // 頭の 「(DRAFTS) AT」 は 両方から外して比べる
+  /* v0.21 (指示書 THOR_22 N11 · 形さん 「"90 DAYS DAYS AFTER BILL OF LADING DATE" で十分」): 42C の 「支払条件の部分」 だけ — 前の案内 (… WILL BE PAID AT · PAYABLE AT · (DRAFTS) AT) ·
+     後ろの案内 (AGAINST (THE) PRESENTATION … · AGAINST THE FOLLOWING … · UPON PRESENTATION … · DRAFTS DRAWN ON …) を外す · 中は L/C の文字そのまま (DAYS DAYS の誤記も · 大文字小文字も · 空白は 1 つに) — 切る規則は ここ 1 か所 (書類ツール DOC.lc42 も これを使う) */
+  const payTerm = t => String(t==null?'':t).replace(/\s+/g,' ').trim()
+    .replace(/^.*?\b(?:WILL\s+BE\s+)?(?:PAID|PAYABLE)\s+AT\s+/i,'')
+    .replace(/\s*\b(?:AGAINST\s+(?:THE\s+)?(?:PRESENTATION|FOLLOWING)|UPON\s+PRESENTATION|DRAFTS?\s+DRAWN\s+ON)\b.*$/i,'').trim();
+  const payCmp = t => payTerm(t).replace(/^(?:DRAFTS?\s+)?AT\s+/i,'').trim();   // 比べるときだけ 頭の 「(DRAFTS) AT」 も外す (書く値 payTerm は L/C のまま 「AT SIGHT」 など)
+  const cx42 = t => cxU(payCmp(t));   // 頭の 「(DRAFTS) AT」 · 案内の文は 両方から外して比べる
   /* v0.19 (E-K6): 42C の表記差の鍵 (BILL OF LADING · B/L · B L = BL · DAYS = DAY · 英数字と % だけ) と 意味 (日数 · 一覧払 · 起算日 · %) */
   const cx42Bl = t => cx42(t).replace(/\bBILLS? OF LADING\b/g,'BL').replace(/\bB\s*\/\s*L\b|\bB\s+L\b/g,'BL');
   /* v0.20: L/C 42C ↔ S/I の 語の違い → 「足した: … · 抜けた: … · 書き換え: A → B」 (語の LCS) */
@@ -2188,7 +2195,7 @@ const ACL = (()=>{
     'si:deadline':c=>{ const p=c.lc&&c.lc.payment, l=p&&(p.tenor_text||p.read_text), s=c.si&&c.si.crcf9_payment_deadline; if(!l) return cxR('INFO','',s,'L/C の 42C がない'); if(!s) return cxR('DIFF',cx42(l),'','S/I の payment_deadline が空');
       /* v0.20 (指示書 THOR_19 ①-1 · 形さん P1: B/L と BILL OF LADING は別 · 表記差ではなく 相違): L/C 42C の原文どおり — 違ってよいのは 空白 · 大文字小文字だけ (表記差) ·
          BL · B/L · BILL OF LADING の書き換え · 足した文 (FOR 100PCT OF INVOICE VALUE …) · 抜けた文 · 日数 · 起算日 · % = 相違 (v0.19 の 「BL ↔ B/L = 表記差」 は戻した) · 理由 = どこが違うか (cx42Diff) */
-      const rawL=cpStr(l).replace(/\s+/g,' ').trim().replace(/^(DRAFTS? )?AT\s+/i,'').replace(/\bDRAFTS? DRAWN ON.*$/i,'').trim(), rawS=cpStr(s).replace(/\s+/g,' ').trim().replace(/^(DRAFTS? )?AT\s+/i,'').replace(/\bDRAFTS? DRAWN ON.*$/i,'').trim();
+      const rawL=payCmp(cpStr(l)), rawS=payCmp(cpStr(s));   // v0.21 (N11): 支払条件の部分だけ
       if(rawL===rawS) return cxR('MATCH',cx42(l),s,'');
       if(cpWs(cx42(l))===cpWs(cx42(s))) return cxR('NOTATION',cx42(l),s,'表記差 (空白 · 大文字小文字だけ)');
       return cxR('DIFF',cx42(l),s,'S/I の payment_deadline が L/C 42C の原文と違う — '+cx42Diff(cx42(l),cx42(s))); },
@@ -2237,7 +2244,7 @@ const ACL = (()=>{
   /* S/I 段階 — 入力された S/I を L/C 保管所と照合 (追加の行 · stage S/I) · ctx = {lc, si, meta, lcText} → 項目 */
   function siCheck(CPX, ctx){ const c=ctx||{}; return cpStageRows(CPX,'S/I',c.meta||{},c.lc).map(r=>cpRunRow(r,c)); }
   return {SP_OUT, SRC_DIRS, ISO, D03, LABELS, VERDICTS, invoiceOf,
-    /* v0.20 */ cx42Diff, mailWild, /* v0.19 */ scanLabelsSame, SCAN_MEAN, PARTY, partySplit, partyLineKey, telSame, partyNotation, cx42Key, cx42Sem, SCAN_R3, SCAN_CHECK, SCAN_FIELD_JA, fieldJa, scanLocatePrompt, scanRetryPrompt, scanRetryValue, scanBox, scanApplyR3,
+    /* v0.21 */ payTerm, payCmp, /* v0.20 */ cx42Diff, mailWild, /* v0.19 */ scanLabelsSame, SCAN_MEAN, PARTY, partySplit, partyLineKey, telSame, partyNotation, cx42Key, cx42Sem, SCAN_R3, SCAN_CHECK, SCAN_FIELD_JA, fieldJa, scanLocatePrompt, scanRetryPrompt, scanRetryValue, scanBox, scanApplyR3,
     /* v0.18 */ CP_CODE, siCheck,
     /* v0.15 */ SCAN_OTHER_HEAD, SCAN_OTHER_TAIL, NA_MAP, NA_NOTE, naApply, NA_CELL, naSets,
     /* v0.16 */ CT_ONLY, ctApply, PRINTED, printedApply, OTSU_MISTAKES, otsuKey, pastMistakes, pastLabel, typoCands,
@@ -2657,7 +2664,7 @@ function startPage(){
 }
 
 LEENAI.init({
-  sys:'D-00', name:'ACL 照合試験', version:'0.20', date:'2026-11-25',
+  sys:'D-00', name:'ACL 照合試験', version:'0.21', date:'2026-11-25',
   desc:'ACL (NACCS PDF) を座標で読み、COMPASS の S/I (sino 1) · ブッキング · コンテナ (セット) · 表示欄 (S/I ルールマスター) と 100% 照合 · 担当者メールの実績と突き合わせ (読むだけ · AI なし)',
   graphScopes:['Sites.ReadWrite.All'],
   redirectUri:'https://mhlee205.github.io/CONTRACT_SEND/acl_bench.html',
