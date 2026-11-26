@@ -125,7 +125,7 @@ tr.ab-d td{background:var(--surface)}
      エンジンは BL.useEngine(ACL) で渡す (bl_bench · 書類ツール とも コミット + sha256 固定で読んだもの) · 試験用の港の固定値は 試験コードだけ
 ============================================================ */
 const BL = (()=>{
-  const VERSION = '0.6';
+  const VERSION = '0.7';
   /* ══════════ 共通 — 文字の形 (전수 조사 chk.py 와 같음) ══════════ */
   const ZEN='０１２３４５６７８９ＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴＵＶＷＸＹＺ，．－（）／＃＆：', HAN='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ,.-()/#&:';
   const ZMAP={}; for(let i=0;i<ZEN.length;i++) ZMAP[ZEN[i]]=HAN[i];
@@ -988,7 +988,7 @@ const BB_CMAPS  = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/';   /
 const BB_JSPDF  = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';   // バイヤー用 Draft (画像 PDF) — 固定版
 const BB_DPI = 200;
 const SRC_WIP = '古紙/-. 古紙書類/▲ 書類作成中', SRC_OLD = '古紙/_OLD_DOC';
-const ACL_ENGINE = {commit:'cfff01c24a0dd9d156fd0564b0345575bd74be4b', sha256:'741935181889d595e05d856f8e370c807ad6dfa201306d12fb9e6bf323b98cf7', ver:'0.20'};   // v0.2: コミット固定 (書類ツール と同じ)
+const ACL_ENGINE = {commit:'249317df8aaa5b48b63b75c59570168a57f9a923', sha256:'a7eb06ce5b5db3f6dbe9d838c2d0e331dba5434fa75d2bdc9f78ab8272f99e90', ver:'0.22'};   // v0.7 (THOR_25 N28 · N29): acl v0.22 — S/I 「**」 の続き = その欄の中 · D-03 の既定値 = 一致   // v0.2: コミット固定 (書類ツール と同じ)
 /* ── 以下 acl_bench v0.10 (af46667) の fetchCompass · L/C 保管所 · 乙仲 の写し (通信の部分 — 書類ツール と同じく写し · エンジン acl-core は コミット固定で共有) ── */
 async function fetchCompass(inv){
   if(!/^[A-Za-z0-9_\-]+$/.test(inv)) return {ok:false, reason:'Invoice 番号の形が違う'};
@@ -1278,7 +1278,7 @@ async function makeBuyerLocal(cur){
 window.BLAPP = {runOne, buildBuyerPdf, readPages, loadAclCore, loadCp, cpVersions, ACL_ENGINE, S};
 
 LEENAI.init({
-  sys:'D-00', name:'B/L Draft 照合試験', version:'0.6', date:'2026-11-25',
+  sys:'D-00', name:'B/L Draft 照合試験', version:'0.7', date:'2026-11-26',
   desc:'B/L Draft (船社 PDF) を座標で読み、COMPASS (S/I · ブッキング · コンテナ) と L/C 保管所に照合 · バイヤー用 Draft (運賃だけ隠した画像 PDF) を作る (読むだけ · AI なし)',
   graphScopes:['Sites.ReadWrite.All'],
   redirectUri:'https://mhlee205.github.io/CONTRACT_SEND/bl_bench.html',
