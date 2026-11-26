@@ -15,5 +15,5 @@ eq([ACL.payTerm('AT 90 DAYS AFTER B/L DATE'), ACL.payTerm('AT SIGHT'), ACL.payTe
 eq([D(KC,'90 DAYS DAYS AFTER BILL OF LADING DATE').st, D(DC,'AT 90 DAYS AFTER SHIPMENT DATE').st, D(DC,'90 DAYS AFTER SHIPMENT DATE').st],['MATCH','MATCH','MATCH'],'③ 안내 문장이 붙은 42C ↔ 결제 조건만 쓴 S/I = 一致');
 ok(D(KC,'90 DAYS AFTER BILL OF LADING DATE').st==='DIFF','④ 안은 그대로 비교 — S/I 가 DAYS DAYS 를 고쳐 쓰면 相違 (L/C 글자 그대로가 기준)');
 eq(['AT 90 DAYS AFTER B/L DATE','AT 90 DAY AFTER B/L DATE','AT 90 DAYS AFTER B/L DATE.'].map(s=>D('AT 90 DAYS AFTER B/L DATE',s).st),['MATCH','DIFF','DIFF'],'⑤ v0.20 의 규칙 그대로 (단수 · 마침표 = 相違)');
-ok(/version:'0\.21'/.test(HTML),'⑥ version 0.21');
+ok(/version:'0\.2[12]'/.test(HTML),'⑥ version 0.21');
 console.log('v21 pass '+pass+' fail '+fail); process.exit(fail?1:0);

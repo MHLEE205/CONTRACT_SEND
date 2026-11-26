@@ -24,5 +24,5 @@ const it=ACL.dispItems(F, [{rule:'acl_shipper_mail', scope_type:'all', scope:'AL
 ok(it&&it.status==='MATCH'&&/一部読めず/.test(it.detail),'⑦ 표시 칸 결과 = 一致 「AI 判読 · 一部読めず」',it);
 const it2=ACL.dispItems({shipperMail:{text:'', conf:'AI_DIFF', amb:['1) ?HOTO.TEXT@EXA?PLE.TEST','?'], ai:true}}, [{rule:'acl_shipper_mail', scope_type:'all', scope:'ALL', value:E, note:''}], {}, {}).find(i=>i.key==='disp:shipperMail');
 ok(it2&&it2.status==='READ_CHECK','⑧ 하나라도 다르면 지금처럼 読取確認 (그림 + 값)',it2);
-ok(/version:'0\.2[01]'/.test(HTML),'⑨ version 0.20 이상');
+ok(/version:'0\.2[012]'/.test(HTML),'⑨ version 0.20 이상');
 console.log('v20 pass '+pass+' fail '+fail); process.exit(fail?1:0);

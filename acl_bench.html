@@ -173,8 +173,9 @@ const ACL = (()=>{
   const SP_OUT = '古紙/-. AI 活用/D-00/ACL_bench';
   const SRC_DIRS = ['古紙/-. 古紙書類/▲ 書類作成中/', '古紙/_OLD_DOC/'];   // F1
   const ISO = /^[A-Z]{4}\d{7}$/;
-  /* D-03 v4.11 renderSI が S/I 欄が空のときに印字する既定値 (D-03 と同じ文字 — D-03 が変われば合わせる) */
-  const D03 = {shipperName:'LEENEAR CORPORATION', shipperAddr:'VORT SAMPLETOWN 3 5FL, 2-8-11 KANDASARUGAKUCHO, CHIYODA, TOKYO, JAPAN, 101-0064',
+  /* D-03 renderSI (Shipping_Document v4.17) が S/I 欄が空のときに印字する既定値 — D-03 と同じ文字 (D-03 が変われば合わせる · tests/acl_bench/v22.js が D-03 の原文と比べる)
+     v0.22 (N29 형님 「디폴트 항목 … 표기차로 나눌 필요는 없을 것 같은데」): 既定値から来た文 (当社の欄の改行 · NO MARK = N/M · FREIGHT PREPAID AS ARRANGED の行) = 一致 */
+  const D03 = {shipperName:'LEENEAR CORPORATION', shipperAddr:'VORT SUIDOBASHI 3 5FL, 2-8-11 KANDASARUGAKUCHO, CHIYODA, TOKYO, JAPAN, 101-0064',
     shipperTel:'TEL : +81-3-3528-9850', shipperFax:'FAX : +81-3-3528-9851', noMark:'NO MARK', freight:'FREIGHT PREPAID AS ARRANGED'};
 
   const norm = s => String(s==null?'':s).replace(/\s+/g,' ').trim();
@@ -563,25 +564,28 @@ const ACL = (()=>{
   }
   function pickBlSi(sis){ return (sis||[]).find(s=>+s.crcf9_sino===1)||(sis||[]).find(s=>s.cr49f_lc_no)||(sis||[])[0]||null; }   // B/L 用 = sino 1 (D-03 siHeader と同じ順の予備)
   // D-03 renderSI の DESCRIPTION OF PACKAGES AND GOODS
-  function descBlock(si, cp){
+  function descBlock(si, cp){ return descBlockCols(si, cp).text; }
+  /* v0.22 (N28): 同じ文 + 各欄 (品名 · HS · L/C · B/L 文言 1 · 2 · 固定文言) の始まりの行 — S/I の 「**」 の続きは その欄の中だけ (次の欄の文を取り込まない) */
+  function descBlockCols(si, cp){
     const items=aggregateItems(si.cr49f_s_iid, cp), totalBales=items.reduce((s,i)=>s+i.bales,0), totalWeightMt=Math.round(items.reduce((s,i)=>s+i.weightMt,0)*100)/100;
     const det=(cp.details||{})[si.cr49f_s_iid]||[], nm=productNameMap(cp.sis, cp.details||{});
     const prod=items.length?items.map(i=>({productName:i.productName, hsCode:i.hsCode})):det.map(d=>({productName:nm[d._crcf9_sale_detail_id_value]||d.crcf9_productname||'', hsCode:d.crcf9_hs_code||''}));
-    const bl1=si.crcf9_bl_text1||''; let b='';
+    const bl1=si.crcf9_bl_text1||''; let b=''; const starts=new Set(), col=t=>{ if(t){ starts.add(b.split('\n').length-1); b+=t; } };
     if(bl1.includes('XX')){
-      b+=substituteBlText1(bl1, totalBales, totalWeightMt*1000, (cp.containers||[]).reduce((s,c)=>s+(c.crcf9_g_w||0),0), cp.containers)+'\n\n';
-      if(prod[0]&&prod[0].productName) b+=prod[0].productName+'\n\n';
-      if(prod[0]&&prod[0].hsCode) b+=prod[0].hsCode+'\n\n';
-      b+=(si.cr49f_lc_no?'L/C NO.: '+si.cr49f_lc_no+'\n\n':'');
-      if(si.crcf9_bl_text2) b+=si.crcf9_bl_text2+'\n\n';
+      col(substituteBlText1(bl1, totalBales, totalWeightMt*1000, (cp.containers||[]).reduce((s,c)=>s+(c.crcf9_g_w||0),0), cp.containers)+'\n\n');
+      if(prod[0]&&prod[0].productName) col(prod[0].productName+'\n\n');
+      if(prod[0]&&prod[0].hsCode) col(prod[0].hsCode+'\n\n');
+      col(si.cr49f_lc_no?'L/C NO.: '+si.cr49f_lc_no+'\n\n':'');
+      if(si.crcf9_bl_text2) col(si.crcf9_bl_text2+'\n\n');
     } else {
-      prod.forEach(i=>{ if(i.productName) b+=i.productName+'\n'; });
-      prod.forEach(i=>{ if(i.hsCode) b+=i.hsCode+'\n'; });
-      b+=(si.cr49f_lc_no?'L/C NO.: '+si.cr49f_lc_no+'\n':'');
-      if(bl1) b+=bl1+'\n';
-      if(si.crcf9_bl_text2) b+=si.crcf9_bl_text2+'\n';
+      prod.forEach(i=>{ if(i.productName) col(i.productName+'\n'); });
+      prod.forEach(i=>{ if(i.hsCode) col(i.hsCode+'\n'); });
+      col(si.cr49f_lc_no?'L/C NO.: '+si.cr49f_lc_no+'\n':'');
+      if(bl1) col(bl1+'\n');
+      if(si.crcf9_bl_text2) col(si.crcf9_bl_text2+'\n');
     }
-    return b+D03.freight;
+    col(D03.freight);
+    return {text:b, starts};
   }
   function polText(cp){ const b=cp.booking||{}; if(cp.pol) return cp.pol+', JAPAN'; if(b.crcf9_delivery_location) return b.crcf9_delivery_location.replace(/ CY$| PORT$/,'')+', JAPAN'; return ''; }   // D-03 getPol
   /* v0.4 (Step 3): 揚地 = D-03 (Shipping_Document v4.12 fddad61) が S/I に印字する値と同じ選び方
@@ -608,7 +612,7 @@ const ACL = (()=>{
       consignee:si.crcf9_consignee||'',
       notify:[si.crcf9_notify_party||'', si.crcf9_address||'', [si.crcf9_tel||'', si.crcf9_fax||''].filter(Boolean).join(' ')].filter(Boolean).join('\n'),
       alsoNotify:'',   // D-03 は ALSO NOTIFY 欄に何も印字しない (現地Agent記載 の印だけ)
-      description:si.cr49f_s_iid?descBlock(si,cp):'', marks:si.crcf9_shipping_mark||D03.noMark,
+      description:si.cr49f_s_iid?descBlock(si,cp):'', descStarts:si.cr49f_s_iid?descBlockCols(si,cp).starts:null, marksDefault:!si.crcf9_shipping_mark, marks:si.crcf9_shipping_mark||D03.noMark,
       vessel:b.cr49f_main_ship_name||'', booking:b.cr49f_booking_no||'', masterBl:b.cr49f_bl_number||'', pol:polText(cp), pod:cp.pod||'',
       podCands:['crcf9_pod_bl1','crcf9_pod_bl2','crcf9_pod_bl3','crcf9_place_of_delivery_1','crcf9_place_of_delivery_2','crcf9_place_of_delivery_3'].map(k=>({col:k, v:si[k]||''})).filter(x=>x.v)};
   }
@@ -835,11 +839,11 @@ const ACL = (()=>{
      ・つないだ段落は Description の比較から外す (2 回比べない) · 記号はあるのに段落がない / 同じ記号で中身の違う段落が 2 つ → その欄は 読取確認 (推測で埋めない) */
   const OV_KEYS = ['shipper','consignee','notify','alsoNotify','receipt','pol','pod','delivery','finalDest','vessel','marks'];
   /* 段落 — text (行は \n) · ys (ACL の各行の y · 無ければ 空の行 だけで切る) */
-  function ovParas(text, ys){
+  function ovParas(text, ys, stops){   // v0.22 (N28): stops = S/I の欄の始まりの行 (そこで段落を切る — 次の欄の文を続きにしない)
     const L=String(text==null?'':text).replace(/\r\n?/g,'\n').split('\n'), Y=Array.isArray(ys)&&ys.length===L.length?ys:null;
     let pitch=null; if(Y){ const g=[]; for(let i=1;i<Y.length;i++){ const d=Y[i-1]-Y[i]; if(d>3) g.push(d); } pitch=g.length?Math.min(9,...g):null; }   // NACCS の行の間隔 = 9pt (Courier 7.7pt · 2026-11-20 実際の座標) — 空き行だけの段落でも 9 を基準に
     const paras=[]; let cur=null;
-    L.forEach((t,i)=>{ const blank=!t.trim()||(Y&&pitch&&i>0&&Y[i-1]-Y[i]>pitch*1.5), mm=t.match(/^\s*(\*[1-9](?![0-9])|\*{1,4}(?!\*))\s*(.*)$/);
+    L.forEach((t,i)=>{ if(stops&&stops.has(i)) cur=null; const blank=!t.trim()||(Y&&pitch&&i>0&&Y[i-1]-Y[i]>pitch*1.5), mm=t.match(/^\s*(\*[1-9](?![0-9])|\*{1,4}(?!\*))\s*(.*)$/);
       if(mm){ cur={m:mm[1], lines:[mm[2].trim()], idx:[i]}; paras.push(cur); return; }
       if(cur&&!blank&&t.trim()){ cur.lines.push(t.trim()); cur.idx.push(i); return; }
       cur=null; });
@@ -857,8 +861,8 @@ const ACL = (()=>{
     return {text:s, joins, missing};
   }
   /* 欄の組 (texts = {key: 文}) と 段落のある Description → {texts (つないだ文), desc (段落を外した Description), info:{key:{joins,missing}}, paras, used} */
-  function overflowJoin(texts, desc, ys){
-    const paras=ovParas(desc, ys), used=new Set(), out={}, info={};
+  function overflowJoin(texts, desc, ys, stops){
+    const paras=ovParas(desc, ys, stops), used=new Set(), out={}, info={};
     Object.keys(texts||{}).forEach(k=>{ const r=ovJoinText(texts[k], paras, used); out[k]=r.text; if(r.joins.length||r.missing.length) info[k]={joins:r.joins, missing:r.missing}; });
     const drop=new Set(); used.forEach(p=>p.idx.forEach(i=>drop.add(i)));
     const dl=String(desc==null?'':desc).replace(/\r\n?/g,'\n').split('\n'), rest=dl.filter((_,i)=>!drop.has(i)).join('\n');
@@ -1057,6 +1061,7 @@ const ACL = (()=>{
   }
   const TENT_NOTE = 'S/I が未確定（仮）のため、照合結果は参考です';   // v0.8 (指示書 Step 5 の文そのまま)
   const CNTR_OK = '✓ 指示どおり（コンテナ別の重量・BALE 数あり）', CNTR_NG = '✗ 指示どおりではない（コンテナ別の重量・BALE 数がない）';
+  const P1F_ONE = /^\s*FREIGHT\s+(?:PRE\s*PAID|COLLECT)\s+AS\s+ARRANGED\s*$/i;
   /* 最終確認 (D2) — items = siItems · F = ACL の欄 (つないだ後) · sc = compareSets · setItems = 欄別のセット項目 */
   function finalCheck(items, F, sc, setItems, opt){
     const cover=opt&&opt.cover, byCntr=[];   // v0.8: コンテナ別記載の指示 ✓ → コンテナの行の項目 = ある
@@ -1072,7 +1077,7 @@ const ACL = (()=>{
       if(!at.length&&exp0.length&&exp0.every(noRead)){ unread.push(row); return; }
       if(!at.length){ const sm=similar(it, lines); missing.push(Object.assign(row,{similar:sm?sm.text:'', similarField:sm?sm.field:''})); return; }
       found++; const exp=[].concat(...it.srcs.map(s=>SRC_FIELDS[s]||[]));
-      if(!at.some(k=>exp.indexOf(k)>=0)) moved.push(Object.assign(row,{fields:at, fieldLabels:at.map(k=>LABELS[k])})); });
+      if(!at.some(k=>exp.indexOf(k)>=0)&&!P1F_ONE.test(it.text||'')) moved.push(Object.assign(row,{fields:at, fieldLabels:at.map(k=>LABELS[k])})); });   // v0.22 (N29): FREIGHT PREPAID AS ARRANGED (D-03 の固定文言) は 欄を問わない
     const aclOnly=[]; CONTENT_KEYS.forEach(k=>{ const t=txt(k); if(!t) return; uncovered(t, items).forEach(l=>aclOnly.push({field:k, fieldLabel:LABELS[k], text:l})); });
     const S=(setItems||[]), bad=S.filter(i=>i.status!=='MATCH'&&i.status!=='NOTATION');
     const sets={total:(sc.sets||[]).length, ok:S.length-bad.length, diff:bad.filter(i=>i.status!=='READ_CHECK').map(i=>({container:i.set?i.set.container:i.label, items:((i.set&&i.set.cells)||[]).filter(c=>!c.ok&&!c.read).map(c=>({k:c.k, acl:c.acl, cp:c.cp}))})),
@@ -1096,7 +1101,7 @@ const ACL = (()=>{
     const F={}; Object.keys(F0).forEach(k=>{ F[k]=Object.assign({},F0[k]); if(k in OA.texts) F[k].text=OA.texts[k]; }); if(F.description) F.description.text=OA.desc;
     /* v0.15 (G9): 乙仲様式で 航海番号の欄がない (本船の欄に一緒) → 航海 = 空 として 本船の欄だけで比べる */
     const OTH=!!(acl.ai&&acl.ai.other); if(OTH&&F.voy&&F.voy.conf==='NA'&&F.vessel&&F.vessel.conf==='SURE') F.voy={text:'', conf:'SURE', page:null, ai:true, naJoin:true};
-    const SI_OV=['shipper','consignee','notify','marks'], OS=overflowJoin(SI_OV.reduce((o,k)=>(o[k]=ex0[k]||'',o),{}), ex0.description||'', null);
+    const SI_OV=['shipper','consignee','notify','marks'], OS=overflowJoin(SI_OV.reduce((o,k)=>(o[k]=ex0[k]||'',o),{}), ex0.description||'', null, ex0.descStarts);   // v0.22 (N28): S/I の 「**」 = その欄の中だけ
     const ex1=Object.assign({},ex0,OS.texts,{description:OS.desc}), siJoin=t=>ovJoinText(t, OS.paras, null);
     /* v0.7 (형님 D3): S/I の日本語の行 = 乙仲への指示 — 欄別比較 · 最終確認 から外す */
     const JX=jpSplit(TEXT_KEYS.reduce((o,k)=>(o[k]=ex1[k],o),{}), ex1.si&&ex1.si.cr49f_s_iid?descParts(ex1.si,cp):[]), ex=Object.assign({},ex1,JX.texts);
@@ -1221,6 +1226,8 @@ const ACL = (()=>{
       /* FREIGHT PREPAID AS ARRANGED の行の位置 (P1) が一緒に違うときは その行を外して見る (実データ: ある 乙仲 の Consignee) */
       const rF=PARTY_KEYS.indexOf(k)>=0&&(r.status==='DIFF'||r.status==='DROP')&&P1.FREIGHT.test(ex[k]||'')?compareText(noFreight(ex[k]), noFreight(dash(F[k].text))):null; P1.FREIGHT.lastIndex=0;
       if(rF&&rF.status==='ADD') r=rF;
+      /* v0.22 (N28): ACL にだけある 連絡先の行 (E-MAIL · TEL · FAX …) — それを外すと同じ = 表記差 (乙仲が Notify の連絡先を Consignee にも書く) */
+      if(PARTY_KEYS.indexOf(k)>=0&&r.status!=='MATCH'&&r.status!=='NOTATION'){ const cl=contactOnly(ex[k], dash(F[k].text), p1Key(PARTY_KEYS.map(x=>ex[x]||'').join('\n'))); if(cl) r={status:'NOTATION', ops:[], kind:'表記:ACL に連絡先', note:'ACL にだけ 連絡先の行 ('+cl.lines.join(' / ').slice(0,80)+') — それ以外は同じ'+(cl.r.note?' · '+cl.r.note:'')}; }
       if(PARTY_KEYS.indexOf(k)>=0&&r.status==='ADD'){ const adds=(r.ops||[]).filter(o=>o.t==='add').map(o=>o.text), pool=p1Key(PARTY_KEYS.map(x=>ex[x]||'').join('\n'));
         if(adds.length&&adds.every(t=>{ const q=p1Key(t); return q.length>=3&&pool.indexOf(q)>=0; })) r={status:'INFO', ops:r.ops, kind:'参考:ACL に追記:'+lb, note:'ACL に S/I より多く書いてある (S/I の他の当事者の欄の文字: 「'+adds.join(' / ').slice(0,60)+'」) — 参考'}; }
       /* v0.9 追加 (同 ②): S/I の行がこの欄にはないが ACL Description の 「*」 の続きの行にある (NA2609-05 の Notify TEL · FAX の形) → 続き (表記) */
@@ -1235,6 +1242,8 @@ const ACL = (()=>{
         if(dc.ok) r={status:'NOTATION', ops:[], kind:'表記:並び・重複', note:'内容は同じ (並び · 重複 · 同じ行の違い) — S/I の項目 '+dc.n+' 個 すべて ACL の Description にある'};
         else r={status:'DIFF', descDiff:true, sub:r.sub||'', ops:dc.missing.map(it=>({t:'drop', text:it.text, ctx:'S/I '+SRC[it.src][0], line:0})).concat(dc.extra.map(l=>({t:'add', text:l, ctx:'ACL', line:0}))), droppedLines:[],
           kind:'相違:Description:'+(dc.missing.length?cat(dc.missing[0]):'ACLだけ')}; }
+      /* v0.22 (N29): D-03 の既定値から来た文 = 一致 — 当社 (Shipper) の欄は 改行 · 空白だけ (D-03 は TEL と FAX を 1 行に印字) · 荷印 NO MARK = N/M · FREIGHT PREPAID AS ARRANGED の行の位置 */
+      if(r.status==='NOTATION'&&(k==='shipper'&&!r.kind||k==='marks'&&ex.marksDefault&&r.kind==='表記:句読点・略語'||r.kind==='表記:FREIGHT の行')) r={status:'MATCH', ops:[], d03:true};
       const det=(r.descDiff&&r.sub?'('+r.sub+') ':'')+(r.status==='NOTATION'||r.status==='INFO'?r.note:(r.ops||[]).map(o=>o.t==='ws'?'語の切れ目 '+o.text:(o.t==='drop'?'脱落「':'追加「')+o.text+'」 … '+o.ctx).join(' / ')+((r.droppedLines||[]).length?' / 脱落行: '+r.droppedLines.join(' ⏎ '):'')+(r.partyNote?' / '+r.partyNote:''));
       const k2=r.status==='MATCH'?'':r.status==='INFO'?r.kind:r.descDiff||(dc&&r.status==='NOTATION')?r.kind:r.status==='NOTATION'?(r.kind?r.kind+':'+lb:'表記差:'+lb):r.wordBreak?'相違:語の切れ目:'+lb:r.sub?'相違:'+r.sub+':'+lb:r.status==='DROP'?'脱落:'+lb:r.status==='ADD'?'追加:'+lb:'相違:'+lb;
       add('S/I 文面',k,lb,r.status,ex[k],dash(F[k].text),det,k2);
@@ -1266,6 +1275,7 @@ const ACL = (()=>{
     const naList=OTH?naApply(items, kinds, F, acl):null;
     /* v0.16 (E-2 · E-3): 乙仲様式だけ — 複合輸送の空欄 = 参考 · 印刷文字 = 対象外 */
     const ctList=OTH?ctApply(items, kinds, F, acl):null, prList=OTH?printedApply(items, kinds, F):null;
+    mainApply(items, kinds);   // v0.22 (N28)
     if(marksCntr){ const it=items.find(i=>i.key==='marks'); if(it) it.detail=(it.detail?it.detail+' · ':'')+'Marks の欄のコンテナ行 '+marksCntr+' 行 (コンテナ表と同じ番号) は外して比較 (乙仲様式)'; }
     if(origNote) items.filter(i=>i.key==='lc:originals'||i.key==='disp:originals').forEach(i=>{ i.detail=(i.detail?i.detail+' · ':'')+'原文 「'+origNote+'」 の (数字) で比較 (乙仲様式)'; });
     /* v0.11: チェックポイント (opts.checkpoints = cpPrepare の結果) — CP 番号 · 基本の停止 · 港の別名 · 追加の実行 (渡さなければ v0.10 と同じ) */
@@ -1284,6 +1294,16 @@ const ACL = (()=>{
     if(OTH){ out.na=naList; if(ctList.length) out.ctRef=ctList; if(prList.length) out.printed=prList; }
     return out;
   }
+  /* v0.22 (N28 형님 「Acl 조회거든」): 主要な欄 (荷受人 · 通知先 · 品名) を比べられなかった (様式にない · 対象外) = 「対象外」 ではなく 読取確認 (主黄) — 「すべて」 · 「問題なし」 にしない */
+  const MAIN_KEYS = ['consignee','notify','description'];
+  function mainApply(items, kinds){ items.forEach(i=>{ if(MAIN_KEYS.indexOf(i.key)<0||i.group!=='S/I 文面') return; if(!(i.na||(i.status==='INFO'&&!/^参考/.test(i.kind||'')))) return;
+      if(i.kind&&kinds[i.kind]){ kinds[i.kind]--; if(!kinds[i.kind]) delete kinds[i.kind]; } i.status='READ_CHECK'; i.na=false; i.detail='主要な欄を比べられませんでした — ACL を開いて確認 · '+(i.detail||''); i.kind='読取確認要:主要な欄'; kinds[i.kind]=(kinds[i.kind]||0)+1; }); }
+  /* v0.22 (N28): 当事者の欄で ACL にだけある 連絡先の行 (E-MAIL · EMAIL · MAIL · TEL · PHONE · FAX · MOBILE) — それを外して比べ直し 一致 / 表記差 なら {lines, r} */
+  const CONTACT_RE = /^\s*(?:E\s*-?\s*MAIL|MAIL|TEL(?:EPHONE)?|PHONE|FAX|FACSIMILE|MOBILE|MOB|CELL|H\.?P\.?)\b\s*[:：.]?/i;
+  function contactOnly(E, A, pool){ const e=String(E==null?'':E), ek=p1Key(e), al=String(A==null?'':A).replace(/\r\n?/g,'\n').split('\n');   // pool = S/I の当事者の欄 — その連絡先が S/I のどこかにあるときだけ (S/I にない番号を足したのは 相違 のまま · 2026-11-22 決定)
+    const extra=al.filter(l=>{ const q=p1Key(l); return q&&ek.indexOf(q)<0; }); if(!extra.length||!extra.every(l=>CONTACT_RE.test(l)&&String(pool||'').indexOf(p1Key(l))>=0)) return null;
+    const rest=al.filter(l=>extra.indexOf(l)<0).join('\n'); let r=compareText(e, rest); if(r.status!=='MATCH'&&r.status!=='NOTATION'){ const pn=partyNotation(e, rest); if(pn&&pn.ok) r={status:'NOTATION', note:pn.note}; else return null; }
+    return {lines:extra.map(l=>l.trim()), r}; }
   /* v0.9 P2 */
   const readFail = F => { const v=Object.values(F||{}); return v.length>0&&v.every(f=>!f||f.conf==='MISSING'); };
   /* v0.15 (G9) 乙仲様式 — 照合の行 (key) ↔ その行が使う ACL の欄。欄が全部 NA (様式にない) の行だけ 対象外 にする (規則はこの表 1 か所) */
@@ -1809,7 +1829,7 @@ const ACL = (()=>{
   function itemName(i){ const k=String(i.key||''); if(/^set:/.test(k)) return 'コンテナ '+k.slice(4); if(/^aclOnly:/.test(k)) return 'ACL だけにあるコンテナ '+k.slice(8); if(/^cpOnly:/.test(k)) return 'COMPASS だけにあるコンテナ '+k.slice(7);
     if(/^disp:/.test(k)) return i.label+' 欄'; const ja=ITEM_JA[k]; return ja?ja+(LABELS[k]?' ('+LABELS[k]+')':''):i.label; }
   function viewOf(res){
-    const its=(res&&res.items)||[], rows=its.map(i=>{ const m=MARK[i.status]||['ー','対象外','na']; return {group:GROUP_JA[i.group]||i.group, name:itemName(i), mark:m[0], word:i.trial?'試験 ('+((MARK[i.would]||[])[1]||'参考')+')':i.set&&i.set.cells.some(c=>c.info)&&i.status==='MATCH'?'一致 (形態は COMPASS 未入力)':m[1], cls:m[2], item:i}; });   // v0.11: 試験のチェック = 「試験 (相違)」 など (判定に入れない)
+    const its=(res&&res.items)||[], rows=its.map(i=>{ const m=(i.status==='INFO'&&/^参考/.test(i.kind||'')?['△','参考','note']:MARK[i.status])||['ー','対象外','na'];   /* v0.22: 参考 ≠ 対象外 */ return {group:GROUP_JA[i.group]||i.group, name:itemName(i), mark:m[0], word:i.trial?'試験 ('+((MARK[i.would]||[])[1]||'参考')+')':i.set&&i.set.cells.some(c=>c.info)&&i.status==='MATCH'?'一致 (形態は COMPASS 未入力)':m[1], cls:m[2], item:i}; });   // v0.11: 試験のチェック = 「試験 (相違)」 など (判定に入れない)
     rows.sort((a,b)=>(GROUP_ORDER.indexOf(a.group)+1||99)-(GROUP_ORDER.indexOf(b.group)+1||99));
     const n=c=>rows.filter(r=>r.cls===c).length, nd=n('ng'), nr=n('read');
     const stop=res&&(res.verdict==='読取対象外'||res.verdict==='COMPASS照会不可');
@@ -1842,7 +1862,8 @@ const ACL = (()=>{
   /* v0.6 — 最終確認の文 (結果画面 · 書類ツール · 現況板の 説明 で同じもの) */
   function finalView(res){
     const f=res&&res.final; if(!f) return null; const st=f.sets||{};
-    const ur=(f.unread||[]).length, bc=(f.byCntr||[]).length, content=f.missing.length?{ok:false, text:'✗ 足りない内容 '+f.missing.length+' 項目'+(ur?' · 読めない欄の項目 '+ur:'')}
+    const mainNo=((res&&res.items)||[]).filter(i=>MAIN_KEYS.indexOf(i.key)>=0&&i.group==='S/I 文面'&&(i.status==='READ_CHECK'||i.na)).map(i=>ITEM_JA[i.key]||i.label);   // v0.22 (N28)
+    const ur=(f.unread||[]).length, bc=(f.byCntr||[]).length, content=!f.missing.length&&mainNo.length?{ok:false, read:true, text:'ー 主要な欄（'+mainNo.join(' · ')+'）を比べられていません — ACL を開いて確認'}:f.missing.length?{ok:false, text:'✗ 足りない内容 '+f.missing.length+' 項目'+(ur?' · 読めない欄の項目 '+ur:'')}
       :ur?{ok:false, read:true, text:'ー ACL の欄を読めない — S/I の '+ur+' 項目を確認できません（ACL を開いて目で確認）'}:{ok:true, text:'✓ S/I の内容はすべて ACL にあります（'+f.total+' 項目'+(bc?' · うちコンテナの行 '+bc+' はコンテナ別記載で確認':'')+'）'};
     const bad=(st.diff||[]).length, rd=(st.read||[]).length, ao=(st.aclOnly||[]).length, co=(st.cpOnly||[]).length;
     const sets=!st.total&&!ao&&!co?{ok:false, read:true, text:'ー コンテナを読めません'}:st.allOk?{ok:true, text:'✓ コンテナ '+st.total+' セット一致'}
@@ -2664,7 +2685,7 @@ function startPage(){
 }
 
 LEENAI.init({
-  sys:'D-00', name:'ACL 照合試験', version:'0.21', date:'2026-11-25',
+  sys:'D-00', name:'ACL 照合試験', version:'0.22', date:'2026-11-26',
   desc:'ACL (NACCS PDF) を座標で読み、COMPASS の S/I (sino 1) · ブッキング · コンテナ (セット) · 表示欄 (S/I ルールマスター) と 100% 照合 · 担当者メールの実績と突き合わせ (読むだけ · AI なし)',
   graphScopes:['Sites.ReadWrite.All'],
   redirectUri:'https://mhlee205.github.io/CONTRACT_SEND/acl_bench.html',
