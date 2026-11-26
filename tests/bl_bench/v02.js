@@ -91,6 +91,6 @@ const L47={extra:[{x:200,y:480,t:'L/C NO.: TLC0001'}]};
       eq(same,cases.map(()=>true),'v0.1 엔진과 판정 (코드) · 칸 · 화면의 판정 글자가 같음 (6 경우 · 이유 · 메모는 일본어로 바뀜)'); } }
 
   console.log('7 버전');
-  eq(BL.VERSION,'0.6','bl-core VERSION 0.6');
+  ok(['0.6','0.7'].indexOf(BL.VERSION)>=0,'bl-core VERSION 0.6 이상 (v0.7 = ACL 엔진 고정만)');
   T.done('v02');
 })().catch(e=>{ console.log('FAIL exception',e.stack); process.exit(1); });
