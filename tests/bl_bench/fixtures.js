@@ -59,4 +59,37 @@ function lc(over){
     docs_46A:[{doc_type:'B/L', quote:'FULL SET (3/3) OF CLEAN ON BOARD OCEAN BILLS OF LADING MADE OUT TO THE ORDER OF SAMPLE BANK NORTH BRANCH MARKED FREIGHT PREPAID NOTIFY APPLICANT'}],
     conditions_47A:[{quote:'ALL DOCUMENTS MUST INDICATE THIS CREDIT NUMBER.'}], checks:[], source:{amends:[]}}, over||{});
 }
-module.exports={IV, si, draftItems, FREIGHT, lc};
+/* v0.9 (THOR_35 · N69): 44B の実例の形 (Place of Delivery 空欄の Draft) を 가짜 값으로 — 칸 이름 = 대소문자 섞인 긴 이름 (Place of Delivery. Applicable only …) ·
+   POD 와 Place of Delivery 가 같은 줄 · 바로 아래 줄은 Description 칸 이름 + Weight · Measurement — delivery 를 비우면 (기본) Place of Delivery 칸이 빈칸 */
+const IV9='NTE2699-01';
+function draftWaybill(d){
+  d=Object.assign({booking:'TEST26990001', shipper:['SAMPLE EXPORT CO., LTD.','1-2-3 SAMPLE TOWN, TOKYO, JAPAN'],
+    consignee:['TO ORDER OF SAMPLE BANK','NORTH BRANCH'], notify:['SAMPLE TRADING JSC','LOT 0, SAMPLE PARK, SAMPLE DISTRICT','TEL: 84-0000-0000'],
+    vessel:'SAMPLE STAR', voy:'699S', receipt:'', pol:'TOKYO, JAPAN', pod:'CAT LAI PORT, VIETNAM', delivery:'',
+    desc:['WASTE PAPER OCC','HS CODE: 47071000','FREIGHT PREPAID'], extra:[]}, d||{});
+  const I=[], add=(x,y,t,size)=>I.push({x,y,t,size});
+  add(300,36,'NON-NEGOTIABLE WAYBILL',9); add(494,56,'B/L No.',7); add(513,56,d.booking);
+  add(39,68,'Shipper (As principal, where care of, c/o, or other variants used.)',6); d.shipper.forEach((t,i)=>add(39,76+i*10,t));
+  add(305,68,'Booking No.',7); add(305,76,d.booking);
+  add(35,138,'Consignee',7); d.consignee.forEach((t,i)=>add(35,146+i*10,t));
+  add(34,208,'Notify Party (see clause 22)',7); d.notify.forEach((t,i)=>add(34,216+i*10,t));
+  add(36,275,'Vessel',7); add(181,275,'Voyage No.',7); add(305,275,'Place of Receipt. Applicable only when document used as Multimodal Waybill',6);
+  add(36,283,d.vessel); add(181,283,d.voy); if(d.receipt) add(305,283,d.receipt);
+  add(35,299,'Port of Loading',7); add(181,299,'Port of Discharge',7); add(303,300,'Place of Delivery. Applicable only when document used as Multimodal Transport B/L.',6);
+  add(35,307,d.pol); add(181,307,d.pod); if(d.delivery) add(305,307,d.delivery);
+  add(220,322,'PARTICULARS FURNISHED BY SHIPPER',7);
+  add(37,333,'Kind of Packages; Description of goods; Marks and Numbers; Container No./Seal No.',6); add(415,333,'Weight',7); add(501,333,'Measurement',7);
+  add(413,341,'60600.000 KGS'); add(39,351,'3 containers said to contain 66 BALES');
+  d.desc.forEach((t,i)=>add(39,362+i*10,t));
+  [['TSTU1000011','SL0001','22','20100'],['TSTU1000022','SL0002','22','20200'],['TSTU1000033','SL0003','22','20300']].forEach(([no,s,b,w],i)=>add(39,400+i*10,no+' / '+s+' / '+b+' BALES / '+w+' KGS'));
+  add(39,440,"SHIPPER'S LOAD, STOW, WEIGHT AND COUNT"); add(39,460,'FREIGHT PREPAID'); add(300,480,'Shipped on Board Date',7);
+  d.extra.forEach(e=>add(e.x,e.y,e.t,e.size));
+  return I;
+}
+/* L/C 判読構造 (lc_text の view · 가짜) — 44B 가 있는 것 · 없는 것 */
+function lcText(v44b, more){
+  return ['LC 番号: TLC2699 (TEST)',':20: DOCUMENTARY CREDIT NUMBER = TLC2699',':44E: PORT OF LOADING/AIRPORT OF DEPARTURE = ANY PORT IN JAPAN',
+    ':44F: PORT OF DISCHARGE/AIRPORT OF DESTINATION = CAT LAI PORT, VIETNAM'].concat(v44b==null?[]:[':44B: PLACE OF FINAL DESTINATION/FOR TRANSPORTATION TO .../PLACE OF DELIVERY = '+v44b])
+    .concat([':44C: LATEST DATE OF SHIPMENT = OCT 31, 2026'], more||[], ['='.repeat(60),'(原文 · 가짜)',' PLACE OF FINAL DESTINATION/FOR TRANSPORTATION TO .../PLACE OF DELIVERY:44B']).join(String.fromCharCode(10));
+}
+module.exports={IV, si, draftItems, FREIGHT, lc, IV9, draftWaybill, lcText};

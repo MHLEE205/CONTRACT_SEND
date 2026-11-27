@@ -16,6 +16,7 @@ node('v0.2 (체크포인트 BL_DRAFT — 基本 CP 번호 · 停止 · CP-A01 �
 node('v0.4 (E-5 — Draft 의 別の契約番号 · 그 줄 글자 · 같은 번호 = v0.3 과 같음)','v04.js',/v04 pass \d+ fail \d+/);
 node('v0.5 (새 試験 줄 B/L Draft 3 — 揚地 44F · 인니 HS/IL · FCL/CY = ACL v0.18 CP_CODE · 試験 = 参考 · 照合 項目 변화 0)','v05.js',/v05 pass \d+ fail \d+/);
 node('v0.6 (E-V6 — Shipper · Consignee · Notify 전화 · FAX 숫자만 · Draft 에만 우편번호 = 表記 · 번호 다르면 그대로 · ACL v0.19 partyLineKey)','v06.js',/v06 pass \d+ fail \d+/);
+node('v0.9 (44B 最終仕向地 ↔ Draft Place of Delivery — 빈칸 = 相違 · 목록 중 하나 = 一致 · 다르면 相違 · 44B 없음 = v0.8 과 같음 · v0.8 엔진과 회귀 비교)','v09.js',/v09 pass \d+ fail \d+/);
 node('한글 0 (bl_bench · acl_bench 화면에 나갈 수 있는 문자열 · v0.3)','hangul.js',/hangul pass \d+ fail \d+/);
 node('가리기 브라우저 (Chrome · 글자 층 0 · 화소 · 쪽 빼기) — playwright 없으면 건너뜀','mask_browser.js',/mask_browser pass \d+ fail \d+|skip/);
 rows.forEach(r=>console.log(r.join('  ')));

@@ -115,6 +115,7 @@ tr.ab-d td{background:var(--surface)}
      Draft の名前 (sel.py) · B/L の頁 (cov.py) · 版の順 (REV 番号 → 更新時刻) · S/I との照合 (chk.py) · 判定 5 つ + R1 ~ R11 (clsA.py) ·
      別の件の Draft (⚠️ 1 の 4 件) · L/C 7 項目 (lcc.py — 値は L/C 保管所 lc_read/1) · 版の間 (rev.py) · 運賃の位置 (fmap.py) · 隠す計画と確認 (mask.swift · masktest.py)
    読み方だけ違う: PDF の行 = pdf.js の文字項目を 同じ基線 · 近い間隔で つないだもの (PDFKit selectionsByLine の代わり)
+   v0.9 (2026-11-27 指示書 THOR_35 · 形さん N69): L/C 44B (最終仕向地) がある → Draft の Place of Delivery (FINAL DESTINATION) 欄と照合 (B の 8 項目め 「最終仕向地 (44B)」) — 空欄 = 相違 「44B 最終仕向地がない（Place of Delivery 空欄）」 · 違う = 相違 · 44B の地名のどれか 1 つ = 一致 · 44B の値 = 保管所 final_dest または L/C 判読構造 (lc_text) · 44B の無い L/C = 行を足さない (v0.8 と同じ結果)
    v0.8 (2026-11-27 指示書 THOR_34 · 形さん N66 「_」 で統一): Draft の名前 — 空白の代わりに 「_」 の名前も同じに読む ({IV}_FRT_MEMO · {IV}_BL_DRAFT · _REV · _REV2 · 除外の DRAFT_DOC · FD_DRAFT · FREE_TIME) · 判定は v0.7 と同じ
    v0.6 (2026-11-25 指示書 THOR_17 E-V6 · 形さん V6): Shipper · Consignee · Notify の行探しで 電話 · FAX = 数字だけ · Draft にだけ郵便番号 = 表記 (ACL エンジン v0.19 partyLineKey) · ほかは v0.5 と同じ
    v0.5 (2026-11-25 指示書 THOR_15 ①-6 · 形さん F2): 新しいチェックポイント B/L Draft 3 (揚地 44F · インドネシア HS/IL · FCL/CY) = ACL エンジン v0.18 の CP_CODE · 全部 試験 (判定に入れない) · Draft の全部の文字を cpCtx に · それ以外は v0.4 と同じ
@@ -126,7 +127,7 @@ tr.ab-d td{background:var(--surface)}
      エンジンは BL.useEngine(ACL) で渡す (bl_bench · 書類ツール とも コミット + sha256 固定で読んだもの) · 試験用の港の固定値は 試験コードだけ
 ============================================================ */
 const BL = (()=>{
-  const VERSION = '0.8';
+  const VERSION = '0.9';
   /* ══════════ 共通 — 文字の形 (전수 조사 chk.py 와 같음) ══════════ */
   const ZEN='０１２３４５６７８９ＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴＵＶＷＸＹＺ，．－（）／＃＆：', HAN='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ,.-()/#&:';
   const ZMAP={}; for(let i=0;i<ZEN.length;i++) ZMAP[ZEN[i]]=HAN[i];
@@ -557,7 +558,7 @@ const BL = (()=>{
     return '';
   }
   /* 保管所 1 件 → lcc.py が使った形 */
-  function lcView(store){
+  function lcView(store, lcText){
     if(!store||store.schema!=='lc_read/1') return null;
     const b=store.bl||{}, docs=store.docs_46A||[], blDoc=docs.find(d=>/^(B\/L|SWB|BL)$/i.test(String(d.doc_type||'')))||docs.find(d=>/BILLS? OF LADING|B\/L|WAYBILL|TRANSPORT DOCUMENT/i.test(String(d.quote||'')))||null;
     /* 2 回の判読が違う欄 — 理由 「2回判読が違う: A | B」 の A · B (保管所に 1 つの値が無いとき 比べる値を 2 回分から取る) */
@@ -565,7 +566,9 @@ const BL = (()=>{
     return {no:store.contract, lc_no:store.lc_no||'', latest:store.latest_shipment||'', pod:(store.pod||{}).text||'', podList:(store.pod||{}).list||[], polAny:!!(store.pol||{}).any_japan, pol:(store.pol||{}).text||'',
       bank:b.consignee_bank||null, consignee:b.consignee_text||'', notify:b.notify_text||'', notifyApplicant:!!b.notify_is_applicant, applicant:(store.applicant||{}).name||'',
       freight:b.freight||'', originals:b.originals, blLine:blDoc?String(blDoc.quote||''):'', c47:(store.conditions_47A||[]).map(c=>c.quote||'').join(' '),
-      reads, amends:((store.source||{}).amends||[]).length};
+      reads, amends:((store.source||{}).amends||[]).length,
+      /* v0.9: 44B 最終仕向地 — 保管所 final_dest (あれば) · なければ L/C 判読構造 (lcText) · どちらも無い = null (照合の行を足さない) */
+      finalDest:(()=>{ const f=store.final_dest, ft=f==null?'':(typeof f==='string'?f:f.text); return C(ft)?{text:pyStrip(ft), raw:pyStrip(ft), src:'final_dest', refer:false}:lc44B(lcText); })()};
   }
   /* L = Draft の行 · rowsA = check() の行 (On board · 種類 · 通数) · lc = lcView · alias = portAliasOf */
   function lcCheck(L, rowsA, lc, alias, carrier){
@@ -662,7 +665,67 @@ const BL = (()=>{
     const m=lc.c47.toUpperCase().match(rx);
     if(m){ const ok=lc.lc_no?PC.indexOf(C(lc.lc_no))>=0:false; add('47A L/C No. in all docs',ok?'SAME':'DIFF',m[0].slice(0,150),ok?lc.lc_no:'(Draft に L/C 番号なし)','L/C '+lc.lc_no); }
     else add('47A L/C No. in all docs','NA_NO47A','','');
+    /* 8 v0.9 (THOR_35 · 形さん N69): 44B 最終仕向地 ↔ Draft の Place of Delivery — 44B が無い L/C は 行を足さない (v0.8 と同じ結果) */
+    const fd=lc.finalDest;
+    if(fd&&fd.refer) add('Final destination (44B)','NA_44B_47A',fd.raw||'','','44B → 47A (47A に地名の行がない)');
+    else if(fd&&fd.text){
+      const dp=deliveryOf(L), siD=pyStrip(lc.siDelivery||''), sn=siD?'S/I '+siD:'S/I 空欄';
+      const r0={item:'Final destination (44B)', lc_quote:String(fd.text).slice(0,220), si:lc.siDelivery==null?'':sn};
+      const put=(res,dr,note)=>{ out.push(Object.assign({},r0,{result:res, draft:String(dr==null?'':dr).slice(0,160), note:note||''})); };
+      if(!dp.label) put('UNKNOWN','','Draft に Place of Delivery の欄が見つからない');
+      else if(!C(dp.text)) put('DIFF','(空欄)','44B 最終仕向地がない（Place of Delivery 空欄）');
+      else { const hit=fdMatch(fd.text, dp.text), g=hit?null:samePortGroup(alias, fd.text, dp.text);
+        if(hit) put('SAME',dp.text,'44B '+hit);
+        else if(g) put('NOTATION_ALIAS',dp.text,'port_alias '+g+((alias&&alias.src==='test')?' (試験用 固定値)':''));
+        else put('DIFF',dp.text,'44B 最終仕向地と違う（Place of Delivery '+dp.text+' · 44B '+fd.text+'）'); }
+    }
     return out;
+  }
+  /* ══════════ v0.9 — 44B 最終仕向地 (L/C) · Draft の Place of Delivery 欄 ══════════
+     44B の値 = 保管所 final_dest (あれば) → なければ L/C 判読構造 (lc_text の view 「:44B: … = 値」) — Amend 「AMENDn :44B: REPLACE …」 = 最後のもの ·
+     「SEE / REFER FIELD 47A」 = 「44B → 47A-n: …」 の行の最後の 「:」 の後 */
+  function lc44B(text){
+    const t=String(text==null?'':text).replace(/^\uFEFF/,''), cut=t.search(/\n={20,}\n/), view=cut<0?t:t.slice(0,cut);
+    const m=view.match(/^:44B:[^=\n]*=[ \t]*(.*)$/m); if(!m||!C(m[1])) return null;
+    let v=pyStrip(m[1]), src='44B', a; const re=/^\s*AMEND(\d+)\s+:44B:\s*(?:REPLACE\s+|REPALL\s+)?(.+)$/gm;
+    while((a=re.exec(view))){ if(C(a[2])){ v=pyStrip(a[2]); src='AMEND'+a[1]; } }
+    if(/\b47A\b/.test(v.toUpperCase())&&WORDS(v).length<=6){ const r=view.match(/^\s*44B\s*→\s*47A-(\d+):\s*(.*)$/m);
+      if(!r) return {text:'', raw:v, src:'47A', refer:true};
+      const q=r[2], s=pyStrip(q.slice(q.lastIndexOf(':')+1)); return s?{text:s, raw:v, src:'47A-'+r[1], refer:false}:{text:'', raw:v, src:'47A', refer:true}; }
+    return {text:v, raw:v, src, refer:false};
+  }
+  const FD_SKIP=new Set(['PORT','PORTS','ANY','IN','OF','THE','SEAPORT','CITY','AND','OR','TERMINAL','PROVINCE','VIETNAM','VIET','NAM','INDONESIA','THAILAND','MALAYSIA','KOREA','INDIA','TAIWAN','CHINA','PHILIPPINES','BANGLADESH','JAPAN','REPUBLIC','SOUTH']);
+  /* 44B の 1 つ (「A OR B」 · 「A/B」 · 「A AND/OR B」 のどれか) の地名の語が Draft の欄に全部ある → その地名 · なければ '' */
+  function fdMatch(fdText, draftText){
+    const dw=new Set(WORDS(draftText)), dc=C(draftText);
+    for(const alt of String(fdText).toUpperCase().split(/\s+AND\s*\/\s*OR\s+|\s+OR\s+|\/|;/)){
+      const core=WORDS(alt).filter(w=>!FD_SKIP.has(w)); if(!core.length) continue;
+      if(core.every(w=>dw.has(w))||dc.indexOf(C(core.join('')))>=0) return pyStrip(alt); }
+    return '';
+  }
+  /* Draft の Place of Delivery (FINAL DESTINATION) 欄 — {label:欄の名前があるか, text:欄の下の字} · 欄の名前の行の 字の位置から (同じ行の 隣の欄の名前の 左まで) ·
+     下へ 40 pt まで · 次の欄の名前で止める · 同じ行の 「PLACE OF DELIVERY: 値」 も読む */
+  const FD_LAB=/PLACE OF DELIVERY|FINAL DESTINATION/i;
+  const FD_NEXT=/^\W*(\d+\W*)?(WEIGHT|MEASUREMENT|GROSS|PLACE OF|PORT OF|FINAL DESTINATION|NUMBER OF|NO\.? OF|FREIGHT|TYPE OF|MARKS|CONTAINER|DESCRIPTION|KIND OF|PARTICULARS|ONWARD|EXPORT REF|FORWARDING|DELIVERY AGENT|FOR DELIVERY|OCEAN VESSEL|VESSEL|PRE-?CARRIAGE|MOVE|SERVICE|B\/L NO|BILL OF LADING NO|SHIPPER|CONSIGNEE|NOTIFY)/i;
+  function deliveryOf(L){
+    const isLab=l=>l.t.length<160&&FD_LAB.test(l.t)&&!/RECEIVED BY|CARRIER SHALL|\bTERMS\b|CONDITIONS|\bCLAUSE\b(?! ?\d)|SUBJECT TO/i.test(l.t);
+    const bp=blPages(L); let D=L.filter(l=>bp.indexOf(l.p)>=0&&isLab(l));
+    if(!D.length) D=L.filter(isLab);   // B/L の頁に欄の名前が無い様式 (印刷済みの用紙) → 別紙 (Attached List) の 「Place of delivery:」
+    if(!D.length) return {label:false, text:''};
+    const p0=D[0].p, out=[], labs=labels(L).filter(([k,l])=>l.p===p0);
+    for(const d of D.filter(l=>l.p===p0)){
+      const T=d.rawT||d.t, i=T.toUpperCase().search(FD_LAB), lx=(d.ch&&d.ch[i]&&/PORT OF|VESSEL|RECEIPT|LOADING|DISCHARGE/i.test(T.slice(0,i)))?d.ch[i][0]:d.x;   // 前に別の欄の名前 (同じ行) があるときだけ 字の位置
+      const same=T.slice(i).match(/^(PLACE OF DELIVERY|FINAL DESTINATION)[^:：]{0,12}[:：]\s*(.+)$/i);
+      const n0=out.length;
+      if(same&&C(same[2])&&!FD_LAB.test(same[2])&&!/[a-z]{4}/.test(same[2])) out.push(pyStrip(same[2]));
+      else if(/[:：]\s*$/.test(T)) L.filter(l=>l.p===d.p&&l!==d&&Math.abs(l.y-d.y)<=2&&l.x>d.x&&!FD_NEXT.test(l.t)&&!FD_LAB.test(l.t)&&!/[:：]\s*$/.test(l.t)).sort((a,b)=>a.x-b.x).slice(0,1).forEach(l=>out.push(l.t));   // 「Place of delivery:」 の右 (同じ行)
+      const right=L.filter(l=>l.p===p0&&l!==d&&Math.abs(l.y-d.y)<=4&&l.x>lx+20&&FD_NEXT.test(l.t)).map(l=>l.x).sort((a,b)=>a-b);
+      const rx=right.length?right[0]-4:lx+220;
+      const nx=labs.map(([k,l])=>l.y).filter(y=>y>d.y+4).sort((a,b)=>a-b), ny=nx.length?Math.min(nx[0],d.y+40):d.y+40;   // 下の欄の名前の行まで
+      const below=L.filter(l=>l.p===p0&&l.y>d.y+2&&l.y<ny&&l.x>=lx-15&&l.x<rx).sort((a,b)=>a.y-b.y);
+      if(out.length===n0) for(const l of below){ if(FD_NEXT.test(l.t)||FD_LAB.test(l.t)||/\*\*\*|ATTACHED LIST/i.test(l.t)) break; out.push(l.t); }
+    }
+    return {label:true, text:pyStrip(out.join(' ')), page:p0};
   }
 
   /* ══════════ Step 2 C — ACL と (参考 · 判定に入れない) ══════════ */
@@ -822,7 +885,8 @@ const BL = (()=>{
     res.A=chk?classifyAll(chk.rows,L):[];
     res.other=otherDraft(iv,res.A,L,si);
     const rowsA=chk?chk.rows:check({items:[],cp:{},meta:{}},L,null).rows;
-    const lcv=input.lc?lcView(input.lc):null;
+    const lcv=input.lc?lcView(input.lc, input.lcText!=null?input.lcText:(input.cpCtx||{}).lcText):null;
+    if(lcv&&si){ const dI=itemOf(si,'delivery'); if(dI) lcv.siDelivery=dI.expected==null?'':String(dI.expected); }   // v0.9: S/I の Place of Delivery (44B の行の参考)
     res.B=input.lcWanted?lcCheck(L,rowsA,lcv,input.alias||[],input.carrier):[];
     res.C=chk?aclNote(res.A):[];
     if(E.editions.length>1) res.rev=revDiff(E.editions[E.editions.length-2].L,L);
@@ -845,13 +909,13 @@ const BL = (()=>{
 
   /* 結果表示 (DOM なし · 文字列) — 結論 → 確認した項目 全部 → 相違 (ACL 画面と同じ並び) */
   const FIELD_JA={'Booking/B/L No.':'Booking / B/L 番号','Vessel/Voyage':'本船・航海','POL':'積地 (POL)','POD':'揚地 (POD)','Place of Receipt':'受取地','Place of Delivery':'引渡地','Total Bales':'合計 Bales','Total Weight':'合計 重量','Total Containers':'合計 コンテナ本数'};
-  const LC_JA={'Consignee bank':'Consignee 銀行 (46A)','Notify (APPLICANT)':'Notify (APPLICANT)','FREIGHT PREPAID':'FREIGHT PREPAID','Originals / SWB':'原本通数 / SWB','Shipment ≤ 44C':'船積日 ≤ 44C','揚地 (44F)':'揚地 (44F)','積地 (44E)':'積地 (44E)','47A L/C No. in all docs':'47A 全書類に L/C 番号','L/C 判読':'L/C 判読'};
+  const LC_JA={'Consignee bank':'Consignee 銀行 (46A)','Notify (APPLICANT)':'Notify (APPLICANT)','FREIGHT PREPAID':'FREIGHT PREPAID','Originals / SWB':'原本通数 / SWB','Shipment ≤ 44C':'船積日 ≤ 44C','揚地 (44F)':'揚地 (44F)','積地 (44E)':'積地 (44E)','47A L/C No. in all docs':'47A 全書類に L/C 番号','L/C 判読':'L/C 判読','Final destination (44B)':'最終仕向地 (44B)'};
   const fieldJa = f => FIELD_JA[f]||(String(f).indexOf('Container ')===0?'コンテナ '+String(f).slice(10):f);
   const lcCls = r => /^SAME/.test(r.result)?'ok':/^DIFF/.test(r.result)?'ng':/^NOTATION/.test(r.result)?'note':/^NA|^REF|^STOPPED|^NO_DATE/.test(r.result)?'na':'read';
   /* 判定の語 (内部は 전수 조사と同じ 韓国語 · 画面は日本語) */
   const LC_RES=[[/^SAME_44C/,'一致 (44C 以内)'],[/^SAME/,'一致'],[/^DIFF_ABBR/,'相違 (略語だけ違う)'],[/^DIFF_44C/,'相違 (44C を過ぎた)'],[/^DIFF/,'相違'],[/^NO_DATE/,'日付なし (Draft 段階は普通)'],
     [/^UNKNOWN_NO46A/,'判断不可 (46A に B/L の行なし)'],[/^UNKNOWN/,'判断不可'],[/^NA_ANYJP/,'対象外 (日本のどの港でも)'],[/^NA_NOTBANK/,'対象外 (銀行指図式でない)'],[/^NA_NOTAPP/,'対象外 (APPLICANT 指定でない)'],
-    [/^NA_NO46A/,'対象外 (46A に文言なし)'],[/^NA_NO47A/,'対象外 (47A の条項なし)'],[/^NA/,'対象外'],[/^CHECK_PREPAID/,'要確認 (運賃表の PREPAID だけ · 文言なし)'],
+    [/^NA_NO46A/,'対象外 (46A に文言なし)'],[/^NA_44B_47A/,'対象外 (44B は 47A を参照)'],[/^NA_NO47A/,'対象外 (47A の条項なし)'],[/^NA/,'対象外'],[/^CHECK_PREPAID/,'要確認 (運賃表の PREPAID だけ · 文言なし)'],
     [/^LC_READ_CHECK/,'L/C 判読 要確認'],[/^REF_NOLC/,'参考 (保管所に未登録)'],[/^NOTATION_ALIAS/,'表記 (港の別名)'],[/^STOPPED/,'参考 (停止中)']];
   const LC_RES_JA = code => { for(const [rx,j] of LC_RES) if(rx.test(code)) return j; return code; };
   const lcResJa = t => LC_RES_JA(t)+(/^STOPPED/.test(t)&&t.indexOf(':')>0?' '+t.slice(t.indexOf(':')+1):'');
@@ -881,7 +945,7 @@ const BL = (()=>{
     if((res.otherCt||[]).length) h+='<div class="av-concl av-ng">'+E(OTHER_CT.label+': '+res.otherCt.map(o=>o.no).join(' · '))+'</div>'+res.otherCt.map(o=>'<div class="av-sub">Draft '+E(o.p)+' 頁: 「'+E(o.text)+'」</div>').join('');
     if(dA.length||dB.length||dK.length){ h+='<div class="av-h av-ng">相違 '+(dA.length+dB.length+dK.length)+' か所 — 直してもらうところ</div>';
       dA.forEach(r=>{ h+='<div class="av-diff"><div class="av-dn">'+E(fieldJa(r.field))+cpB(r.cp)+'</div><div class="av-sub">'+E(r.why)+'</div></div>'; });
-      dB.forEach(r=>{ h+='<div class="av-diff"><div class="av-dn">'+E(LC_JA[r.item]||r.item)+' — '+E(lcResJa(r.result))+cpB(r.cp)+'</div><table class="av-cols"><tr><th>Draft</th><th>L/C（正）</th></tr><tr><td>'+E(r.draft)+'</td><td>'+E(r.lc_quote)+'</td></tr></table><div class="av-sub">'+E(r.note)+'</div></div>'; });
+      dB.forEach(r=>{ h+='<div class="av-diff"><div class="av-dn">'+E(LC_JA[r.item]||r.item)+' — '+E(lcResJa(r.result))+cpB(r.cp)+'</div><table class="av-cols"><tr><th>Draft</th><th>L/C（正）</th></tr><tr><td>'+E(r.draft)+'</td><td>'+E(r.lc_quote)+'</td></tr></table><div class="av-sub">'+E(r.note)+'</div>'+(r.si?'<div class="av-sub">'+E(r.si)+'</div>':'')+'</div>'; });
       dK.forEach(i=>{ h+='<div class="av-diff"><div class="av-dn">'+E(i.label)+' — 相違'+cpB(i.cp)+'</div><table class="av-cols"><tr><th>Draft</th><th>基準（正）</th></tr><tr><td>'+E(i.actual)+'</td><td>'+E(i.expected)+'</td></tr></table><div class="av-sub">'+E(i.detail)+'</div></div>'; }); }
     const tK=K.filter(i=>i.trial&&i.would&&i.would!=='MATCH'&&i.would!=='INFO');
     if(tK.length) h+='<div class="av-h">試験中のチェック (管理者だけに表示 · 判定に入れない)</div>'+tK.map(i=>'<div class="av-diff"><div class="av-dn">'+E(i.label)+' — '+E(kw(i))+cpB(i.cp)+'</div><table class="av-cols"><tr><th>Draft</th><th>基準</th></tr><tr><td>'+E(i.actual)+'</td><td>'+E(i.expected)+'</td></tr></table><div class="av-sub">'+E(i.detail)+'</div></div>').join('');
@@ -922,7 +986,7 @@ const BL = (()=>{
     'Shipper':'bl:shipper','Consignee':'bl:consignee','Notify':'bl:notify','Also Notify':'bl:alsoNotify','Description':'bl:description','Marks':'bl:marks',
     'Total Bales':'bl:total:bales','Total Weight':'bl:total:weight','Total Containers':'bl:total:cntr'};
   const CP_B_KEYS = {'Consignee bank':'bl:lc:consignee','Notify (APPLICANT)':'bl:lc:notify','FREIGHT PREPAID':'bl:lc:freight','Originals / SWB':'bl:lc:originals','Shipment ≤ 44C':'bl:lc:shipment',
-    '揚地 (44F)':'bl:lc:pod','積地 (44E)':'bl:lc:pol','47A L/C No. in all docs':'bl:lc:47a','L/C 判読':'bl:lc:none'};
+    '揚地 (44F)':'bl:lc:pod','積地 (44E)':'bl:lc:pol','47A L/C No. in all docs':'bl:lc:47a','L/C 判読':'bl:lc:none','Final destination (44B)':'bl:lc:final44b'};
   const cpKeyA = f => CP_A_KEYS[f]||(String(f).indexOf('Container ')===0?'bl:cntr:'+String(f).slice(10):'bl:other:'+f);
   const cpKeyB = it => CP_B_KEYS[it]||'bl:lc:other:'+it;
   /* Draft の欄 (ACL の欄の名前で) — 칸 이름 の行の 下 · 右の行 (칸 이름 の行そのものは外す) · 칸 이름 が 4 種類未満の様式 = 読めない
@@ -967,7 +1031,7 @@ const BL = (()=>{
   }
   const BLX = {VERSION, C, Z, NUM, WORDS, seqRatio, draftName, linesOf, tokenBoxes, isBlPage, isScan, pagesOf, blPages, editions,
     mergeRows, labels, fieldOf, colWindows, finder, check, CLASS, CLASS_JA, CONTENT_SKIP, draftCtx, near, subtype, classify, classifyAll, otherDraft,
-    useEngine, samePortGroup, pdate, lcView, lcCheck, aclNote, revDiff,
+    useEngine, samePortGroup, pdate, lcView, lcCheck, aclNote, revDiff, /* v0.9 */ lc44B, fdMatch, deliveryOf,
     freightTargets, pageRoles, maskPlan, moneyAll, judgeInvoice, viewHtml, fieldJa, /* v0.4 */ OTHER_CT, otherCtLines, siFromCompare, toCsv, lcResJa, /* v0.3 */ LC_RES, LC_RES_JA, FIELD_JA, LC_JA, CLS_CSS,
     /* v0.2 */ CP_A_KEYS, CP_B_KEYS, cpKeyA, cpKeyB, CP_F_KEYS, cpDraftFields, applyCp};
   return BLX;
@@ -1027,6 +1091,13 @@ async function lcReadFor(contract){
       if(r.status===404) return null; if(!r.ok) throw new Error('L/C 保管所 '+r.status);
       const j=await r.json(); if(!j||j.schema!=='lc_read/1') throw new Error('L/C 保管所の形が違う ('+(j&&j.schema)+')'); return j; })().catch(e=>{ delete LC_READ_CACHE[key]; throw e; });
   return LC_READ_CACHE[key];
+}
+/* v0.9: L/C 判読構造 (保管所の source.lc_text · 44B 最終仕向地を読む) — 読むだけ · 無い / 読めない = '' (44B の行を足さない) */
+const LC_TEXT_CACHE = {};
+async function lcTextFor(store){
+  const p=String(((store||{}).source||{}).lc_text||''); if(!store||store.final_dest||!/^古紙\/[^\\?#]+\.txt$/.test(p)) return '';
+  if(LC_TEXT_CACHE[p]===undefined) LC_TEXT_CACHE[p]=(async()=>{ const r=await graphFetch(drv()+'/root:/'+p.split('/').map(encodeURIComponent).join('/')+':/content'); return r.ok?await r.text():''; })().catch(e=>{ delete LC_TEXT_CACHE[p]; logLine('L/C 判読構造 読めない: '+e.message,'warn'); return ''; });
+  return LC_TEXT_CACHE[p];
 }
 const FWD_CACHE = {};
 function forwarderOf(id){
@@ -1141,7 +1212,8 @@ async function runOne(iv){
   }
   const lc=pay==='LC'&&cp.ok&&cp.lc?cp.lc:null;
   const cpCtx=cp.ok?{lc, si:ACL.pickBlSi(cp.sis)||null, ex:ACL.expected(cp), booking:cp.booking, meta:Object.assign({},cp.meta,{pay, carrier})}:null;
-  const res=BL.judgeInvoice({iv, carrier, si, lc, lcWanted:pay==='LC', alias:S.alias, files:fl, cp:cpCtx&&S.cpx&&S.cpx.rows.length?S.cpx:null, cpCtx});
+  const lcText=lc?await lcTextFor(lc):'';
+  const res=BL.judgeInvoice({iv, carrier, si, lc, lcText, lcWanted:pay==='LC', alias:S.alias, files:fl, cp:cpCtx&&S.cpx&&S.cpx.rows.length?S.cpx:null, cpCtx});
   res.pay=pay; res.compass=cp.ok?'':cp.reason; res.folders=folders.map(f=>f.path); res.webUrl=(S.files[res.fileId]||{}).webUrl||'';
   return res;
 }
@@ -1279,7 +1351,7 @@ async function makeBuyerLocal(cur){
 window.BLAPP = {runOne, buildBuyerPdf, readPages, loadAclCore, loadCp, cpVersions, ACL_ENGINE, S};
 
 LEENAI.init({
-  sys:'D-00', name:'B/L Draft 照合試験', version:'0.8', date:'2026-11-27',
+  sys:'D-00', name:'B/L Draft 照合試験', version:'0.9', date:'2026-11-27',
   desc:'B/L Draft (船社 PDF) を座標で読み、COMPASS (S/I · ブッキング · コンテナ) と L/C 保管所に照合 · バイヤー用 Draft (運賃だけ隠した画像 PDF) を作る (読むだけ · AI なし)',
   graphScopes:['Sites.ReadWrite.All'],
   redirectUri:'https://mhlee205.github.io/CONTRACT_SEND/bl_bench.html',

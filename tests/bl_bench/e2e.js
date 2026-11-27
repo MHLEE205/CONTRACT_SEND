@@ -22,7 +22,8 @@ const pdfjs=require('pdfjs-dist/legacy/build/pdf.js');
   const cn=cp.containers.filter(c=>c.crcf9_container_no); d.splice(d.findIndex(x=>/^TSTU1000011/.test(x.t)),3,...cn.map((c,i)=>({x:30,y:370+i*11,t:c.crcf9_container_no+' / '+c.crcf9_seal_no+' / '+c.crcf9_quantity+' BALES / '+c.crcf9_n_w+' KGS'})));
   const draft=await T.mkPdf([d.concat(F.FREIGHT)]);
   const lcStore=F.lc({lc_no:'TLC0001', bl:{consignee_text:'TO ORDER OF SAMPLE BANK HO CHI MINH BRANCH', consignee_bank:'SAMPLE BANK HO CHI MINH BRANCH', notify_text:'APPLICANT', notify_is_applicant:true, originals:3, freight:'PREPAID'},
-    applicant:{name:'SAMPLE PAPER CO., LTD.'}, pod:{text:'CAT LAI PORT, VIETNAM', list:['CAT LAI']}});
+    applicant:{name:'SAMPLE PAPER CO., LTD.'}, pod:{text:'CAT LAI PORT, VIETNAM', list:['CAT LAI']},
+    source:{amends:[], lc_text:'古紙/-. AI 活用/D-00/A1_bench/TEST_RUN/lc_text/LRS-2601FK1.txt'}});   // v0.9: L/C 判読構造 (44B) — 読むだけ
   const calls=[], writes=[]; let MASTERS=null;
   const J=(o,st)=>({ok:(st||200)<400, status:st||200, headers:{get:()=>null}, json:async()=>o, text:async()=>JSON.stringify(o), arrayBuffer:async()=>new ArrayBuffer(0)});
   const B=(u8)=>({ok:true, status:200, headers:{get:()=>null}, arrayBuffer:async()=>u8.buffer.slice(u8.byteOffset,u8.byteOffset+u8.byteLength)});
@@ -37,6 +38,7 @@ const pdfjs=require('pdfjs-dist/legacy/build/pdf.js');
       if(u.indexOf('/root:/古紙/-. 古紙書類/▲ 書類作成中/'+IV+':/children')>=0) return J({value:[{id:'D1', name:IV+'_DRAFT.pdf', file:{}, size:draft.length, lastModifiedDateTime:'2026-10-14T00:00:00Z', webUrl:'https://example.invalid/d1'},{id:'X1', name:IV+'_SI.pdf', file:{}}]});
       if(u.indexOf('/items/D1/content')>=0) return B(draft);
       if(u.indexOf('/root:/古紙/LC/_READ/LRS-2601FK1.json:/content')>=0) return J(lcStore);
+      if(u.indexOf('/root:/古紙/-. AI 活用/D-00/A1_bench/TEST_RUN/lc_text/LRS-2601FK1.txt:/content')>=0){ const t=F.lcText('CAT LAI PORT, VIETNAM OR SAMPLE CITY, VIETNAM'); return {ok:true, status:200, headers:{get:()=>null}, text:async()=>t}; }
       /* v0.2: マスターの版の記録 (承認の安全装置) — 版 1 つ · 保存者 = 管理者 */
       const mm=u.match(/\/root:\/古紙\/-\. AI 活用\/MASTER\/master_(checkpoint|port_alias)\.json\?\$select=id$/); if(mm&&MASTERS) return J({id:'M_'+mm[1]});
       const mv=u.match(/\/items\/M_(checkpoint|port_alias)\/versions\?/); if(mv&&MASTERS) return J({value:[{id:'2.0', lastModifiedBy:{user:{email:'adm_a@example.com'}}}]});
@@ -66,7 +68,7 @@ const pdfjs=require('pdfjs-dist/legacy/build/pdf.js');
     w.LEENAI={init(cfg){ w.__cfg=cfg; w.document.addEventListener('DOMContentLoaded',()=>{ w.document.getElementById('app').style.display=''; cfg.onReady(); ready(); }); },
       auth:{token:async()=>'FAKE', status:{dataverse:'ok', graph:'ok'}}, SP:{DRIVE_ID:'DRIVE'}, master:{get:async n=>{ calls.push('MASTER '+n); return MASTERS?MASTERS[n]||null:null; }}}; }});
   const w=dom.window; await readyP;
-  eq(w.__cfg.version,'0.8','LEENAI.init 버전'); ok(/bl_bench\.html$/.test(w.__cfg.redirectUri),'redirectUri = bl_bench.html');
+  eq(w.__cfg.version,'0.9','LEENAI.init 버전'); ok(/bl_bench\.html$/.test(w.__cfg.redirectUri),'redirectUri = bl_bench.html');
   /* ① 照合 */
   w.document.getElementById('bbInv').value=IV+'\nNOT-AN-IV'; w.document.getElementById('bbRun').click();
   for(let i=0;i<200&&!/完了/.test(w.document.getElementById('bbRunSt').textContent);i++) await new Promise(r=>setTimeout(r,50));
@@ -77,7 +79,9 @@ const pdfjs=require('pdfjs-dist/legacy/build/pdf.js');
   const cls=f=>((R.A||[]).find(r=>r.field===f)||{}).class;
   ['Shipper','Consignee','Notify','Booking/B/L No.'].forEach(f=>eq(cls(f),'SAME','A '+f));
   const lcr=it=>((R.B||[]).find(r=>r.item===it)||{}).result||'';
-  ok(/^SAME/.test(lcr('Consignee bank')),'B Consignee 은행 '+lcr('Consignee bank')); ok(/^SAME/.test(lcr('47A L/C No. in all docs')),'B 47A');
+  ok(/^SAME/.test(lcr('Consignee bank')),'B Consignee 은행 '+lcr('Consignee bank'));
+  eq(lcr('Final destination (44B)'),'SAME','v0.9 B 44B 最終仕向地 (L/C 判読構造を GET) = 一致');
+  ok(calls.some(c=>/lc_text\/LRS-2601FK1\.txt:\/content$/.test(decodeURIComponent(c))),'v0.9 L/C 判読構造 GET'); ok(/^SAME/.test(lcr('47A L/C No. in all docs')),'B 47A');
   ok(calls.some(c=>/raw\.githubusercontent\.com\/MHLEE205\/CONTRACT_SEND\/[0-9a-f]{40}\/acl_bench\.html$/.test(c)),'ACL 엔진 = 고정한 커밋의 acl_bench.html (sha256 일치)');
   ok(['checkpoint','port_alias','staff'].every(n=>calls.indexOf('MASTER '+n)>=0),'마스터 읽기 (checkpoint · port_alias · staff)');
   eq(writes,[],'쓰기 0'); ok(calls.every(c=>/^(GET|MASTER) /.test(c)),'GET 만');

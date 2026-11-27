@@ -16,6 +16,6 @@ const row=(rows,f)=>rows.find(x=>x.field===f)||{};
   ok(['SAME','NOTATION'].indexOf(row(zip,'Shipper').class)>=0&&/表記:電話・郵便番号/.test(row(zip,'Shipper').note||''), '③ Draft 에만 우편번호 = 表記', row(zip,'Shipper'));
   const bad=await run({notify:'SAMPLE PAPER INDUSTRY CO., LTD.\nADD: LOT CN5, SAMPLE ZONE, SAMPLE DISTRICT\nTEL: 84-28-0000-0000'}, {notify:['SAMPLE PAPER INDUSTRY CO., LTD.','ADD: LOT CN5, SAMPLE ZONE, SAMPLE DISTRICT','TEL: 84-28-0000-0009']});
   ok(row(bad,'Notify').class!==nb.class, '④ 번호가 다르면 그대로 (못 찾음 → 다른 판정)', [row(bad,'Notify').class, nb.class]);
-  ok(['0.6','0.7','0.8'].indexOf(BL.VERSION)>=0, '⑤ bl-core 0.6 이상');
+  ok(['0.6','0.7','0.8','0.9'].indexOf(BL.VERSION)>=0, '⑤ bl-core 0.6 이상');
   T.done('v06');
 })().catch(e=>{ console.log('FAIL', e.stack); process.exit(1); });
