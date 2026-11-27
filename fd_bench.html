@@ -57,7 +57,7 @@ const FD = (function(){
      ・チェックポイント: 1 項目 = master_checkpoint の 1 行 (engine_key fd:…) · 行が 有効 のときだけ判定に入る · 試験 = trial:true (判定に入れない)
        マスターを渡さない → 全部 試験 扱い (判定 0) · マスターにない項目 → 実行しない
      ・純粋関数 (通信 0) — 書類ツール (DOC_TOOL) がコミット + sha256 で固定して使う
-     v0.4 (2026-11-27 指示書 THOR_34 · 形さん N66 「_」 で統一): ファイル名 — {IV}_TO_BANK · {IV}_FRT_MEMO · {IV}_BL_DRAFT · {IV}_ED_REV も 部品でない (空白の名前と同じ) · 判定は v0.3 と同じ
+     v0.4 (2026-11-27 指示書 THOR_34 · 形さん N66 「_」 で統一): ファイル名 — {IV}_TO_BANK · {IV}_FRT_MEMO · {IV}_ED_REV も 部品でない (空白の名前 TO BANK · FRT MEMO · ED REV と同じ) · {IV}_BL_DRAFT = {IV}_BL DRAFT と同じ扱い · 判定は v0.3 と同じ
      v0.3 (2026-11-25 指示書 THOR_19 ①-2 · ①-3 · 形さん P2 · P3): 保険 — 会社の標準の除外特約 (INS_STD_EXCL) = 一致 · ほかの除外文 = 注意 · Claims 「DESTINATION」 で 仕向地が L/C と同じ国 · 地域 = 注意
      v0.2 (2026-11-25 指示書 THOR_17 E-K3 · E-K4 · 形さん K3 · K4): 保険証券の表面を AI で読む (INS_AI — 保険の頁 1 〜 2 だけ · 2 回同じ値だけ) → 保険 10 行を コードで 一致 / 相違 (読めなければ 読取確認) ·
        保険の頁 = TO BANK AI 判別の INS · 保険のファイル (_1POL) · なければ TO BANK の縮小画像で 保険の頁を探す (insLocate) · 保存 _fd_ai/{sha256}.ins.json ·
@@ -119,7 +119,7 @@ const FD = (function(){
   }
   /* ── ファイル → 読む所の段 (1 が先) · 使わないファイル ── */
   const TIER_JA = {1:'FD_DATA', 2:'文字版', 3:'DRAFT DOC', 4:'単品', 5:'通関版'};
-  const SKIP_FILE = /_FD(?![_ ]?DATA)[^\/]*\.pdf$|TO[ _]?BANK|PHOTO|搬入票|_ED\.|_ED[\s_]|DHL|FRT[ _]?MEMO|BL[ _]DRAFT|ACL|仮ACL|WEIGHT LIST|\.(xlsx?|zip|json|msg|eml|png|jpe?g)$/i;
+  const SKIP_FILE = /_FD(?![_ ]?DATA)[^\/]*\.pdf$|TO[ _]?BANK|PHOTO|搬入票|_ED\.|_ED[\s_]|DHL|FRT[ _]?MEMO|ACL|仮ACL|WEIGHT LIST|\.(xlsx?|zip|json|msg|eml|png|jpe?g)$/i;
   const LABEL_FILE = /SecurityLabel|X\.13\.|検査書類|ASSIGNMENT|\bPIR\b/i;
   function fileTier(name, iv){
     const n=S(name), base=n.split('/').pop(), ivx=S(iv).toUpperCase();
