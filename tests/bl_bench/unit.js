@@ -15,6 +15,14 @@ async function run(siOver, dOver){ const L=await pdfLines([F.draftItems(dOver)])
   eq(BL.draftName('NFK2601-01_FRT MEMO(REV).pdf',F.IV),{kind:'MEMO',rev:1},'이름 MEMO REV');
   eq(BL.draftName('NFK2601-01_DRAFT 2.pdf',F.IV),{kind:'DRAFT',rev:1},'이름 _2 = 2번째');
   eq(BL.draftName('NFK2601-01_DRAFT DOC.pdf',F.IV).excl,'DRAFT DOC (当社書類)','이름 DRAFT DOC 제외');
+  /* v0.8 (THOR_34 · N66): 「_」 이름 — 옛 이름과 같게 */
+  eq(BL.draftName('NFK2601-01_FRT_MEMO.pdf',F.IV),{kind:'MEMO',rev:0},'v0.8 _FRT_MEMO');
+  eq(BL.draftName('NFK2601-01_FRT_MEMO_REV2.pdf',F.IV),{kind:'MEMO',rev:2},'v0.8 _FRT_MEMO_REV2');
+  eq(BL.draftName('NFK2601-01_BL_DRAFT.pdf',F.IV),{kind:'DRAFT',rev:0},'v0.8 _BL_DRAFT');
+  eq(BL.draftName('NFK2601-01_BL_DRAFT_REV.pdf',F.IV),{kind:'DRAFT',rev:1},'v0.8 _BL_DRAFT_REV');
+  eq(BL.draftName('NFK2601-01_DRAFT_DOC.pdf',F.IV).excl,'DRAFT DOC (当社書類)','v0.8 _DRAFT_DOC 제외');
+  eq(BL.draftName('NFK2601-01_FD_DRAFT.pdf',F.IV).excl,'FD/DHL/FREE TIME','v0.8 _FD_DRAFT 제외');
+  eq(BL.draftName('NFK2601-01_FRT MEMO REV.pdf',F.IV),{kind:'MEMO',rev:1},'v0.8 옛 이름 그대로');
   eq(BL.draftName('NFK2601-01_FD DRAFT.pdf',F.IV).excl,'FD/DHL/FREE TIME','이름 FD DRAFT 제외');
   eq(BL.draftName('NFK2601-01_DRAFT(旧).pdf',F.IV).excl,'(旧)','이름 (旧) 제외');
   eq(BL.draftName('NFK2601-02_DRAFT.pdf',F.IV).excl,'他の Invoice 番号','이름 다른 IV 제외');

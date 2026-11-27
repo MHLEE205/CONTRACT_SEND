@@ -36,8 +36,11 @@ const run=(o)=>FD.check(Object.assign({iv:IV, files:files(o), lc:LC(o&&o.lc), lc
 const it=(r,k)=>r.items.find(i=>i.key===k)||{};
 const W=i=>i.trial?i.would:i.status;
 
-sect('기본 (버전 0.3 · LEENAI.init 1곳 · 푸터 · confirm/alert 0 · 한글 0 · 쓰기 0)', ()=>{
-  eq(FD.VERSION,'0.3','fd-core VERSION'); eq((HTML.match(/version:'0\.3'/g)||[]).length,1,'LEENAI.init version 1곳');
+sect('기본 (버전 0.4 · LEENAI.init 1곳 · 푸터 · confirm/alert 0 · 한글 0 · 쓰기 0)', ()=>{
+  eq(FD.VERSION,'0.4','fd-core VERSION'); eq((HTML.match(/version:'0\.4'/g)||[]).length,1,'LEENAI.init version 1곳');
+  /* v0.4 (THOR_34 · N66): 「_」 이름도 부품이 아님 */
+  eq([IV+'_TO_BANK.pdf',IV+'_TO_BANK_REV.pdf',IV+'_FRT_MEMO.pdf',IV+'_BL_DRAFT.pdf',IV+'_ED_REV.pdf',IV+'_FD_REV.pdf',IV+'_FD_DATA.pdf'].map(n=>FD.fileTier(n,IV).tier),[0,0,0,0,0,0,1],'v0.4 「_」 이름 (TO_BANK · FRT_MEMO · BL_DRAFT · ED_REV · FD_REV = 0 · FD_DATA = 1)');
+  eq(FD.fileTier(IV+'_TO_BANK.pdf',IV).why,'TO BANK (スキャン · AI で枚数だけ)','v0.4 TO_BANK 이유');
   ok(/✦ Powered by LEENAI Automation System/.test(HTML),'푸터'); ok(!/\b(confirm|alert)\(/.test(HTML),'confirm/alert 0');
   ok(!/[가-힣]/.test(HTML),'화면 · 코드 한글 0'); ok(/書き込み禁止/.test(HTML)&&!/method:'(PUT|POST|PATCH|DELETE)'/.test(HTML),'Graph 쓰기 0 (GET 만)');
   ok(!/ghp_|github_pat_|sk-ant|client_secret|AKIA/.test(HTML),'보안 grep 0');

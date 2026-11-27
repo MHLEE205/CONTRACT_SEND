@@ -57,11 +57,12 @@ const FD = (function(){
      ・チェックポイント: 1 項目 = master_checkpoint の 1 行 (engine_key fd:…) · 行が 有効 のときだけ判定に入る · 試験 = trial:true (判定に入れない)
        マスターを渡さない → 全部 試験 扱い (判定 0) · マスターにない項目 → 実行しない
      ・純粋関数 (通信 0) — 書類ツール (DOC_TOOL) がコミット + sha256 で固定して使う
+     v0.4 (2026-11-27 指示書 THOR_34 · 形さん N66 「_」 で統一): ファイル名 — {IV}_TO_BANK · {IV}_FRT_MEMO · {IV}_BL_DRAFT · {IV}_ED_REV も 部品でない (空白の名前と同じ) · 判定は v0.3 と同じ
      v0.3 (2026-11-25 指示書 THOR_19 ①-2 · ①-3 · 形さん P2 · P3): 保険 — 会社の標準の除外特約 (INS_STD_EXCL) = 一致 · ほかの除外文 = 注意 · Claims 「DESTINATION」 で 仕向地が L/C と同じ国 · 地域 = 注意
      v0.2 (2026-11-25 指示書 THOR_17 E-K3 · E-K4 · 形さん K3 · K4): 保険証券の表面を AI で読む (INS_AI — 保険の頁 1 〜 2 だけ · 2 回同じ値だけ) → 保険 10 行を コードで 一致 / 相違 (読めなければ 読取確認) ·
        保険の頁 = TO BANK AI 判別の INS · 保険のファイル (_1POL) · なければ TO BANK の縮小画像で 保険の頁を探す (insLocate) · 保存 _fd_ai/{sha256}.ins.json ·
        提出期限 = Invoice 別 の FD送付日 (PORTAL clearance_status.json shipping[IV].fd_date · ctx.fdSent) > 船積 + n 日 (有効期限まで) → 相違 · FD送付日 なし → 参考 (注意にしない) */
-  const VERSION = '0.3';
+  const VERSION = '0.4';
   const S = v => v==null?'':String(v);
   const U = t => S(t).normalize('NFKC').toUpperCase().replace(/\s+/g,' ').trim();
   const AN = t => U(t).replace(/[^A-Z0-9]/g,'');
@@ -118,13 +119,13 @@ const FD = (function(){
   }
   /* ── ファイル → 読む所の段 (1 が先) · 使わないファイル ── */
   const TIER_JA = {1:'FD_DATA', 2:'文字版', 3:'DRAFT DOC', 4:'単品', 5:'通関版'};
-  const SKIP_FILE = /_FD(?![_ ]?DATA)[^\/]*\.pdf$|TO ?BANK|PHOTO|搬入票|_ED\.|_ED\s|DHL|FRT ?MEMO|ACL|仮ACL|WEIGHT LIST|\.(xlsx?|zip|json|msg|eml|png|jpe?g)$/i;
+  const SKIP_FILE = /_FD(?![_ ]?DATA)[^\/]*\.pdf$|TO[ _]?BANK|PHOTO|搬入票|_ED\.|_ED[\s_]|DHL|FRT[ _]?MEMO|BL[ _]DRAFT|ACL|仮ACL|WEIGHT LIST|\.(xlsx?|zip|json|msg|eml|png|jpe?g)$/i;
   const LABEL_FILE = /SecurityLabel|X\.13\.|検査書類|ASSIGNMENT|\bPIR\b/i;
   function fileTier(name, iv){
     const n=S(name), base=n.split('/').pop(), ivx=S(iv).toUpperCase();
     if(!/\.pdf$/i.test(n)) return {tier:0, why:'PDF でない'};
     if(/_FD[_ ]?DATA\.pdf$/i.test(base)) return {tier:1};
-    if(SKIP_FILE.test(base)) return {tier:0, why:/TO ?BANK/i.test(base)?'TO BANK (スキャン · AI で枚数だけ)':/_FD/i.test(base)?'FD.pdf (スキャン)':'FD の部品でない'};
+    if(SKIP_FILE.test(base)) return {tier:0, why:/TO[ _]?BANK/i.test(base)?'TO BANK (スキャン · AI で枚数だけ)':/_FD/i.test(base)?'FD.pdf (スキャン)':'FD の部品でない'};
     if(/^通関\//.test(n)||/通関/.test(n)) return {tier:5};
     if(ivx&&new RegExp('^'+ivx.replace(/[-]/g,'\\-')+'_\\s*(REV\\s*\\d*)?\\s*\\.pdf$','i').test(base)) return {tier:2};
     if(/DRA?F?A?T ?D[O0]C|DARFT DOC/i.test(base)) return {tier:3};
@@ -446,7 +447,7 @@ const FD = (function(){
   /* 読む頁 — files = [{name}] (Invoice フォルダのファイル) · tbAi = fd_ai 保存本 · tbName = TO BANK のファイル名 → {by, file, pages} / {by:'LOCATE', file:TO BANK, pages:null} / null */
   const INS_FILE = /_\d?POL\.pdf$|INSURANCE|保険/i;
   function insPick(files, tbAi, tbName, opt){
-    const pol=(opt&&opt.noPol)?null:(files||[]).map(f=>S(f&&f.name!=null?f.name:f)).find(n=>INS_FILE.test(n.split('/').pop())&&/\.pdf$/i.test(n)&&!/TO ?BANK/i.test(n));
+    const pol=(opt&&opt.noPol)?null:(files||[]).map(f=>S(f&&f.name!=null?f.name:f)).find(n=>INS_FILE.test(n.split('/').pop())&&/\.pdf$/i.test(n)&&!/TO[ _]?BANK/i.test(n));
     if(pol) return {by:'POL', file:pol, pages:[1,2]};   // 白紙の証券 (値のない様式) だった → 呼ぶ側が opt.noPol で TO BANK を探す (実データ 3 件)
     const P=((tbAi&&tbAi.pages)||[]).filter(p=>p.r1&&p.r2&&p.r1.doc_type==='INS'&&p.r2.doc_type==='INS').map(p=>p.page).sort((a,b)=>a-b);
     if(P.length&&tbName){ const out=[P[0]]; if(P[1]===P[0]+1) out.push(P[1]); return {by:'TB_AI', file:tbName, pages:out}; }
@@ -585,7 +586,7 @@ async function runOne(){
     const lc=meta.contract?await spJson('古紙/LC/_READ/'+meta.contract+'.json'):null, lcText=lc&&lc.source&&lc.source.lc_text?await spText(lc.source.lc_text):'';
     const fo=await folderOf(iv); if(!fo) throw new Error('Invoice フォルダがない'); const all=await walk(fo.path, fo.kids, '');
     const files=[]; for(const f of all){ const t=FD.fileTier(f.name, iv); if(!t.tier) continue; try{ files.push({name:f.name, modified:f.modified, pages:await readPages(await spBytes(f.id))}); }catch(e){ logLine(f.name+' を読めない','warn'); } }
-    const tb=all.filter(f=>/TO ?BANK/i.test(f.name)&&/\.pdf$/i.test(f.name)).sort((a,b)=>String(b.modified).localeCompare(String(a.modified)))[0]; let ai=null;
+    const tb=all.filter(f=>/TO[ _]?BANK/i.test(f.name)&&/\.pdf$/i.test(f.name)).sort((a,b)=>String(b.modified).localeCompare(String(a.modified)))[0]; let ai=null;
     if(tb){ const h=await sha256hex(await spBytes(tb.id)); ai=await spJson(FD_AI_DIR+'/'+h+'.json'); logLine('TO BANK '+tb.name+(ai?' — AI 判別の保存結果あり':' — AI 判別の保存結果なし (書類ツールで自動実行)'),ai?'ok':'warn'); }
     /* v0.2 (K3): 保険証券 AI の保存本 (書類ツール · 保険のファイル → 白紙なら TO BANK) · (K4): FD送付日 = PORTAL clearance_status.json (読むだけ) */
     let insAi=null; for(const noPol of [false,true]){ const p=FD.insPick(all, ai, tb?tb.name:null, {noPol}); const pf=p&&all.find(f=>f.name===p.file); if(!pf) continue;
@@ -608,7 +609,7 @@ function render(res){
 function startPage(){ $('fbMain').style.display=''; $('fbRun').onclick=runOne; const dot=LEENAI.auth.status; logLine('接続: Dataverse '+dot.dataverse+' / Graph '+dot.graph); }
 window.FBAPP = {runOne, render, loadAcl};
 LEENAI.init({
-  sys:'D-00', name:'FD 確認試験', version:'0.3', date:'2026-11-25',
+  sys:'D-00', name:'FD 確認試験', version:'0.4', date:'2026-11-27',
   desc:'FD の部品 PDF (文字) を L/C 保管所の要件と照合 · TO BANK は AI の頁判別の保存結果 (枚数 · 原本/写し · 署名) · 新しい確認は全部 試験 (読むだけ · AI なし)',
   graphScopes:['Sites.ReadWrite.All'],
   redirectUri:'https://mhlee205.github.io/CONTRACT_SEND/fd_bench.html',
