@@ -28,6 +28,7 @@ node('unit_v010.js',[html],'② 단위 v0.10 (POD 1~3 나눠 쓰기 · po_vo 종
 node('unit_v011.js',[html],'② 단위 v0.11 (外す港 먼저 · po_vo 실적에 2025년 · 누설 금지 · 2603TJ1 보고)');
 node('unit_v012.js',[html],'② 단위 v0.12 (S/I ルールマスター 4규칙 · 못 읽음 → 내장값 · 자동보다 우선 · マスター草案 「ルールマスターと違う」)');
 node('unit_v013.js',[html],'② 단위 v0.13 (L/C 原文の欄 lcSections · 組立 규칙 R1 ~ R8 · 支払期限 N72 · 組立 입력에 L/C 原文)');
+node('unit_v014.js',[html],'② 단위 v0.14 (N76 Notify = 46A · 37-Q1 줄 위치 · 37-Q3 번호 · N78 수익자 증명 · L4 過去の修正 · 37-Q6 画像 L/C 転記)');
 // legacy (v0.3 ~ v0.5, 집 Mac 에서 옮김 · 가짜 데이터) — 2026-11-16
 node('legacy_v03_v05_unit.js',[html],'② legacy 단위 v0.3~v0.5 (154)');
 node('legacy_v03_v05_pdf.js',[html],'② legacy PDF 0 복원 · NET/SET (합성 PDF)');

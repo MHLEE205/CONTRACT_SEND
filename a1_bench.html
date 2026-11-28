@@ -2821,14 +2821,14 @@ L/C から検証済みで抜き出した値・COMPASS との照合表・直前 S
 - 直前 S/I の形が先: 欄の置き場所 (どの行をどの欄に書くか) · 区切り (# · *** · 改行) · DEPOSIT / XX の書き方 · 日付の形 は 直前 S/I のまま。値と文言だけ 今回の L/C 原文にする。
 - 直前 S/I に無かった行を足すのは、今回の L/C が書類に求めていて S/I のどの欄にもまだ無いときだけ。同じ行を 2 つの欄に書かない。直前 S/I が 別の欄に書いている行を 移さない。
 - 「L/C 原文の欄」にある番号 (TAX CODE · TAX ID · IMPORT / ENVIRONMENTAL LICENSE · L/C 番号 · 契約 / PO 番号 · HS) は 入力にある番号として使う (【番号】の「入力に無い番号」ではない) — 空にしない。
-- 今回の L/C に無い TAX CODE · TAX ID · IMPORT / ENVIRONMENTAL LICENSE の番号 (と その日付) · Notify の TEL · EMAIL は 直前 S/I (なければ 参考 S/I) の値をそのまま入れ、note に「要確認 · 前回の番号」(空にしない · N48-b ライセンスは時々変わる)。
+- 今回の L/C に無い TAX CODE · TAX ID · IMPORT / ENVIRONMENTAL LICENSE の番号 (と その日付) · Notify の TEL · EMAIL は 同じバイヤーの直前 S/I の値だけ (参考 S/I = 別のバイヤー からは取らない)。同じバイヤーの S/I が無いときは 空にして note に「初めてのバイヤー · 番号なし」。
 - R1 crcf9_invoicetext · crcf9_all · crcf9_bl_text2: 45A の商品の行を 抜かさない — HS CODE / HS NO · SPECIFICATION (その下の行も全部) · COUNTRY OF ORIGIN / ORIGIN · 契約 / PO の参照 (OTHER DETAILS AS PER CONTRACT … · AS PER PURCHASE ORDER …) · 品質の注記 (POST-CONSUMER … 等)。数量・単価・金額 (Invoice 本体に出る) と 価格条件 (payment_terms) は 直前 S/I にその行があるときだけ。46A が Invoice · B/L に「記載せよ」と求める項目 (DEPOSIT 番号 · HS CODE · 契約番号 · L/C 番号 等) も入れる。原文の順番 · 語 · 記号のまま (HS の点や空白も原文どおり)。
-- R1 の置き場所 (直前 S/I がないとき · 社内の実績 38 契約): SPECIFICATION とその下の行 = crcf9_invoicetext (ベトナム向けは sino 2) · 契約 / PO の参照 (OTHER DETAILS AS PER CONTRACT … · AS PER PURCHASE ORDER …) と PACKING 以外の注記 = crcf9_all · DEPOSIT 番号の行 = crcf9_bl_text1。直前 S/I があるときは その置き場所。
-- R2 crcf9_bencert_text (受益者証明に S/I から入れる値 · 社内の実績): ① FREE TIME (DEMURRAGE · DETENTION) の文言 — 46A の BENEFICIARY'S CERTIFICATE が証明を求めるとき、または 47A が「… OR BENEFICIARY CERTIFICATE」に書いてよいとするとき → その FREE TIME の文言を原文どおり (前後の WE HEREBY CERTIFY 等は 直前 S/I の形) ② 受益者証明 (や 46A の書類) が 契約番号の記載を求めるとき → 「CONTRACT NUMBER (今回の契約番号)」 (直前 S/I の形)。SHIPMENT ADVICE · 写真 · 書類送付 の証明の文は入れない。直前 S/I が空でも 今回の L/C に ① ② があれば 入れる (空にしない)。ベトナム向け (sino 1+2) は sino 2 だけ (直前 S/I があれば その sino)。
+- R1 の置き場所 (v0.14 · 37-Q1): 45A の行 (HS · SPECIFICATION · 契約 · PO) を入れる欄 = 同じバイヤーの最近の S/I (直前 S/I · 参考) でその行が入っている欄。番号の付け方 (+ · 7. 等) も その S/I のまま。同じバイヤーの S/I に無い行 = crcf9_invoicetext。初めてのバイヤー (同じバイヤーの S/I なし) = crcf9_invoicetext に入れ note に「初めてのバイヤー」。DEPOSIT 番号の行 = crcf9_bl_text1。
+- R2 crcf9_bencert_text (v0.14 · N78): 受益者証明が SHIPMENT ADVICE · 写真 · 書類送付 などの証明の文のときは この欄 = 「CONTRACT NUMBER (今回の契約番号)」 だけ (証明の文全体は入れない · 証明書は別に作る)。FREE TIME (DEMURRAGE · DETENTION) の文言を 受益者証明に書くバイヤー (直前 S/I が FREE TIME の文言) は その文言を原文どおり (直前 S/I の形 · ベトナム向けは sino 2)。どちらも無い L/C = 空。
 - R3 crcf9_place_of_delivery_1〜3 · crcf9_port_of_discharge: 44B / 44F が「A OR B OR C …」のときは 候補の 1 つずつを そのまま (候補の文字列と同じ · 2 つの候補の語を混ぜない · 新しい港名を作らない)。候補が 1 つなら その原文。
 - R4 cr49f_payment_terms: 45A の TRADE TERM / TERMS OF PRICE / PRICE TERM の行を 最後まで (INCLUDE · INCLUDING · EXCLUDING の費用の語 · INCOTERMS 2020 も)。
 - R5 crcf9_consignee: 46A の B/L の 指図文 (MADE OUT TO / TO THE ORDER OF …) を そのまま — 銀行の 支店名 (… BRANCH) まで 抜かさない。
-- R6 crcf9_address (Notify の住所): L/C :50 (Applicant) の住所を そのまま。空にしない。L/C に無い語を足さない (COMPASS · 直前 S/I の住所の語で 置き換えない)。
+- R6 crcf9_notify_party · crcf9_address (Notify · v0.14 N76): 46A の B/L 条項の Notify の文 (名前 · 住所) を そのまま (TEL · FAX は crcf9_tel · crcf9_fax へ)。46A が「NOTIFY (THE) APPLICANT」だけのときだけ :50 の名前 · 住所。46A に Notify の指示が無いときは 直前 S/I (同じバイヤー · 同じ銀行) の値。:50 の住所を 46A の Notify の代わりに使わない。
 - R7 港の文言: L/C 原文のまま (… PORT, HO CHI MINH CITY, VIETNAM の都市名も 縮めない)。
 - R8 銀行名 (crcf9_all 等): L/C 原文のまま (PUBLIC COMPANY LIMITED / LTD 等 の語を 抜かさない)。
 - crcf9_payment_deadline (支払期限 · N72 「核心だけ · 核心の語は原文のまま」): 「{日数} DAYS {AFTER|FROM} {基準日の語}」 だけ。AFTER / FROM と基準日の語 (BILL OF LADING DATE · B/L DATE · SHIPMENT DATE …) は 42C の原文の語のまま (DATE を抜かない)。抜く: 金額の割合 (FOR 100 PCT …) · 通数 · WILL BE PAID · 呈示の文 · 数字の前の 0 (090 → 90) · 繰り返しの誤記 (DAYS DAYS → DAYS)。原文の先頭に AT があれば 残してよい。
@@ -2836,6 +2836,13 @@ L/C から検証済みで抜き出した値・COMPASS との照合表・直前 S
 出力は JSON のみ。`;
 function r2LcInput(lcp){   // ① 에 넘기는 것은 LC 원문 텍스트와 판독 구조뿐 (파일명 · COMPASS 없음)
   return {view:lcp.view, files:lcp._base.map(x=>({text:x.text})), amends:lcp._amends.map(x=>({n:x.n,text:x.text}))};
+}
+/* v0.14 (37-Q6): 画像 L/C (文字なし PDF) の本文を AI で書き写す — D-01 と同じ 転記の指示 (d01TranscribePromptText) · PDF をそのまま渡す · 結果 = LC_TEXT_START … END の間 (cleanLcRawText) */
+async function transcribeImageLc(t, lcp, opts, rep){
+  const content=[]; for(const x of lcp._base.concat(lcp._amends)) if(x.image) content.push({type:'document',source:{type:'base64',media_type:'application/pdf',data:await b64(x.file)}});
+  if(!content.length) return {text:'', calls:[]};
+  const r=await callClaude({model:opts.r2Model||A1_DEFAULT_MODEL,max_tokens:16000,system:SYS,messages:[{role:'user',content:[...content,{type:'text',text:d01TranscribePromptText()}]}]},`${t.no} 画像 L/C 転記 #${rep}`);
+  const m=String(r.text||'').match(/LC_TEXT_START([\s\S]*?)LC_TEXT_END/); return {text:m?cleanLcRawText(m[1]):'', calls:[{step:'transcribe',usage:r.usage,ms:r.ms,stop:r.stop}]};
 }
 function r2RawForCheck(lcp){ return lcp._base.map(x=>x.text).concat(lcp._amends.map(x=>x.text)).join('\n'); }
 async function runR2Extract(t, lcp, opts, rep){
@@ -2864,6 +2871,7 @@ function r2ExtraText(x){
     `参考 — ブッキング時の選択候補に入っているべき港: 契約 POD ${x.podContract||'(なし)'} / ブッキング POD ${(x.podBookings||[]).join(', ')||'(なし)'}\n`+
     `\n【バイヤー契約番号 (販売契約 cr49f_po_no)】\n${x.poNo||'(なし)'}\n`+
     `\n【L/C 原文の欄 (コードで切り出し · 原文のまま — R1 ~ R8 · 支払期限 はここから写す)】\n${x.lcSec||'(なし — 画像 L/C)'}\n`+
+    ((x.learn&&x.learn.length)?`\n【過去の修正 (担当が推薦を直して登録した値 · 同じバイヤー${x.learnBank?' · 同じ銀行':''} · 新しい順 · 参考 — L/C 原文が優先)】\n${x.learn.map(l=>'- '+l.col+' (sino '+l.sino+'): 推薦 '+JSON.stringify(l.from)+' → 登録 '+JSON.stringify(l.to)).join('\n')}\n`:'')+
     `\n【L/C 指定文言 (46A B/L 条項 · コードで検出)】\n`+(w?`${w.kind}: 「${w.text}」\n→ 形: ${JSON.stringify(w.template)}\n規則: L/C の値の名前 (SECURITY DEPOSIT NUMBER・TAX ID NUMBER 等) は文字ではなく値の場所 ({DEPOSIT}・{TAX_ID})。S/I の DEPOSIT・XX はその場所を埋める慣行表記で、L/C 違反ではない。\n`:'(なし)\n');
 }
 function contractWords(c){ c=c||{}; return [c.no,c.buyerName,c.payDays,c.terms,c.pod,c.poNo].concat((c.details||[]).map(d=>[d.item,d.quantity,d.price].join(' '))).filter(Boolean); }
@@ -3533,7 +3541,7 @@ function startBench(){
 }
 
 LEENAI.init({
-  sys:'D-00', name:'A1 SI推奨精度試験', version:'0.13', date:'2026-11-28',
+  sys:'D-00', name:'A1 SI推奨精度試験', version:'0.14', date:'2026-11-28',
   desc:'契約/LC → S/I 推奨を COMPASS S/I と欄ごとに比較 (読み取り専用・結果は SharePoint へ)',
   graphScopes:['Sites.ReadWrite.All'],
   redirectUri:'https://mhlee205.github.io/CONTRACT_SEND/a1_bench.html',
