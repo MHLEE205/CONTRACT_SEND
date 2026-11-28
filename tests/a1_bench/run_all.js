@@ -27,6 +27,7 @@ node('unit_v09.js',[html],'② 단위 v0.9 (LC 지정 문구 · 나라 기본 ·
 node('unit_v010.js',[html],'② 단위 v0.10 (POD 1~3 나눠 쓰기 · po_vo 종류 · 판매계약 번호 칸 · 2606MG1 예외 · v0.11 에서 POD 규칙 문구 2곳 새 문구도 받게)');
 node('unit_v011.js',[html],'② 단위 v0.11 (外す港 먼저 · po_vo 실적에 2025년 · 누설 금지 · 2603TJ1 보고)');
 node('unit_v012.js',[html],'② 단위 v0.12 (S/I ルールマスター 4규칙 · 못 읽음 → 내장값 · 자동보다 우선 · マスター草案 「ルールマスターと違う」)');
+node('unit_v013.js',[html],'② 단위 v0.13 (L/C 原文の欄 lcSections · 組立 규칙 R1 ~ R8 · 支払期限 N72 · 組立 입력에 L/C 原文)');
 // legacy (v0.3 ~ v0.5, 집 Mac 에서 옮김 · 가짜 데이터) — 2026-11-16
 node('legacy_v03_v05_unit.js',[html],'② legacy 단위 v0.3~v0.5 (154)');
 node('legacy_v03_v05_pdf.js',[html],'② legacy PDF 0 복원 · NET/SET (합성 PDF)');

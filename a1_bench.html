@@ -871,7 +871,27 @@ function exceptionOf(no){ var k=String(no||'').toUpperCase(); return (RULE_EXCEP
 function csvEscape(v){ var s=String(v==null?'':v); return /[",\n\r]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }
 function toCsv(header, rows){ return '﻿'+[header.map(csvEscape).join(',')].concat(rows.map(function(r){return header.map(function(h){return csvEscape(r[h]);}).join(',');})).join('\r\n'); }
 
-return {HEAD_FIELDS:HEAD_FIELDS, DETAIL_FIELDS:DETAIL_FIELDS, IMPORTANT:IMPORTANT, COL:COL, SHORT:SHORT, D01_KEY_TO_COL:D01_KEY_TO_COL, A1_EXCEPTIONS:A1_EXCEPTIONS, exceptionOf:exceptionOf, setRuleExceptions:setRuleExceptions,
+/* v0.13 (N72 · THOR_37 R1 ~ R8): L/C 原文の欄 — 通知書の印刷 (「DESCRIPTION OF GOODS AND/OR SERVICES:45A」 + 次の行から内容) を 欄ごとに切り出す。
+   値は原文の行のまま (空白だけ整える · 読み替えない)。同じ欄が 2 回 (Amend) あれば 両方 (後のものを「Amend」付きで)。 */
+var LC_SEC_RE=/^\s*([A-Z][A-Z0-9 \/&.,'()\-]*?)\s*:(\d{2}[A-Z]?)(?=\s|$)\s*(.*)$/;
+var LC_SEC_TAGS=['20','31D','32B','39A','41A','41D','42C','42P','42A','42D','43P','43T','44A','44E','44F','44B','44C','45A','46A','47A','50','59','71D','48'];
+function lcSections(raw){
+  var out=[], cur=null;
+  String(raw||'').replace(/\r\n/g,'\n').split('\n').forEach(function(line){
+    if(/^\s*-{2,}\s*Page\s+\d+\s*-{2,}\s*$/i.test(line)) return;
+    var m=line.match(LC_SEC_RE);
+    if(m&&m[1].length>=3){ cur={tag:m[2], label:m[1].trim(), lines:m[3].trim()?[m[3].replace(/\s+$/,'')]:[]}; out.push(cur); return; }
+    if(cur) cur.lines.push(line.replace(/^\s+|\s+$/g,''));
+  });
+  out.forEach(function(s){ while(s.lines.length&&!s.lines[s.lines.length-1]) s.lines.pop(); while(s.lines.length&&!s.lines[0]) s.lines.shift(); s.text=s.lines.join('\n'); delete s.lines; });
+  return out;
+}
+function lcSectionText(raw, tags){
+  var S=lcSections(raw), want=tags||LC_SEC_TAGS, seen={}, L=[];
+  S.forEach(function(s){ if(want.indexOf(s.tag)<0||!s.text) return; var n=seen[s.tag]=(seen[s.tag]||0)+1; L.push(':'+s.tag+': '+s.label+(n>1?' (Amend '+(n-1)+')':'')+'\n'+s.text); });
+  return L.join('\n\n');
+}
+return {lcSections:lcSections, lcSectionText:lcSectionText, LC_SEC_TAGS:LC_SEC_TAGS, HEAD_FIELDS:HEAD_FIELDS, DETAIL_FIELDS:DETAIL_FIELDS, IMPORTANT:IMPORTANT, COL:COL, SHORT:SHORT, D01_KEY_TO_COL:D01_KEY_TO_COL, A1_EXCEPTIONS:A1_EXCEPTIONS, exceptionOf:exceptionOf, setRuleExceptions:setRuleExceptions,
   PRACTICES:PRACTICES, CATALOG_SUMMARY:CATALOG_SUMMARY, normV:normV, judgeField:judgeField, ungroundedNumbers:ungroundedNumbers,
   parseContractNo:parseContractNo, isEarlier:isEarlier, pickPriors:pickPriors, hexToHash:hexToHash, parseSwiftMessages:parseSwiftMessages,
   orderMessages:orderMessages, splitClauses:splitClauses, mergeTags:mergeTags, findForwarding:findForwarding, bankKeyOf:bankKeyOf, lcNoOf:lcNoOf,
@@ -2797,6 +2817,22 @@ L/C から検証済みで抜き出した値・COMPASS との照合表・直前 S
 【出典】欄ごとに source を必ず付ける: LC(loc) | PRIOR(契約番号) | MASTER | CONTRACT | PLACEHOLDER
 【番号】入力に無い番号は作らない。VO 番号は、直前 S/I がその欄に VO を書いていたときだけ "XX"。Deposit 番号は S/I では常に "XX"（書き方は直前 S/I の形、例「#DEPOSIT#」）。
 【差異】L/C と COMPASS（照合表で 差異）が違うときは選ばない: L/C の値を入れ、note に両方の値を書く。
+【L/C 原文の写し方 — v0.13 (「L/C 原文を 抜かない · 縮めない · そのまま移す」)】入力の「L/C 原文の欄」をそのまま使う。
+- 直前 S/I の形が先: 欄の置き場所 (どの行をどの欄に書くか) · 区切り (# · *** · 改行) · DEPOSIT / XX の書き方 · 日付の形 は 直前 S/I のまま。値と文言だけ 今回の L/C 原文にする。
+- 直前 S/I に無かった行を足すのは、今回の L/C が書類に求めていて S/I のどの欄にもまだ無いときだけ。同じ行を 2 つの欄に書かない。直前 S/I が 別の欄に書いている行を 移さない。
+- 「L/C 原文の欄」にある番号 (TAX CODE · TAX ID · IMPORT / ENVIRONMENTAL LICENSE · L/C 番号 · 契約 / PO 番号 · HS) は 入力にある番号として使う (【番号】の「入力に無い番号」ではない) — 空にしない。
+- 今回の L/C に無い TAX CODE · TAX ID · IMPORT / ENVIRONMENTAL LICENSE の番号 (と その日付) · Notify の TEL · EMAIL は 直前 S/I (なければ 参考 S/I) の値をそのまま入れ、note に「要確認 · 前回の番号」(空にしない · N48-b ライセンスは時々変わる)。
+- R1 crcf9_invoicetext · crcf9_all · crcf9_bl_text2: 45A の商品の行を 抜かさない — HS CODE / HS NO · SPECIFICATION (その下の行も全部) · COUNTRY OF ORIGIN / ORIGIN · 契約 / PO の参照 (OTHER DETAILS AS PER CONTRACT … · AS PER PURCHASE ORDER …) · 品質の注記 (POST-CONSUMER … 等)。数量・単価・金額 (Invoice 本体に出る) と 価格条件 (payment_terms) は 直前 S/I にその行があるときだけ。46A が Invoice · B/L に「記載せよ」と求める項目 (DEPOSIT 番号 · HS CODE · 契約番号 · L/C 番号 等) も入れる。原文の順番 · 語 · 記号のまま (HS の点や空白も原文どおり)。
+- R1 の置き場所 (直前 S/I がないとき · 社内の実績 38 契約): SPECIFICATION とその下の行 = crcf9_invoicetext (ベトナム向けは sino 2) · 契約 / PO の参照 (OTHER DETAILS AS PER CONTRACT … · AS PER PURCHASE ORDER …) と PACKING 以外の注記 = crcf9_all · DEPOSIT 番号の行 = crcf9_bl_text1。直前 S/I があるときは その置き場所。
+- R2 crcf9_bencert_text (受益者証明に S/I から入れる値 · 社内の実績): ① FREE TIME (DEMURRAGE · DETENTION) の文言 — 46A の BENEFICIARY'S CERTIFICATE が証明を求めるとき、または 47A が「… OR BENEFICIARY CERTIFICATE」に書いてよいとするとき → その FREE TIME の文言を原文どおり (前後の WE HEREBY CERTIFY 等は 直前 S/I の形) ② 受益者証明 (や 46A の書類) が 契約番号の記載を求めるとき → 「CONTRACT NUMBER (今回の契約番号)」 (直前 S/I の形)。SHIPMENT ADVICE · 写真 · 書類送付 の証明の文は入れない。直前 S/I が空でも 今回の L/C に ① ② があれば 入れる (空にしない)。ベトナム向け (sino 1+2) は sino 2 だけ (直前 S/I があれば その sino)。
+- R3 crcf9_place_of_delivery_1〜3 · crcf9_port_of_discharge: 44B / 44F が「A OR B OR C …」のときは 候補の 1 つずつを そのまま (候補の文字列と同じ · 2 つの候補の語を混ぜない · 新しい港名を作らない)。候補が 1 つなら その原文。
+- R4 cr49f_payment_terms: 45A の TRADE TERM / TERMS OF PRICE / PRICE TERM の行を 最後まで (INCLUDE · INCLUDING · EXCLUDING の費用の語 · INCOTERMS 2020 も)。
+- R5 crcf9_consignee: 46A の B/L の 指図文 (MADE OUT TO / TO THE ORDER OF …) を そのまま — 銀行の 支店名 (… BRANCH) まで 抜かさない。
+- R6 crcf9_address (Notify の住所): L/C :50 (Applicant) の住所を そのまま。空にしない。L/C に無い語を足さない (COMPASS · 直前 S/I の住所の語で 置き換えない)。
+- R7 港の文言: L/C 原文のまま (… PORT, HO CHI MINH CITY, VIETNAM の都市名も 縮めない)。
+- R8 銀行名 (crcf9_all 等): L/C 原文のまま (PUBLIC COMPANY LIMITED / LTD 等 の語を 抜かさない)。
+- crcf9_payment_deadline (支払期限 · N72 「核心だけ · 核心の語は原文のまま」): 「{日数} DAYS {AFTER|FROM} {基準日の語}」 だけ。AFTER / FROM と基準日の語 (BILL OF LADING DATE · B/L DATE · SHIPMENT DATE …) は 42C の原文の語のまま (DATE を抜かない)。抜く: 金額の割合 (FOR 100 PCT …) · 通数 · WILL BE PAID · 呈示の文 · 数字の前の 0 (090 → 90) · 繰り返しの誤記 (DAYS DAYS → DAYS)。原文の先頭に AT があれば 残してよい。
+- 上の欄の note には 使った L/C の欄 (例「LC 45A」「LC 46A-2」) を書く。
 出力は JSON のみ。`;
 function r2LcInput(lcp){   // ① 에 넘기는 것은 LC 원문 텍스트와 판독 구조뿐 (파일명 · COMPASS 없음)
   return {view:lcp.view, files:lcp._base.map(x=>({text:x.text})), amends:lcp._amends.map(x=>({n:x.n,text:x.text}))};
@@ -2818,7 +2854,8 @@ function r2ExtraFor(t, lcp){
   const c=S.byNo[t.no]||{}, cur=lcp.current||{}, tags={};
   Object.keys(cur).forEach(k=>{ tags[k]=(cur[k]&&cur[k].value)||''; });
   const ctx=A1M.lcContext({tags, lcNo:lcp.lcNo||'', text:Object.keys(tags).map(k=>':'+k+': '+tags[k]).join('\n')}, c.poNo||''); ctx.contractNo=t.no;
-  return {podContract:c.podPort||'', podBookings:(c._bookingPods||[]).slice(), podCands:(ctx.podCands||[]).slice(), poNo:c.poNo||'', wording:A1M.lcWording(tags, ctx), ctx};
+  return {podContract:c.podPort||'', podBookings:(c._bookingPods||[]).slice(), podCands:(ctx.podCands||[]).slice(), poNo:c.poNo||'', wording:A1M.lcWording(tags, ctx), ctx,
+    lcSec:lcp.image?'':A1C.lcSectionText(r2RawForCheck(lcp))};   // v0.13: L/C 原文の欄 (画像 L/C = なし)
 }
 function r2ExtraText(x){
   if(!x) return '';
@@ -2826,6 +2863,7 @@ function r2ExtraText(x){
   return `\n【L/C 仕向港候補 (44B/44F · コードで 1 港ずつに分解) — place_of_delivery 用】\n${(x.podCands||[]).join(' / ')||'(なし)'}\n規則: ${A1M.POD_RULE}\n`+
     `参考 — ブッキング時の選択候補に入っているべき港: 契約 POD ${x.podContract||'(なし)'} / ブッキング POD ${(x.podBookings||[]).join(', ')||'(なし)'}\n`+
     `\n【バイヤー契約番号 (販売契約 cr49f_po_no)】\n${x.poNo||'(なし)'}\n`+
+    `\n【L/C 原文の欄 (コードで切り出し · 原文のまま — R1 ~ R8 · 支払期限 はここから写す)】\n${x.lcSec||'(なし — 画像 L/C)'}\n`+
     `\n【L/C 指定文言 (46A B/L 条項 · コードで検出)】\n`+(w?`${w.kind}: 「${w.text}」\n→ 形: ${JSON.stringify(w.template)}\n規則: L/C の値の名前 (SECURITY DEPOSIT NUMBER・TAX ID NUMBER 等) は文字ではなく値の場所 ({DEPOSIT}・{TAX_ID})。S/I の DEPOSIT・XX はその場所を埋める慣行表記で、L/C 違反ではない。\n`:'(なし)\n');
 }
 function contractWords(c){ c=c||{}; return [c.no,c.buyerName,c.payDays,c.terms,c.pod,c.poNo].concat((c.details||[]).map(d=>[d.item,d.quantity,d.price].join(' '))).filter(Boolean); }
@@ -3495,7 +3533,7 @@ function startBench(){
 }
 
 LEENAI.init({
-  sys:'D-00', name:'A1 SI推奨精度試験', version:'0.12', date:'2026-11-16',
+  sys:'D-00', name:'A1 SI推奨精度試験', version:'0.13', date:'2026-11-28',
   desc:'契約/LC → S/I 推奨を COMPASS S/I と欄ごとに比較 (読み取り専用・結果は SharePoint へ)',
   graphScopes:['Sites.ReadWrite.All'],
   redirectUri:'https://mhlee205.github.io/CONTRACT_SEND/a1_bench.html',
